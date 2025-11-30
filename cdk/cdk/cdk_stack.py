@@ -27,8 +27,12 @@ class CdkStack(Stack):
     - CloudFront distribution for SPA
     """
 
-    def __init__(self, scope: Construct, construct_id: str, **kwargs) -> None:
+    def __init__(
+        self, scope: Construct, construct_id: str, env_name: str = "dev", **kwargs
+    ) -> None:
         super().__init__(scope, construct_id, **kwargs)
+
+        self.env_name = env_name
 
         # ====================================================================
         # DynamoDB Table - Single Table Design
@@ -37,7 +41,7 @@ class CdkStack(Stack):
         self.table = dynamodb.Table(
             self,
             "PsmApp",
-            table_name="PsmApp",
+            table_name=f"PsmApp-{env_name}",
             partition_key=dynamodb.Attribute(
                 name="PK", type=dynamodb.AttributeType.STRING
             ),
@@ -151,7 +155,7 @@ class CdkStack(Stack):
         self.user_pool = cognito.UserPool(
             self,
             "UserPool",
-            user_pool_name="PopcornSalesManager",
+            user_pool_name=f"PopcornSalesManager-{env_name}",
             sign_in_aliases=cognito.SignInAliases(email=True, username=False),
             self_sign_up_enabled=True,
             auto_verify=cognito.AutoVerifiedAttrs(email=True),
@@ -282,7 +286,7 @@ class CdkStack(Stack):
         self.user_pool_domain = self.user_pool.add_domain(
             "UserPoolDomain",
             cognito_domain=cognito.CognitoDomainOptions(
-                domain_prefix=f"popcorn-sales-{self.account}"
+                domain_prefix=f"popcorn-sales-{env_name}-{self.account}"
             ),
         )
 
@@ -298,7 +302,7 @@ class CdkStack(Stack):
         self.api = appsync.GraphqlApi(
             self,
             "Api",
-            name="PopcornSalesManagerAPI",
+            name=f"PopcornSalesManagerAPI-{env_name}",
             definition=appsync.Definition.from_file(schema_path),
             authorization_config=appsync.AuthorizationConfig(
                 default_authorization=appsync.AuthorizationMode(

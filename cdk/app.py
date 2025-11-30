@@ -8,31 +8,25 @@ from cdk.cdk_stack import CdkStack
 
 app = cdk.App()
 
-# Determine if we're deploying to LocalStack
-use_localstack = os.getenv("USE_LOCALSTACK", "false").lower() == "true"
+# Get environment from context or environment variable (dev/prod)
+env_name = app.node.try_get_context("environment") or os.getenv("ENVIRONMENT", "dev")
 
 # Configure environment
-if use_localstack:
-    # LocalStack configuration
-    env = cdk.Environment(
-        account="000000000000",  # LocalStack default account
-        region=os.getenv("AWS_DEFAULT_REGION", "us-east-1"),
-    )
-    stack_name = "PopcornSalesManager-LocalStack"
-else:
-    # AWS configuration
-    env = cdk.Environment(
-        account=os.getenv("CDK_DEFAULT_ACCOUNT"),
-        region=os.getenv("CDK_DEFAULT_REGION", "us-east-1"),
-    )
-    stack_name = "PopcornSalesManager"
+env = cdk.Environment(
+    account=os.getenv("CDK_DEFAULT_ACCOUNT"),
+    region=os.getenv("CDK_DEFAULT_REGION", "us-east-1"),
+)
+
+# Environment-specific stack name
+stack_name = f"PopcornSalesManager-{env_name}"
 
 CdkStack(
     app,
-    "CdkStack",
+    f"CdkStack-{env_name}",
     stack_name=stack_name,
+    env_name=env_name,
     env=env,
-    description="Popcorn Sales Manager - Core Infrastructure (DynamoDB, S3, IAM)",
+    description=f"Popcorn Sales Manager - Core Infrastructure ({env_name})",
 )
 
 app.synth()
