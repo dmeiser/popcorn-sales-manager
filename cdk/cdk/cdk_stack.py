@@ -41,7 +41,7 @@ class CdkStack(Stack):
         self.table = dynamodb.Table(
             self,
             "PsmApp",
-            table_name=f"PsmApp-{env_name}",
+            table_name=f"psm-app-{env_name}",
             partition_key=dynamodb.Attribute(
                 name="PK", type=dynamodb.AttributeType.STRING
             ),
@@ -155,7 +155,7 @@ class CdkStack(Stack):
         self.user_pool = cognito.UserPool(
             self,
             "UserPool",
-            user_pool_name=f"PopcornSalesManager-{env_name}",
+            user_pool_name=f"popcorn-sales-manager-{env_name}",
             sign_in_aliases=cognito.SignInAliases(email=True, username=False),
             self_sign_up_enabled=True,
             auto_verify=cognito.AutoVerifiedAttrs(email=True),
@@ -302,7 +302,7 @@ class CdkStack(Stack):
         self.api = appsync.GraphqlApi(
             self,
             "Api",
-            name=f"PopcornSalesManagerAPI-{env_name}",
+            name=f"popcorn-sales-manager-api-{env_name}",
             definition=appsync.Definition.from_file(schema_path),
             authorization_config=appsync.AuthorizationConfig(
                 default_authorization=appsync.AuthorizationMode(

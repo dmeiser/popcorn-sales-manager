@@ -18,7 +18,7 @@ env = cdk.Environment(
 )
 
 # Environment-specific stack name
-stack_name = f"PopcornSalesManager-{env_name}"
+stack_name = f"popcorn-sales-manager-{env_name}"
 
 CdkStack(
     app,
