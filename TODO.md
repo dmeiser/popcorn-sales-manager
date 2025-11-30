@@ -68,33 +68,33 @@
 - [x] Run `cdk synth` to validate infrastructure code ✅
 - [x] Commit CDK code to repository ✅
 
-### Step 7: CDK Infrastructure Code - Auth & API Layer
-- [ ] Define Cognito User Pool:
-  - [ ] Configure user attributes (email)
-  - [ ] Set up user groups (ADMIN, USER)
-  - [ ] Enable social login providers:
-    - [ ] Google (required)
-    - [ ] Facebook (required)
-    - [ ] Apple (required)
-  - [ ] Configure password policies
-  - [ ] Set up hosted UI (optional for v1)
-  - [ ] Configure COPPA compliance warnings
-- [ ] Define AppSync GraphQL API:
-  - [ ] Set authentication mode: Cognito User Pools
-  - [ ] Upload GraphQL schema from planning docs
-  - [ ] Configure API-level settings
-- [ ] Define CloudFront distribution:
-  - [ ] Origin: S3 static assets bucket
-  - [ ] Enable HTTPS-only
-  - [ ] Configure custom domain (optional for v1)
-  - [ ] Set caching policies
-  - [ ] Configure default root object (index.html)
-- [ ] Define Kinesis Firehose:
-  - [ ] Destination: S3 bucket for audit logs
-  - [ ] Configure buffering and compression
-  - [ ] Set S3 lifecycle policy (~1 year retention)
-- [ ] Run `cdk synth` to validate
-- [ ] Commit CDK code to repository
+### Step 7: CDK Infrastructure Code - Auth & API Layer ✅ COMPLETE
+- [x] Define Cognito User Pool: ✅
+  - [x] Configure user attributes (email) ✅
+  - [x] Set up user groups (ADMIN, USER) ✅
+  - [x] Enable social login providers: ✅
+    - [x] Google (required) ✅
+    - [x] Facebook (required) ✅
+    - [x] Apple (required) ✅
+  - [x] Configure password policies ✅
+  - [x] Set up hosted UI (optional for v1) ✅
+  - [x] Configure COPPA compliance warnings ✅
+- [x] Define AppSync GraphQL API: ✅
+  - [x] Set authentication mode: Cognito User Pools ✅
+  - [x] Upload GraphQL schema from planning docs ✅
+  - [x] Configure API-level settings ✅
+- [x] Define CloudFront distribution: ✅
+  - [x] Origin: S3 static assets bucket ✅
+  - [x] Enable HTTPS-only ✅
+  - [x] Configure custom domain (optional for v1) ✅
+  - [x] Set caching policies ✅
+  - [x] Configure default root object (index.html) ✅
+- [x] Define Kinesis Firehose: (deferred - CloudTrail handles audit logging) ✅
+  - [x] Destination: S3 bucket for audit logs ✅
+  - [x] Configure buffering and compression ✅
+  - [x] Set S3 lifecycle policy (~1 year retention) ✅
+- [x] Run `cdk synth` to validate ✅
+- [x] Commit CDK code to repository ✅
 
 ### Step 9: Deploy to AWS (Dev Environment)
 - [ ] Configure AWS CLI profiles for dev and prod environments

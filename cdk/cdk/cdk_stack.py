@@ -1,11 +1,17 @@
 from aws_cdk import (
     Stack,
     RemovalPolicy,
+    Duration,
     aws_dynamodb as dynamodb,
     aws_s3 as s3,
     aws_iam as iam,
+    aws_cognito as cognito,
+    aws_appsync as appsync,
+    aws_cloudfront as cloudfront,
+    aws_cloudfront_origins as origins,
 )
 from constructs import Construct
+import os
 
 
 class CdkStack(Stack):
@@ -16,6 +22,9 @@ class CdkStack(Stack):
     - DynamoDB table with single-table design
     - S3 buckets for static assets and exports
     - IAM roles for Lambda functions
+    - Cognito User Pool for authentication
+    - AppSync GraphQL API
+    - CloudFront distribution for SPA
     """
 
     def __init__(self, scope: Construct, construct_id: str, **kwargs) -> None:
@@ -134,3 +143,215 @@ class CdkStack(Stack):
 
         # Grant AppSync role access to DynamoDB table
         self.table.grant_read_write_data(self.appsync_service_role)
+
+        # ====================================================================
+        # Cognito User Pool - Authentication (Essentials tier)
+        # ====================================================================
+
+        self.user_pool = cognito.UserPool(
+            self,
+            "UserPool",
+            user_pool_name="PopcornSalesManager",
+            sign_in_aliases=cognito.SignInAliases(email=True, username=False),
+            self_sign_up_enabled=True,
+            auto_verify=cognito.AutoVerifiedAttrs(email=True),
+            standard_attributes=cognito.StandardAttributes(
+                email=cognito.StandardAttribute(required=True, mutable=True),
+                given_name=cognito.StandardAttribute(required=False, mutable=True),
+                family_name=cognito.StandardAttribute(required=False, mutable=True),
+            ),
+            password_policy=cognito.PasswordPolicy(
+                min_length=8,
+                require_lowercase=True,
+                require_uppercase=True,
+                require_digits=True,
+                require_symbols=True,
+            ),
+            account_recovery=cognito.AccountRecovery.EMAIL_ONLY,
+            removal_policy=RemovalPolicy.RETAIN,
+            advanced_security_mode=cognito.AdvancedSecurityMode.ENFORCED,  # Essentials tier
+        )
+
+        # Note: COPPA compliance warning (13+ age requirement) must be displayed
+        # in application UI. Lambda trigger for age verification deferred to later phase.
+
+        # Create user groups
+        cognito.CfnUserPoolGroup(
+            self,
+            "AdminGroup",
+            user_pool_id=self.user_pool.user_pool_id,
+            group_name="ADMIN",
+            description="Administrator users with elevated privileges",
+        )
+
+        cognito.CfnUserPoolGroup(
+            self,
+            "UserGroup",
+            user_pool_id=self.user_pool.user_pool_id,
+            group_name="USER",
+            description="Standard application users",
+        )
+
+        # Configure social identity providers
+        # Google OAuth
+        google_provider = cognito.UserPoolIdentityProviderGoogle(
+            self,
+            "GoogleProvider",
+            user_pool=self.user_pool,
+            client_id=os.environ.get("GOOGLE_CLIENT_ID", "PLACEHOLDER"),
+            client_secret=os.environ.get("GOOGLE_CLIENT_SECRET", "PLACEHOLDER"),
+            scopes=["email", "profile", "openid"],
+            attribute_mapping=cognito.AttributeMapping(
+                email=cognito.ProviderAttribute.GOOGLE_EMAIL,
+                given_name=cognito.ProviderAttribute.GOOGLE_GIVEN_NAME,
+                family_name=cognito.ProviderAttribute.GOOGLE_FAMILY_NAME,
+            ),
+        )
+
+        # Facebook OAuth
+        facebook_provider = cognito.UserPoolIdentityProviderFacebook(
+            self,
+            "FacebookProvider",
+            user_pool=self.user_pool,
+            client_id=os.environ.get("FACEBOOK_APP_ID", "PLACEHOLDER"),
+            client_secret=os.environ.get("FACEBOOK_APP_SECRET", "PLACEHOLDER"),
+            scopes=["email", "public_profile"],
+            attribute_mapping=cognito.AttributeMapping(
+                email=cognito.ProviderAttribute.FACEBOOK_EMAIL,
+                given_name=cognito.ProviderAttribute.FACEBOOK_FIRST_NAME,
+                family_name=cognito.ProviderAttribute.FACEBOOK_LAST_NAME,
+            ),
+        )
+
+        # Apple Sign In
+        apple_provider = cognito.UserPoolIdentityProviderApple(
+            self,
+            "AppleProvider",
+            user_pool=self.user_pool,
+            client_id=os.environ.get("APPLE_SERVICES_ID", "PLACEHOLDER"),
+            team_id=os.environ.get("APPLE_TEAM_ID", "PLACEHOLDER"),
+            key_id=os.environ.get("APPLE_KEY_ID", "PLACEHOLDER"),
+            private_key=os.environ.get("APPLE_PRIVATE_KEY", "PLACEHOLDER"),
+            scopes=["email", "name"],
+            attribute_mapping=cognito.AttributeMapping(
+                email=cognito.ProviderAttribute.APPLE_EMAIL,
+                given_name=cognito.ProviderAttribute.APPLE_FIRST_NAME,
+                family_name=cognito.ProviderAttribute.APPLE_LAST_NAME,
+            ),
+        )
+
+        # App client for SPA
+        self.user_pool_client = self.user_pool.add_client(
+            "AppClient",
+            user_pool_client_name="PopcornSalesManager-Web",
+            auth_flows=cognito.AuthFlow(
+                user_srp=True,
+                user_password=True,
+            ),
+            o_auth=cognito.OAuthSettings(
+                flows=cognito.OAuthFlows(
+                    authorization_code_grant=True,
+                    implicit_code_grant=True,
+                ),
+                scopes=[
+                    cognito.OAuthScope.EMAIL,
+                    cognito.OAuthScope.OPENID,
+                    cognito.OAuthScope.PROFILE,
+                ],
+                callback_urls=["http://localhost:5173", "https://PLACEHOLDER"],
+                logout_urls=["http://localhost:5173", "https://PLACEHOLDER"],
+            ),
+            supported_identity_providers=[
+                cognito.UserPoolClientIdentityProvider.COGNITO,
+                cognito.UserPoolClientIdentityProvider.GOOGLE,
+                cognito.UserPoolClientIdentityProvider.FACEBOOK,
+                cognito.UserPoolClientIdentityProvider.APPLE,
+            ],
+            prevent_user_existence_errors=True,
+        )
+
+        # Hosted UI domain
+        self.user_pool_domain = self.user_pool.add_domain(
+            "UserPoolDomain",
+            cognito_domain=cognito.CognitoDomainOptions(
+                domain_prefix="popcorn-sales-manager"
+            ),
+        )
+
+        # ====================================================================
+        # AppSync GraphQL API
+        # ====================================================================
+
+        # Read GraphQL schema from file
+        schema_path = os.path.join(
+            os.path.dirname(__file__), "..", "schema", "schema.graphql"
+        )
+
+        self.api = appsync.GraphqlApi(
+            self,
+            "Api",
+            name="PopcornSalesManagerAPI",
+            definition=appsync.Definition.from_file(schema_path),
+            authorization_config=appsync.AuthorizationConfig(
+                default_authorization=appsync.AuthorizationMode(
+                    authorization_type=appsync.AuthorizationType.USER_POOL,
+                    user_pool_config=appsync.UserPoolConfig(user_pool=self.user_pool),
+                ),
+            ),
+            xray_enabled=True,
+            log_config=appsync.LogConfig(
+                field_log_level=appsync.FieldLogLevel.ALL,
+                exclude_verbose_content=False,
+            ),
+        )
+
+        # DynamoDB data source
+        self.dynamodb_datasource = self.api.add_dynamo_db_data_source(
+            "DynamoDBDataSource",
+            table=self.table,
+        )
+
+        # ====================================================================
+        # CloudFront Distribution for SPA
+        # ====================================================================
+
+        # Origin Access Identity for S3
+        self.origin_access_identity = cloudfront.OriginAccessIdentity(
+            self, "OAI", comment="OAI for Popcorn Sales Manager SPA"
+        )
+
+        # Grant CloudFront read access to static assets bucket
+        self.static_assets_bucket.grant_read(self.origin_access_identity)
+
+        # CloudFront distribution
+        self.distribution = cloudfront.Distribution(
+            self,
+            "Distribution",
+            default_behavior=cloudfront.BehaviorOptions(
+                origin=origins.S3Origin(
+                    self.static_assets_bucket,
+                    origin_access_identity=self.origin_access_identity,
+                ),
+                viewer_protocol_policy=cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
+                cache_policy=cloudfront.CachePolicy.CACHING_OPTIMIZED,
+                compress=True,
+            ),
+            default_root_object="index.html",
+            error_responses=[
+                cloudfront.ErrorResponse(
+                    http_status=403,
+                    response_http_status=200,
+                    response_page_path="/index.html",
+                    ttl=Duration.seconds(0),
+                ),
+                cloudfront.ErrorResponse(
+                    http_status=404,
+                    response_http_status=200,
+                    response_page_path="/index.html",
+                    ttl=Duration.seconds(0),
+                ),
+            ],
+            price_class=cloudfront.PriceClass.PRICE_CLASS_100,  # US, Canada, Europe only
+            enabled=True,
+        )
+

@@ -1,0 +1,307 @@
+# Popcorn Sales Manager GraphQL Schema
+# Based on Planning Documents/graphql_schema_v1.md
+
+# ============================================================================
+# Scalars
+# ============================================================================
+
+scalar AWSDateTime
+scalar AWSEmail
+scalar AWSPhone
+scalar AWSURL
+
+# ============================================================================
+# Enums
+# ============================================================================
+
+enum PermissionType {
+  READ
+  WRITE
+}
+
+enum PaymentMethod {
+  CASH
+  CHECK
+  CREDIT_CARD
+  OTHER
+}
+
+enum CatalogType {
+  ADMIN_MANAGED
+  USER_CREATED
+}
+
+# ============================================================================
+# Core Types
+# ============================================================================
+
+type Account {
+  accountId: ID!
+  email: AWSEmail!
+  isAdmin: Boolean!
+  createdAt: AWSDateTime!
+  updatedAt: AWSDateTime!
+}
+
+type SellerProfile {
+  profileId: ID!
+  ownerAccountId: ID!
+  sellerName: String!
+  createdAt: AWSDateTime!
+  updatedAt: AWSDateTime!
+  isOwner: Boolean!
+  permissions: [PermissionType!]
+}
+
+type Season {
+  seasonId: ID!
+  profileId: ID!
+  seasonName: String!
+  startDate: AWSDateTime!
+  endDate: AWSDateTime
+  catalogId: ID!
+  createdAt: AWSDateTime!
+  updatedAt: AWSDateTime!
+  catalog: Catalog
+  totalOrders: Int
+  totalRevenue: Float
+}
+
+type Catalog {
+  catalogId: ID!
+  catalogName: String!
+  catalogType: CatalogType!
+  ownerAccountId: ID
+  isPublic: Boolean!
+  products: [Product!]!
+  createdAt: AWSDateTime!
+  updatedAt: AWSDateTime!
+}
+
+type Product {
+  productId: ID!
+  productName: String!
+  description: String
+  price: Float!
+  sortOrder: Int!
+}
+
+type Order {
+  orderId: ID!
+  profileId: ID!
+  seasonId: ID!
+  customerName: String!
+  customerPhone: AWSPhone
+  customerAddress: Address
+  orderDate: AWSDateTime!
+  paymentMethod: PaymentMethod!
+  lineItems: [LineItem!]!
+  totalAmount: Float!
+  notes: String
+  createdAt: AWSDateTime!
+  updatedAt: AWSDateTime!
+}
+
+type LineItem {
+  productId: ID!
+  productName: String!
+  quantity: Int!
+  pricePerUnit: Float!
+  subtotal: Float!
+}
+
+type Address {
+  street: String
+  city: String
+  state: String
+  zipCode: String
+}
+
+type Share {
+  shareId: ID!
+  profileId: ID!
+  targetAccountId: ID!
+  permissions: [PermissionType!]!
+  createdAt: AWSDateTime!
+  createdByAccountId: ID!
+}
+
+type ProfileInvite {
+  inviteCode: ID!
+  profileId: ID!
+  permissions: [PermissionType!]!
+  expiresAt: AWSDateTime!
+  createdAt: AWSDateTime!
+  createdByAccountId: ID!
+}
+
+# ============================================================================
+# Input Types
+# ============================================================================
+
+input CreateSellerProfileInput {
+  sellerName: String!
+}
+
+input UpdateSellerProfileInput {
+  profileId: ID!
+  sellerName: String!
+}
+
+input CreateSeasonInput {
+  profileId: ID!
+  seasonName: String!
+  startDate: AWSDateTime!
+  endDate: AWSDateTime
+  catalogId: ID!
+}
+
+input UpdateSeasonInput {
+  seasonId: ID!
+  seasonName: String
+  startDate: AWSDateTime
+  endDate: AWSDateTime
+  catalogId: ID
+}
+
+input CreateCatalogInput {
+  catalogName: String!
+  isPublic: Boolean!
+  products: [ProductInput!]!
+}
+
+input ProductInput {
+  productName: String!
+  description: String
+  price: Float!
+  sortOrder: Int!
+}
+
+input CreateOrderInput {
+  profileId: ID!
+  seasonId: ID!
+  customerName: String!
+  customerPhone: AWSPhone
+  customerAddress: AddressInput
+  orderDate: AWSDateTime!
+  paymentMethod: PaymentMethod!
+  lineItems: [LineItemInput!]!
+  notes: String
+}
+
+input UpdateOrderInput {
+  orderId: ID!
+  customerName: String
+  customerPhone: AWSPhone
+  customerAddress: AddressInput
+  orderDate: AWSDateTime
+  paymentMethod: PaymentMethod
+  lineItems: [LineItemInput!]
+  notes: String
+}
+
+input LineItemInput {
+  productId: ID!
+  quantity: Int!
+}
+
+input AddressInput {
+  street: String
+  city: String
+  state: String
+  zipCode: String
+}
+
+input CreateProfileInviteInput {
+  profileId: ID!
+  permissions: [PermissionType!]!
+  expiresInDays: Int
+}
+
+input RedeemProfileInviteInput {
+  inviteCode: ID!
+}
+
+input ShareProfileDirectInput {
+  profileId: ID!
+  targetAccountEmail: AWSEmail!
+  permissions: [PermissionType!]!
+}
+
+input RevokeShareInput {
+  profileId: ID!
+  targetAccountId: ID!
+}
+
+# ============================================================================
+# Query Root
+# ============================================================================
+
+type Query {
+  # Account queries
+  getMyAccount: Account!
+  
+  # Profile queries
+  getProfile(profileId: ID!): SellerProfile
+  listMyProfiles: [SellerProfile!]!
+  listSharedProfiles: [SellerProfile!]!
+  
+  # Season queries
+  getSeason(seasonId: ID!): Season
+  listSeasonsByProfile(profileId: ID!): [Season!]!
+  
+  # Catalog queries
+  getCatalog(catalogId: ID!): Catalog
+  listPublicCatalogs: [Catalog!]!
+  listMyCatalogs: [Catalog!]!
+  
+  # Order queries
+  getOrder(orderId: ID!): Order
+  listOrdersBySeason(seasonId: ID!): [Order!]!
+  listOrdersByProfile(profileId: ID!): [Order!]!
+  
+  # Share queries
+  listSharesByProfile(profileId: ID!): [Share!]!
+  listInvitesByProfile(profileId: ID!): [ProfileInvite!]!
+}
+
+# ============================================================================
+# Mutation Root
+# ============================================================================
+
+type Mutation {
+  # Profile mutations
+  createSellerProfile(input: CreateSellerProfileInput!): SellerProfile!
+  updateSellerProfile(input: UpdateSellerProfileInput!): SellerProfile!
+  deleteSellerProfile(profileId: ID!): Boolean!
+  
+  # Season mutations
+  createSeason(input: CreateSeasonInput!): Season!
+  updateSeason(input: UpdateSeasonInput!): Season!
+  deleteSeason(seasonId: ID!): Boolean!
+  
+  # Catalog mutations
+  createCatalog(input: CreateCatalogInput!): Catalog!
+  updateCatalog(catalogId: ID!, input: CreateCatalogInput!): Catalog!
+  deleteCatalog(catalogId: ID!): Boolean!
+  
+  # Order mutations
+  createOrder(input: CreateOrderInput!): Order!
+  updateOrder(input: UpdateOrderInput!): Order!
+  deleteOrder(orderId: ID!): Boolean!
+  
+  # Sharing mutations
+  createProfileInvite(input: CreateProfileInviteInput!): ProfileInvite!
+  redeemProfileInvite(input: RedeemProfileInviteInput!): Share!
+  shareProfileDirect(input: ShareProfileDirectInput!): Share!
+  revokeShare(input: RevokeShareInput!): Boolean!
+}
+
+# ============================================================================
+# Schema Root
+# ============================================================================
+
+schema {
+  query: Query
+  mutation: Mutation
+}
