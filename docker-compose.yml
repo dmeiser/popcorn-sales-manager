@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   localstack:
     image: localstack/localstack:latest
@@ -12,13 +10,13 @@ services:
       - DEBUG=1
       - DOCKER_HOST=unix:///var/run/docker.sock
       - LOCALSTACK_API_KEY=${LOCALSTACK_API_KEY:-}  # Set if using Pro features
-      - PERSISTENCE=1  # Persist data across restarts
     volumes:
-      - "./localstack-data:/var/lib/localstack"
       - "/var/run/docker.sock:/var/run/docker.sock"
+      - "./localstack-data:/tmp/localstack"  # Use /tmp/localstack inside container
     networks:
       - popcorn-sales-network
 
 networks:
   popcorn-sales-network:
     driver: bridge
+
