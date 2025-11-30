@@ -1,0 +1,48 @@
+[project]
+name = "popcorn-sales-manager"
+version = "0.1.0"
+description = "Popcorn Sales Manager - Lambda functions and backend code"
+requires-python = ">=3.13"
+dependencies = [
+    "boto3>=1.35.0",
+    "openpyxl>=3.1.0",
+]
+
+[dependency-groups]
+dev = [
+    "black>=25.11.0",
+    "boto3-stubs[dynamodb,s3,lambda,sns,ses]>=1.41.5",
+    "isort>=7.0.0",
+    "moto[dynamodb,s3,lambda,sns,ses]>=5.1.17",
+    "mypy>=1.19.0",
+    "pytest>=9.0.1",
+    "pytest-cov>=7.0.0",
+]
+
+[tool.black]
+line-length = 100
+target-version = ["py313"]
+
+[tool.isort]
+profile = "black"
+line_length = 100
+
+[tool.mypy]
+python_version = "3.13"
+strict = true
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = [
+    "--strict-markers",
+    "--cov=src",
+    "--cov-report=term-missing",
+    "--cov-report=html",
+    "--cov-fail-under=100",
+]
