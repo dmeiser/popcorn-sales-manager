@@ -192,53 +192,66 @@ class CdkStack(Stack):
             description="Standard application users",
         )
 
-        # Configure social identity providers
-        # Google OAuth
-        google_provider = cognito.UserPoolIdentityProviderGoogle(
-            self,
-            "GoogleProvider",
-            user_pool=self.user_pool,
-            client_id=os.environ.get("GOOGLE_CLIENT_ID", "PLACEHOLDER"),
-            client_secret=os.environ.get("GOOGLE_CLIENT_SECRET", "PLACEHOLDER"),
-            scopes=["email", "profile", "openid"],
-            attribute_mapping=cognito.AttributeMapping(
-                email=cognito.ProviderAttribute.GOOGLE_EMAIL,
-                given_name=cognito.ProviderAttribute.GOOGLE_GIVEN_NAME,
-                family_name=cognito.ProviderAttribute.GOOGLE_FAMILY_NAME,
-            ),
-        )
+        # Configure social identity providers (optional - only create if credentials provided)
+        supported_providers = [cognito.UserPoolClientIdentityProvider.COGNITO]
+        
+        # Google OAuth (only if credentials provided)
+        if os.environ.get("GOOGLE_CLIENT_ID") and os.environ.get("GOOGLE_CLIENT_SECRET"):
+            google_provider = cognito.UserPoolIdentityProviderGoogle(
+                self,
+                "GoogleProvider",
+                user_pool=self.user_pool,
+                client_id=os.environ["GOOGLE_CLIENT_ID"],
+                client_secret=os.environ["GOOGLE_CLIENT_SECRET"],
+                scopes=["email", "profile", "openid"],
+                attribute_mapping=cognito.AttributeMapping(
+                    email=cognito.ProviderAttribute.GOOGLE_EMAIL,
+                    given_name=cognito.ProviderAttribute.GOOGLE_GIVEN_NAME,
+                    family_name=cognito.ProviderAttribute.GOOGLE_FAMILY_NAME,
+                ),
+            )
+            supported_providers.append(cognito.UserPoolClientIdentityProvider.GOOGLE)
 
-        # Facebook OAuth
-        facebook_provider = cognito.UserPoolIdentityProviderFacebook(
-            self,
-            "FacebookProvider",
-            user_pool=self.user_pool,
-            client_id=os.environ.get("FACEBOOK_APP_ID", "PLACEHOLDER"),
-            client_secret=os.environ.get("FACEBOOK_APP_SECRET", "PLACEHOLDER"),
-            scopes=["email", "public_profile"],
-            attribute_mapping=cognito.AttributeMapping(
-                email=cognito.ProviderAttribute.FACEBOOK_EMAIL,
-                given_name=cognito.ProviderAttribute.FACEBOOK_FIRST_NAME,
-                family_name=cognito.ProviderAttribute.FACEBOOK_LAST_NAME,
-            ),
-        )
+        # Facebook OAuth (only if credentials provided)
+        if os.environ.get("FACEBOOK_APP_ID") and os.environ.get("FACEBOOK_APP_SECRET"):
+            facebook_provider = cognito.UserPoolIdentityProviderFacebook(
+                self,
+                "FacebookProvider",
+                user_pool=self.user_pool,
+                client_id=os.environ["FACEBOOK_APP_ID"],
+                client_secret=os.environ["FACEBOOK_APP_SECRET"],
+                scopes=["email", "public_profile"],
+                attribute_mapping=cognito.AttributeMapping(
+                    email=cognito.ProviderAttribute.FACEBOOK_EMAIL,
+                    given_name=cognito.ProviderAttribute.FACEBOOK_FIRST_NAME,
+                    family_name=cognito.ProviderAttribute.FACEBOOK_LAST_NAME,
+                ),
+            )
+            supported_providers.append(cognito.UserPoolClientIdentityProvider.FACEBOOK)
 
-        # Apple Sign In
-        apple_provider = cognito.UserPoolIdentityProviderApple(
-            self,
-            "AppleProvider",
-            user_pool=self.user_pool,
-            client_id=os.environ.get("APPLE_SERVICES_ID", "PLACEHOLDER"),
-            team_id=os.environ.get("APPLE_TEAM_ID", "PLACEHOLDER"),
-            key_id=os.environ.get("APPLE_KEY_ID", "PLACEHOLDER"),
-            private_key=os.environ.get("APPLE_PRIVATE_KEY", "PLACEHOLDER"),
-            scopes=["email", "name"],
-            attribute_mapping=cognito.AttributeMapping(
-                email=cognito.ProviderAttribute.APPLE_EMAIL,
-                given_name=cognito.ProviderAttribute.APPLE_FIRST_NAME,
-                family_name=cognito.ProviderAttribute.APPLE_LAST_NAME,
-            ),
-        )
+        # Apple Sign In (only if credentials provided)
+        if (
+            os.environ.get("APPLE_SERVICES_ID")
+            and os.environ.get("APPLE_TEAM_ID")
+            and os.environ.get("APPLE_KEY_ID")
+            and os.environ.get("APPLE_PRIVATE_KEY")
+        ):
+            apple_provider = cognito.UserPoolIdentityProviderApple(
+                self,
+                "AppleProvider",
+                user_pool=self.user_pool,
+                client_id=os.environ["APPLE_SERVICES_ID"],
+                team_id=os.environ["APPLE_TEAM_ID"],
+                key_id=os.environ["APPLE_KEY_ID"],
+                private_key=os.environ["APPLE_PRIVATE_KEY"],
+                scopes=["email", "name"],
+                attribute_mapping=cognito.AttributeMapping(
+                    email=cognito.ProviderAttribute.APPLE_EMAIL,
+                    given_name=cognito.ProviderAttribute.APPLE_FIRST_NAME,
+                    family_name=cognito.ProviderAttribute.APPLE_LAST_NAME,
+                ),
+            )
+            supported_providers.append(cognito.UserPoolClientIdentityProvider.APPLE)
 
         # App client for SPA
         self.user_pool_client = self.user_pool.add_client(
@@ -261,12 +274,7 @@ class CdkStack(Stack):
                 callback_urls=["http://localhost:5173", "https://PLACEHOLDER"],
                 logout_urls=["http://localhost:5173", "https://PLACEHOLDER"],
             ),
-            supported_identity_providers=[
-                cognito.UserPoolClientIdentityProvider.COGNITO,
-                cognito.UserPoolClientIdentityProvider.GOOGLE,
-                cognito.UserPoolClientIdentityProvider.FACEBOOK,
-                cognito.UserPoolClientIdentityProvider.APPLE,
-            ],
+            supported_identity_providers=supported_providers,
             prevent_user_existence_errors=True,
         )
 
