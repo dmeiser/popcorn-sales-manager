@@ -2,7 +2,7 @@
 name = "popcorn-sales-manager-cdk"
 version = "0.1.0"
 description = "AWS CDK infrastructure for Popcorn Sales Manager"
-requires-python = ">=3.13"
+requires-python = ">=3.14"
 dependencies = [
     "aws-cdk-lib>=2.215.0",
     "constructs>=10.0.0,<11.0.0",
@@ -21,14 +21,14 @@ dev = [
 
 [tool.black]
 line-length = 100
-target-version = ["py313"]
+target-version = ["py314"]
 
 [tool.isort]
 profile = "black"
 line_length = 100
 
 [tool.mypy]
-python_version = "3.13"
+python_version = "3.14"
 strict = true
 warn_return_any = true
 warn_unused_configs = true

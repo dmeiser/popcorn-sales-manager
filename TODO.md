@@ -48,11 +48,11 @@
 - [x] CDK Python app initialized in cdk/ directory ✅
 - [x] Virtual environment created (.venv) ✅
 - [x] Requirements files created ✅
-- [ ] Configure tool settings in `pyproject.toml` (to be added with uv)
-- [ ] Run `uv sync` to install all dependencies
-- [ ] Create `uv.lock` file and commit to repository
-- [ ] (Optional) Add pre-commit hooks for Black, isort, mypy
-- [ ] Document uv usage in README (`uv sync`, `uv run`, `uv add`)
+- [x] Configure tool settings in `pyproject.toml` (black, isort, mypy, pytest) ✅
+- [x] Run `uv sync` to install all dependencies ✅
+- [x] Create `uv.lock` file and commit to repository ✅
+- [x] (Optional) Add pre-commit hooks for Black, isort, mypy - (deferred)
+- [x] Document uv usage in README_UV.md (`uv sync`, `uv run`, `uv add`) ✅
 
 ### Step 6: CDK Infrastructure Code - Foundational Resources ✅ IN PROGRESS
 - [x] Initialize CDK app structure (`cdk init app --language python`) ✅
