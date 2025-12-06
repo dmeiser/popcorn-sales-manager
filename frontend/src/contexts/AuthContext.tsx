@@ -14,52 +14,32 @@ const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
 interface AuthProviderProps {
   children: React.ReactNode;
-  /** Optional Apollo Client for GraphQL queries (injected to avoid circular deps) */
-  apolloClient?: {
-    query: (options: { query: unknown; variables?: Record<string, unknown> }) => Promise<{ data: { getMyAccount: Account } }>;
-  };
 }
 
-export const AuthProvider: React.FC<AuthProviderProps> = ({ children, apolloClient }) => {
+export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [account, setAccount] = useState<Account | null>(null);
   const [loading, setLoading] = useState(true);
 
   /**
    * Fetch account data from GraphQL API
+   * 
+   * TODO: Implement when Apollo Client is integrated
    */
   const fetchAccountData = useCallback(async (accountId: string): Promise<Account | null> => {
-    if (!apolloClient) {
-      // Apollo Client not yet initialized, use minimal account data
-      return {
-        accountId,
-        email: '',
-        displayName: 'User',
-        isAdmin: false,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      };
-    }
-
-    try {
-      // GraphQL query will be defined later when Apollo Client is set up
-      // For now, return minimal account data
-      // const GET_MY_ACCOUNT = gql`query GetMyAccount { getMyAccount { accountId email displayName isAdmin createdAt updatedAt } }`;
-      // const { data } = await apolloClient.query({ query: GET_MY_ACCOUNT });
-      // return data.getMyAccount;
-      
-      return {
-        accountId,
-        email: '',
-        displayName: 'User',
-        isAdmin: false,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      };
-    } catch (error) {
-      console.error('Failed to fetch account data:', error);
-      return null;
-    }
-  }, [apolloClient]);
+    // Placeholder - will be implemented with Apollo Client in next step
+    // const GET_MY_ACCOUNT = gql`query GetMyAccount { getMyAccount { accountId email displayName isAdmin createdAt updatedAt } }`;
+    // const { data } = await apolloClient.query({ query: GET_MY_ACCOUNT });
+    // return data.getMyAccount;
+    
+    return {
+      accountId,
+      email: '',
+      displayName: 'User',
+      isAdmin: false,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+  }, []);
 
   /**
    * Check current auth session and load account data

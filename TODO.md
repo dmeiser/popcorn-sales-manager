@@ -352,7 +352,7 @@
 
 ## Phase 2: Frontend - React SPA
 
-**Status:** Phase 2 - In Progress (Step 2/9 Complete - Ready for Step 3)  
+**Status:** Phase 2 - In Progress (Step 3/9 Complete - Ready for Step 4)  
 **Last Updated:** 2025-12-06
 
 ### Project Setup ✅ COMPLETE
@@ -384,11 +384,11 @@
   - [x] Admin access control ✅
   - [x] Redirect to Cognito Hosted UI for unauthenticated users ✅
 
-### Apollo Client Setup
-- [ ] Configure Apollo Client with AppSync endpoint
-- [ ] Add Cognito JWT to Authorization header
-- [ ] Implement global error handling for GraphQL errors
-- [ ] Map errorCode to user-facing messages/toasts
+### Apollo Client Setup ✅ COMPLETE
+- [x] Configure Apollo Client with AppSync endpoint ✅
+- [x] Add Cognito JWT to Authorization header ✅
+- [x] Implement global error handling for GraphQL errors ✅
+- [x] Map errorCode to user-facing messages/toasts ✅
 
 ### Core Layout & Navigation
 - [ ] Create AppLayout component with:
