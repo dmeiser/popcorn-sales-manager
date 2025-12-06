@@ -125,6 +125,9 @@
 - **Testing strategy:** Unit tests use moto mocks; integration tests use AWS dev account
 - **Cost awareness:** Use AWS Free Tier where applicable; monitor spending closely
 
+**Branding Compliance:** All UI and frontend work (Phase 2) must honor the branding guide at `docs/BRANDING_GUIDE.html`. That includes:
+- Fonts (Satisfy for display, Open Sans for body), colors, component styles, COPPA warning styling, and accessibility guidance. Any visual exceptions must be documented and approved.
+
 ---
 
 ## Phase 1: Backend - Core API & Data Layer
@@ -398,6 +401,7 @@
   - [ ] ToastContainer for notifications
 - [ ] Implement responsive design (mobile-first)
 - [ ] Add accessibility features (WCAG 2.1 AAA aspirational)
+ - [ ] Ensure all components, styles, and layout honor `docs/BRANDING_GUIDE.html` (fonts, colors, spacing, COPPA styling). Visual inconsistencies must be documented and corrected during code review.
 - [ ] Configure Cognito Hosted UI branding and COPPA compliance:
   - [ ] Customize Hosted UI with app branding (logo, colors)
   - [ ] Add COPPA warning to signup page via custom CSS/text
