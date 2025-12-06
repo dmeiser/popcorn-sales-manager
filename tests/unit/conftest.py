@@ -50,6 +50,8 @@ def dynamodb_table(aws_credentials: None) -> Generator[Any, None, None]:
                 {"AttributeName": "profileId", "AttributeType": "S"},
                 {"AttributeName": "seasonId", "AttributeType": "S"},
                 {"AttributeName": "orderId", "AttributeType": "S"},
+                {"AttributeName": "GSI5PK", "AttributeType": "S"},
+                {"AttributeName": "GSI5SK", "AttributeType": "S"},
             ],
             GlobalSecondaryIndexes=[
                 {
@@ -86,7 +88,8 @@ def dynamodb_table(aws_credentials: None) -> Generator[Any, None, None]:
                 {
                     "IndexName": "GSI5",
                     "KeySchema": [
-                        {"AttributeName": "seasonId", "KeyType": "HASH"},
+                        {"AttributeName": "GSI5PK", "KeyType": "HASH"},
+                        {"AttributeName": "GSI5SK", "KeyType": "RANGE"},
                     ],
                     "Projection": {"ProjectionType": "ALL"},
                 },
@@ -102,6 +105,22 @@ def dynamodb_table(aws_credentials: None) -> Generator[Any, None, None]:
         )
 
         yield table
+
+
+@pytest.fixture
+def s3_bucket(aws_credentials: None) -> Generator[Any, None, None]:
+    """Create mock S3 bucket for report exports."""
+    with mock_aws():
+        import os
+
+        s3 = boto3.client("s3", region_name="us-east-1")
+        bucket_name = os.environ.get("EXPORTS_BUCKET", "test-exports-bucket")
+        s3.create_bucket(Bucket=bucket_name)
+        
+        # Set environment variable for Lambda function
+        os.environ["EXPORTS_BUCKET"] = bucket_name
+        
+        yield s3
 
 
 @pytest.fixture
@@ -191,6 +210,8 @@ def sample_season(
         "name": "Fall 2025",
         "startDate": "2025-09-01",
         "catalogId": "CATALOG#default",
+        "GSI5PK": sample_season_id,
+        "GSI5SK": "METADATA",
         "createdAt": datetime.now(timezone.utc).isoformat(),
     }
 
