@@ -352,7 +352,7 @@
 
 ## Phase 2: Frontend - React SPA
 
-**Status:** Phase 2 - In Progress (Step 2/9 In Progress - Cognito UI branding pending)  
+**Status:** Phase 2 - In Progress (Step 2/9 Complete - Ready for Step 3)  
 **Last Updated:** 2025-12-06
 
 ### Project Setup ✅ COMPLETE
@@ -368,7 +368,7 @@
   - [x] Updated .gitignore to exclude .env ✅
   - [x] Dev server verified at http://localhost:5173/ ✅
 
-### Authentication & Auth Context 🔄 IN PROGRESS
+### Authentication & Auth Context ✅ COMPLETE
 - [x] Implement Cognito Hosted UI integration ✅
   - [x] AWS Amplify configuration (lib/amplify.ts) ✅
   - [x] OAuth configuration with standard Cognito domain ✅
@@ -383,12 +383,6 @@
   - [x] ProtectedRoute component with loading state ✅
   - [x] Admin access control ✅
   - [x] Redirect to Cognito Hosted UI for unauthenticated users ✅
-- [ ] Configure Cognito Hosted UI branding and COPPA compliance
-  - [ ] Customize Hosted UI with app branding (logo, colors)
-  - [ ] Add COPPA warning to signup page via custom CSS/text
-  - [ ] Add privacy notice for parents/guardians
-  - [ ] Add terms of service link
-  - [ ] Test signup flow with COPPA warning visible
 
 ### Apollo Client Setup
 - [ ] Configure Apollo Client with AppSync endpoint
@@ -404,6 +398,12 @@
   - [ ] ToastContainer for notifications
 - [ ] Implement responsive design (mobile-first)
 - [ ] Add accessibility features (WCAG 2.1 AAA aspirational)
+- [ ] Configure Cognito Hosted UI branding and COPPA compliance:
+  - [ ] Customize Hosted UI with app branding (logo, colors)
+  - [ ] Add COPPA warning to signup page via custom CSS/text
+  - [ ] Add privacy notice for parents/guardians
+  - [ ] Add terms of service link
+  - [ ] Test signup flow with COPPA warning visible
 
 ### Pages & Components
 - [ ] **LoginPage** - Cognito Hosted UI redirect
