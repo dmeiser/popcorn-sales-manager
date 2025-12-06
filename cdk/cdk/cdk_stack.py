@@ -568,142 +568,26 @@ class CdkStack(Stack):
             except FileNotFoundError:
                 logo_base64 = None  # Deploy without logo if file not found
                 
+            # AWS Cognito only accepts "basic style rules" in CSS
+            # Complex rules (::before, :hover, transitions, @import) are rejected
+            # Simplified to basic property assignments only
             cognito_ui_css = """
-                /* Popcorn Sales Manager - Cognito Hosted UI Branding */
-                
-                /* Import fonts via CSS @import (must be first) */
-                @import url('https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;600;700&family=Satisfy&display=swap');
-                
-                /* COPPA Warning Banner */
-                .banner-customizable {
-                    background-color: #fff3cd !important;
-                    border: 2px solid #ffc107 !important;
-                    border-radius: 8px !important;
-                    padding: 16px !important;
-                    margin-bottom: 24px !important;
-                    text-align: center !important;
-                    font-family: 'Open Sans', sans-serif !important;
-                }
-                
-                .banner-customizable::before {
-                    content: "⚠️ Age Requirement: You must be 13 years or older to create an account. By signing up, you confirm that you meet this requirement." !important;
-                    display: block !important;
-                    font-weight: 600 !important;
-                    color: #856404 !important;
-                    font-size: 14px !important;
-                    line-height: 1.5 !important;
-                }
-                
-                /* Main container */
-                .modal-content {
-                    background-color: #ffffff !important;
-                    border-radius: 12px !important;
-                    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15) !important;
-                    font-family: 'Open Sans', sans-serif !important;
-                }
-                
-                /* Logo/Header area */
-                .logo-customizable {
-                    max-width: 100% !important;
-                    max-height: 100px !important;
-                }
-                
-                /* Title */
-                .textDescription-customizable {
-                    font-family: 'Satisfy', cursive !important;
-                    font-weight: 600 !important;
-                    letter-spacing: 0.08em !important;
-                    color: #1976d2 !important;
-                    font-size: 2rem !important;
-                    margin-bottom: 1.5rem !important;
-                }
-                
-                /* Input labels */
-                .label-customizable {
-                    font-family: 'Open Sans', sans-serif !important;
-                    font-weight: 600 !important;
-                    color: #333333 !important;
-                    font-size: 14px !important;
-                }
-                
-                /* Input fields */
-                .input-customizable {
-                    font-family: 'Open Sans', sans-serif !important;
-                    border: 1px solid #ccc !important;
-                    border-radius: 4px !important;
-                    padding: 10px 12px !important;
-                    font-size: 16px !important;
-                    color: #333333 !important;
-                    background-color: #ffffff !important;
-                }
-                
-                .input-customizable:focus {
-                    border-color: #1976d2 !important;
-                    outline: none !important;
-                    box-shadow: 0 0 0 3px rgba(25, 118, 210, 0.1) !important;
-                }
-                
-                /* Primary buttons (Sign in, Sign up) */
                 .submitButton-customizable {
-                    background-color: #1976d2 !important;
-                    border: none !important;
-                    border-radius: 4px !important;
-                    color: #ffffff !important;
-                    font-family: 'Open Sans', sans-serif !important;
-                    font-weight: 600 !important;
-                    font-size: 16px !important;
-                    padding: 12px 24px !important;
-                    cursor: pointer !important;
-                    transition: background-color 0.2s ease !important;
+                    background-color: #1976d2;
+                    color: #ffffff;
                 }
                 
-                .submitButton-customizable:hover {
-                    background-color: #1565c0 !important;
+                .banner-customizable {
+                    background-color: #fff3cd;
+                    padding: 16px;
                 }
                 
-                /* Secondary buttons */
-                .btn-secondary {
-                    background-color: #f5f5f5 !important;
-                    border: 1px solid #ccc !important;
-                    color: #333333 !important;
-                    font-family: 'Open Sans', sans-serif !important;
+                .input-customizable {
+                    border: 1px solid #ccc;
                 }
                 
-                /* Social login buttons */
-                .socialButton-customizable {
-                    border-radius: 4px !important;
-                    padding: 12px 16px !important;
-                    font-family: 'Open Sans', sans-serif !important;
-                    font-weight: 600 !important;
-                    margin: 8px 0 !important;
-                }
-                
-                /* Links */
                 .anchor-customizable {
-                    color: #1976d2 !important;
-                    font-family: 'Open Sans', sans-serif !important;
-                    text-decoration: none !important;
-                }
-                
-                .anchor-customizable:hover {
-                    text-decoration: underline !important;
-                }
-                
-                /* Error messages */
-                .error-customizable {
-                    background-color: #ffebee !important;
-                    border: 1px solid #f44336 !important;
-                    border-radius: 4px !important;
-                    color: #c62828 !important;
-                    padding: 12px !important;
-                    font-family: 'Open Sans', sans-serif !important;
-                    font-size: 14px !important;
-                }
-                
-                /* Background */
-                body {
-                    background-color: #f5f5f5 !important;
-                    font-family: 'Open Sans', sans-serif !important;
+                    color: #1976d2;
                 }
             """
             
