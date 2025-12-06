@@ -15,21 +15,32 @@ export const AppLayout: React.FC<{ children?: React.ReactNode }> = ({ children }
     <Box sx={{ display: 'flex', minHeight: '100vh', flexDirection: 'column' }}>
       <AppBar position="static" color="primary" sx={{ mb: 2 }}>
         <Toolbar disableGutters>
-          <Container maxWidth="lg" sx={{ display: 'flex', alignItems: 'center' }}>
-          <IconButton edge="start" color="inherit" aria-label="menu" onClick={toggleDrawer}>
-            <MenuIcon />
-          </IconButton>
-          <Typography
-            variant="h6"
-            component="div"
-            sx={{ flexGrow: 1, fontFamily: 'Satisfy, Open Sans, cursive', fontWeight: 600, letterSpacing: '0.06em' }}
-          >
-            🍿 Popcorn Sales Manager
-          </Typography>
-          {account && (
-            <Typography variant="body2" sx={{ mr: 2 }}>{account.displayName}</Typography>
-          )}
-            <Button color="inherit" onClick={logout}>Log out</Button>
+          <Container maxWidth="lg" sx={{ display: 'flex', alignItems: 'center', position: 'relative' }}>
+            {/* Left controls */}
+            <Box sx={{ display: 'flex', alignItems: 'center', width: 64 }}>
+              <IconButton edge="start" color="inherit" aria-label="menu" onClick={toggleDrawer}>
+                <MenuIcon />
+              </IconButton>
+            </Box>
+
+            {/* Center title - absolutely centered within container */}
+            <Box sx={{ position: 'absolute', left: '50%', transform: 'translateX(-50%)', pointerEvents: 'none' }}>
+              <Typography
+                variant="h6"
+                component="div"
+                sx={{ fontFamily: 'Satisfy, Open Sans, cursive', fontWeight: 600, letterSpacing: '0.06em' }}
+              >
+                🍿 Popcorn Sales Manager
+              </Typography>
+            </Box>
+
+            {/* Right controls */}
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', flex: 1 }}>
+              {account && (
+                <Typography variant="body2" sx={{ mr: 2 }}>{account.displayName}</Typography>
+              )}
+              <Button color="inherit" onClick={logout}>Log out</Button>
+            </Box>
           </Container>
         </Toolbar>
       </AppBar>
