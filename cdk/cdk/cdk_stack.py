@@ -708,18 +708,23 @@ class CdkStack(Stack):
             """
             
             # Apply UI customization
+            ui_customization_props = {
+                "user_pool_id": self.user_pool.user_pool_id,
+                "client_id": self.user_pool_client.user_pool_client_id,
+                "css": cognito_ui_css,
+            }
+            
+            # Add logo if available (must be base64-encoded PNG or JPEG, max 100KB)
+            # Note: SVG is converted to base64 but Cognito may not support it
+            # If deployment fails, we'll need to convert to PNG
+            if logo_base64:
+                ui_customization_props["image_file"] = logo_base64
+            
             ui_customization = cognito.CfnUserPoolUICustomizationAttachment(
                 self,
                 "UserPoolUICustomization",
-                user_pool_id=self.user_pool.user_pool_id,
-                client_id=self.user_pool_client.user_pool_client_id,
-                css=cognito_ui_css,
+                **ui_customization_props
             )
-            
-            # Add logo if available (CloudFormation property)
-            if logo_base64:
-                cfn_ui_customization = ui_customization.node.default_child
-                cfn_ui_customization.add_property_override("ImageFile", logo_base64)
             
             # TODO: Re-enable custom domain after AWS account verification
             # self.user_pool_domain = self.user_pool.add_domain(
