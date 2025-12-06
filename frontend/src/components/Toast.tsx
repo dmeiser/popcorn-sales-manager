@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import Snackbar from '@mui/material/Snackbar';
 import Alert from '@mui/material/Alert';
-import { setupGraphQLErrorListener, GraphQLErrorEvent } from '../lib/graphql-error-handler';
+import { setupGraphQLErrorListener } from '../lib/graphql-error-handler';
+import type { GraphQLErrorEvent } from '../lib/graphql-error-handler';
 
 export const Toast: React.FC = () => {
   const [open, setOpen] = useState(false);

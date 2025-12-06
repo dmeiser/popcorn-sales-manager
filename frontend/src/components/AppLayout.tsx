@@ -18,7 +18,11 @@ export const AppLayout: React.FC<{ children?: React.ReactNode }> = ({ children }
           <IconButton edge="start" color="inherit" aria-label="menu" onClick={toggleDrawer}>
             <MenuIcon />
           </IconButton>
-          <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
+          <Typography
+            variant="h6"
+            component="div"
+            sx={{ flexGrow: 1, fontFamily: 'Satisfy, Open Sans, cursive', fontWeight: 600, letterSpacing: '0.06em' }}
+          >
             🍿 Popcorn Sales Manager
           </Typography>
           {account && (
