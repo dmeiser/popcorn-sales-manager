@@ -5,26 +5,16 @@
  */
 
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { CssBaseline, ThemeProvider, createTheme } from '@mui/material';
+import { CssBaseline, ThemeProvider } from '@mui/material';
 import { ApolloProvider } from '@apollo/client/react';
 import { AuthProvider } from './contexts/AuthContext';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { LoginPage } from './pages/LoginPage';
 import { ProfilesPage } from './pages/ProfilesPage';
 import { apolloClient } from './lib/apollo';
+import { theme } from './lib/theme';
+import { AppLayout } from './components/AppLayout';
 
-// Create MUI theme
-const theme = createTheme({
-  palette: {
-    mode: 'light',
-    primary: {
-      main: '#1976d2',
-    },
-    secondary: {
-      main: '#dc004e',
-    },
-  },
-});
 
 function App() {
   return (
@@ -42,7 +32,9 @@ function App() {
                 path="/profiles"
                 element={
                   <ProtectedRoute>
-                    <ProfilesPage />
+                    <AppLayout>
+                      <ProfilesPage />
+                    </AppLayout>
                   </ProtectedRoute>
                 }
               />
