@@ -10,12 +10,17 @@ import {
   List, 
   ListItemText, 
   ListItemButton, 
+  ListItemIcon,
   Container,
   useMediaQuery,
   useTheme,
   Divider
 } from '@mui/material';
 import MenuIcon from '@mui/icons-material/Menu';
+import PersonIcon from '@mui/icons-material/Person';
+import CalendarMonthIcon from '@mui/icons-material/CalendarMonth';
+import AssessmentIcon from '@mui/icons-material/Assessment';
+import LocalMallIcon from '@mui/icons-material/LocalMall';
 import { useAuth } from '../contexts/AuthContext';
 import { Toast } from './Toast';
 import { Outlet } from 'react-router-dom';
@@ -36,15 +41,27 @@ export const AppLayout: React.FC<{ children?: React.ReactNode }> = ({ children }
       <Divider />
       <List>
         <ListItemButton>
+          <ListItemIcon>
+            <PersonIcon />
+          </ListItemIcon>
           <ListItemText primary="Profiles" />
         </ListItemButton>
         <ListItemButton>
+          <ListItemIcon>
+            <CalendarMonthIcon />
+          </ListItemIcon>
           <ListItemText primary="Seasons" />
         </ListItemButton>
         <ListItemButton>
+          <ListItemIcon>
+            <AssessmentIcon />
+          </ListItemIcon>
           <ListItemText primary="Reports" />
         </ListItemButton>
         <ListItemButton>
+          <ListItemIcon>
+            <LocalMallIcon />
+          </ListItemIcon>
           <ListItemText primary="Catalogs" />
         </ListItemButton>
       </List>
