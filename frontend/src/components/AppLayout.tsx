@@ -97,25 +97,28 @@ export const AppLayout: React.FC<{ children?: React.ReactNode }> = ({ children }
                 fontFamily: '"Satisfy", cursive',
                 fontWeight: 600,
                 letterSpacing: '0.08em',
-                fontSize: { xs: '1.25rem', sm: '1.5rem' },
+                fontSize: { xs: '1rem', sm: '1.25rem', md: '1.5rem' },
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
               }}
             >
               🍿 Popcorn Sales Manager
             </Typography>
 
             {!isDesktop && account && (
-              <Box sx={{ display: { xs: 'none', sm: 'flex' }, alignItems: 'center', mr: 2 }}>
+              <Box sx={{ display: { xs: 'none', sm: 'flex' }, alignItems: 'center', mr: 1 }}>
                 <AccountCircleIcon sx={{ mr: 0.5, fontSize: '1.25rem' }} />
-                <Typography variant="body2">
+                <Typography variant="body2" noWrap sx={{ maxWidth: 120 }}>
                   {account.displayName}
                 </Typography>
               </Box>
             )}
 
             {isDesktop && account && (
-              <Box sx={{ display: 'flex', alignItems: 'center', mr: 2 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', mr: 1 }}>
                 <AccountCircleIcon sx={{ mr: 0.5, fontSize: '1.25rem' }} />
-                <Typography variant="body2">
+                <Typography variant="body2" noWrap>
                   {account.displayName}
                 </Typography>
               </Box>
@@ -124,13 +127,18 @@ export const AppLayout: React.FC<{ children?: React.ReactNode }> = ({ children }
             <Button 
               color="inherit" 
               onClick={logout}
-              startIcon={<LogoutIcon />}
+              startIcon={<LogoutIcon sx={{ fontSize: { xs: '1rem', sm: '1.25rem' } }} />}
               sx={{ 
                 textTransform: 'none',
-                fontWeight: 500
+                fontWeight: 500,
+                minWidth: { xs: 'auto', sm: 'auto' },
+                px: { xs: 1, sm: 2 },
+                fontSize: { xs: '0.875rem', sm: '1rem' }
               }}
             >
-              Log out
+              <Box component="span" sx={{ display: { xs: 'none', sm: 'inline' } }}>
+                Log out
+              </Box>
             </Button>
           </Toolbar>
         </Container>
