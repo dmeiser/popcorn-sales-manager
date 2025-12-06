@@ -6,7 +6,7 @@
     <title>Popcorn Sales Manager - Branding Guide</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;600;700&family=Cabin:wght@700;800&family=Dosis:wght@700;800&family=Pacifico&family=Satisfy&family=Permanent+Marker&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;600;700&family=Satisfy&display=swap" rel="stylesheet">
     <style>
         * {
             margin: 0;
@@ -33,16 +33,18 @@
         }
 
         h1 {
-            font-family: 'Cabin', 'Open Sans', sans-serif;
+            font-family: 'Satisfy', 'Open Sans', cursive;
             color: #1976d2;
             margin-bottom: 1rem;
             font-size: 3rem;
-            font-weight: 800;
-            letter-spacing: -0.01em;
+            font-weight: 700; /* browsers will simulate heavier weight if not available */
+            letter-spacing: 0.08em; /* kern out the title some */
+            -webkit-text-stroke: 0.8px rgba(25, 118, 210, 0.8); /* add weight */
+            text-shadow: 0 1px 0 rgba(25,118,210,0.12), 0 2px 0 rgba(25,118,210,0.06);
         }
 
         h2 {
-            font-family: 'Cabin', 'Open Sans', sans-serif;
+            font-family: 'Open Sans', sans-serif;
             color: #1976d2;
             margin: 2rem 0 1rem;
             padding-bottom: 0.5rem;
@@ -143,11 +145,14 @@
         }
 
         .app-name {
-            font-family: 'Cabin', 'Open Sans', sans-serif;
-            font-size: 1.8rem;
-            font-weight: 800;
+            font-family: 'Satisfy', 'Open Sans', cursive;
+            font-size: 2rem;
+            font-weight: 700;
             color: #1976d2;
-            line-height: 1.2;
+            line-height: 1.1;
+            letter-spacing: 0.06em; /* kern out the display title slightly */
+            -webkit-text-stroke: 0.6px rgba(25, 118, 210, 0.8);
+            text-shadow: 0 1px 0 rgba(25,118,210,0.12);
         }
 
         .app-tagline {
@@ -255,59 +260,18 @@
 
         <!-- Logo & Identity -->
         <section class="section">
-            <h2>Logo & Identity - Font Comparison</h2>
-            <p style="margin-bottom: 2rem;"><strong>Compare display font options with our branding:</strong></p>
+            <h2>Logo & Identity</h2>
+            <p style="margin-bottom: 1rem;"><strong>Primary display (App Title) uses Satisfy:</strong></p>
             
-            <!-- Cabin (Current Choice) -->
             <div class="logo-container" style="background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%); border: 3px solid #1976d2;">
                 <div class="logo-icon">🍿</div>
                 <div class="logo-text">
-                    <div class="app-name" style="font-family: 'Cabin', sans-serif; font-weight: 800;">Popcorn Sales Manager</div>
+                    <div class="app-name">Popcorn Sales Manager</div>
                     <div class="app-tagline">Manage your fundraising sales with ease</div>
                 </div>
-                <div style="background: #1976d2; color: white; padding: 0.5rem 1rem; border-radius: 4px; font-weight: 700; font-size: 0.875rem;">✓ CURRENT</div>
+                <div style="background: #1976d2; color: white; padding: 0.5rem 1rem; border-radius: 4px; font-weight: 700; font-size: 0.875rem;">✓ Satisfy - Title</div>
             </div>
-            
-            <!-- Dosis -->
-            <div class="logo-container" style="margin-top: 1.5rem;">
-                <div class="logo-icon">🍿</div>
-                <div class="logo-text">
-                    <div class="app-name" style="font-family: 'Dosis', sans-serif; font-weight: 800;">Popcorn Sales Manager</div>
-                    <div class="app-tagline">Manage your fundraising sales with ease</div>
-                </div>
-                <div style="color: #666; padding: 0.5rem 1rem; font-size: 0.875rem;">OPTION: Dosis</div>
-            </div>
-            
-            <!-- Pacifico -->
-            <div class="logo-container" style="margin-top: 1.5rem;">
-                <div class="logo-icon">🍿</div>
-                <div class="logo-text">
-                    <div class="app-name" style="font-family: 'Pacifico', cursive; font-weight: 400; font-size: 1.6rem;">Popcorn Sales Manager</div>
-                    <div class="app-tagline">Manage your fundraising sales with ease</div>
-                </div>
-                <div style="color: #666; padding: 0.5rem 1rem; font-size: 0.875rem;">OPTION: Pacifico</div>
-            </div>
-            
-            <!-- Satisfy -->
-            <div class="logo-container" style="margin-top: 1.5rem;">
-                <div class="logo-icon">🍿</div>
-                <div class="logo-text">
-                    <div class="app-name" style="font-family: 'Satisfy', cursive; font-weight: 400; font-size: 2rem; -webkit-text-stroke: 0.5px #1976d2; text-shadow: 1px 1px 0px rgba(25, 118, 210, 0.3);">Popcorn Sales Manager</div>
-                    <div class="app-tagline">Manage your fundraising sales with ease</div>
-                </div>
-                <div style="color: #666; padding: 0.5rem 1rem; font-size: 0.875rem;">OPTION: Satisfy (Enhanced)</div>
-            </div>
-            
-            <!-- Permanent Marker -->
-            <div class="logo-container" style="margin-top: 1.5rem;">
-                <div class="logo-icon">🍿</div>
-                <div class="logo-text">
-                    <div class="app-name" style="font-family: 'Permanent Marker', cursive; font-weight: 400; font-size: 1.6rem;">Popcorn Sales Manager</div>
-                    <div class="app-tagline">Manage your fundraising sales with ease</div>
-                </div>
-                <div style="color: #666; padding: 0.5rem 1rem; font-size: 0.875rem;">OPTION: Permanent Marker</div>
-            </div>
-            
+
             <p style="margin-top: 2rem;"><strong>Logo Usage:</strong> The popcorn emoji (🍿) serves as our app icon. Simple, recognizable, and on-brand.</p>
         </section>
 
@@ -413,8 +377,8 @@
             <h2>Typography</h2>
             
             <div class="typography-sample">
-                <div class="font-size-demo" style="font-family: 'Cabin', sans-serif; font-size: 3rem; font-weight: 800; letter-spacing: -0.01em;">Heading 1 - Cabin 3rem / 800</div>
-                <div class="font-size-demo" style="font-family: 'Cabin', sans-serif; font-size: 2rem; font-weight: 700; margin-top: 1rem;">Heading 2 - Cabin 2rem / 700</div>
+                <div class="font-size-demo" style="font-family: 'Satisfy', cursive; font-size: 3rem; font-weight: 700; letter-spacing: 0.08em;">Heading 1 - Satisfy 3rem / 700 (Title)</div>
+                <div class="font-size-demo" style="font-family: 'Open Sans', sans-serif; font-size: 2rem; font-weight: 700; margin-top: 1rem;">Heading 2 - Open Sans 2rem / 700</div>
                 <div class="font-size-demo" style="font-family: 'Open Sans', sans-serif; font-size: 1.5rem; font-weight: 700; margin-top: 1rem;">Heading 3 - Open Sans 1.5rem / 700</div>
                 <div class="font-size-demo" style="font-family: 'Open Sans', sans-serif; font-size: 1.25rem; font-weight: 600; margin-top: 1rem;">Heading 4 - Open Sans 1.25rem / 600</div>
                 <div class="font-size-demo" style="font-family: 'Open Sans', sans-serif; font-size: 1rem; margin-top: 1rem;">Body Text - Open Sans 1rem / 400</div>
@@ -428,22 +392,24 @@
                     'Helvetica Neue', Arial, sans-serif;
             </div>
             
-            <p style="margin-top: 1rem;"><strong>Display Font (H1-H2 & App Title):</strong> Cabin - Friendly humanist sans-serif with distinctive personality, inspired by Edward Johnston's iconic signage work. Complements Open Sans perfectly while creating a memorable brand identity.</p>
+            <p style="margin-top: 1rem;"><strong>Display Font (H1-H2 & App Title):</strong> Satisfy - a stylish hand-lettered display font that lends personality and warmth to our app while still remaining legible when styled with stronger strokes and spacing.</p>
             <div class="code-block">
-                font-family: 'Cabin', 'Open Sans', sans-serif;
+                font-family: 'Satisfy', 'Open Sans', cursive;
             </div>
             
             <div style="margin-top: 1rem; padding: 1rem; background: #e3f2fd; border-left: 4px solid #1976d2; border-radius: 4px;">
-                <strong>Why Cabin?</strong>
+                <strong>Why Satisfy?</strong>
                 <ul style="margin-top: 0.5rem; margin-left: 1.5rem; line-height: 1.8;">
-                    <li>✅ <strong>Professional yet approachable</strong> - Perfect balance for volunteer-run app</li>
-                    <li>✅ <strong>Excellent pairing with Open Sans</strong> - Both humanist sans-serifs with compatible x-heights</li>
-                    <li>✅ <strong>Distinctive branding</strong> - More personality than geometric fonts, but still professional</li>
-                    <li>✅ <strong>High readability</strong> - Clear at all sizes, works great for app names and headings</li>
+                    <li>✅ <strong>Distinctive and friendly</strong> - Satisfy sets a unique tone without becoming unprofessional</li>
+                    <li>✅ <strong>Customizable intensity</strong> - We increase perceived weight using text-stroke and shadow so it reads confidently on UI elements and headings</li>
+                    <li>✅ <strong>Pairs well with Open Sans</strong> - Hand-lettered display + neutral body creates a pleasant contrast</li>
+                    <li>✅ <strong>Improved readability</strong> - We provide additional spacing (kerning) and stroke for better clarity on small and large screens
+                    </li>
                     <li>❌ <strong>Rejected alternatives:</strong>
                         <ul style="margin-left: 1.5rem; margin-top: 0.25rem;">
-                            <li>Dosis - Too geometric/modern, doesn't pair well with Open Sans</li>
-                            <li>Pacifico/Satisfy/Permanent Marker - Too casual/playful for financial/sales data</li>
+                            <li>Dosis - Too geometric/modern</li>
+                            <li>Cabin - Slightly less distinctive than Satisfy, though still professional</li>
+                            <li>Pacifico/Permanent Marker - Too casual for financial/sales interface</li>
                         </ul>
                     </li>
                 </ul>
@@ -656,15 +622,15 @@
       'Arial',
       'sans-serif',
     ].join(','),
-    h1: {
-      fontFamily: '"Cabin", "Open Sans", sans-serif',
-      fontWeight: 800,
-      letterSpacing: '-0.01em',
-    },
-    h2: {
-      fontFamily: '"Cabin", "Open Sans", sans-serif',
-      fontWeight: 700,
-    },
+        h1: {
+            fontFamily: '"Satisfy", "Open Sans", cursive',
+            fontWeight: 700,
+            letterSpacing: '0.08em',
+        },
+        h2: {
+            fontFamily: '"Open Sans", sans-serif',
+            fontWeight: 700,
+        },
     h3: {
       fontFamily: '"Open Sans", sans-serif',
       fontWeight: 700,
