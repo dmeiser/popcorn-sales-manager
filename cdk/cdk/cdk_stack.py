@@ -7,6 +7,7 @@ from aws_cdk import (
     aws_iam as iam,
     aws_cognito as cognito,
     aws_appsync as appsync,
+    aws_lambda as lambda_,
     aws_cloudfront as cloudfront,
     aws_cloudfront_origins as origins,
     aws_route53 as route53,
@@ -97,7 +98,9 @@ class CdkStack(Stack):
                     name="SK", type=dynamodb.AttributeType.STRING
                 ),
                 billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
-                point_in_time_recovery=True,
+                point_in_time_recovery_specification=dynamodb.PointInTimeRecoverySpecification(
+                    point_in_time_recovery_enabled=True
+                ),
                 removal_policy=RemovalPolicy.RETAIN,  # Don't delete on stack destroy
                 stream=dynamodb.StreamViewType.NEW_AND_OLD_IMAGES,  # For audit logging
             )
@@ -136,6 +139,14 @@ class CdkStack(Stack):
                     name="GSI3SK", type=dynamodb.AttributeType.STRING
                 ),
                 projection_type=dynamodb.ProjectionType.ALL,
+            )
+
+            # TTL configuration for invite expiration
+            # ProfileInvite and CatalogShareInvite items have expiresAt attribute
+            cfn_table = self.table.node.default_child
+            cfn_table.time_to_live_specification = dynamodb.CfnTable.TimeToLiveSpecificationProperty(
+                attribute_name="expiresAt",
+                enabled=True,
             )
 
         # ====================================================================
@@ -209,6 +220,88 @@ class CdkStack(Stack):
 
         # Grant AppSync role access to DynamoDB table
         self.table.grant_read_write_data(self.appsync_service_role)
+
+        # ====================================================================
+        # Lambda Functions
+        # ====================================================================
+
+        # Path to Lambda source code (parent directory)
+        lambda_src_path = os.path.join(os.path.dirname(__file__), "..", "..")
+
+        # Common Lambda environment variables
+        lambda_env = {
+            "TABLE_NAME": self.table.table_name,
+            "EXPORTS_BUCKET": self.exports_bucket.bucket_name,
+            "POWERTOOLS_SERVICE_NAME": "popcorn-sales-manager",
+            "LOG_LEVEL": "INFO",
+        }
+
+        # Asset bundling options to exclude unnecessary files
+        from aws_cdk import BundlingOptions
+        asset_bundling = lambda_.AssetCode(
+            lambda_src_path,
+            exclude=[
+                ".venv",
+                "cdk.out",
+                "cdk",
+                "htmlcov",
+                ".pytest_cache",
+                ".git",
+                ".temp",
+                "*.pyc",
+                "__pycache__",
+                "tests",
+            ],
+        )
+
+        # Profile Sharing Lambda Functions
+        self.create_profile_invite_fn = lambda_.Function(
+            self,
+            "CreateProfileInviteFn",
+            runtime=lambda_.Runtime.PYTHON_3_13,
+            handler="src.handlers.profile_sharing.create_profile_invite",
+            code=asset_bundling,
+            timeout=Duration.seconds(30),
+            memory_size=256,
+            role=self.lambda_execution_role,
+            environment=lambda_env,
+        )
+
+        self.redeem_profile_invite_fn = lambda_.Function(
+            self,
+            "RedeemProfileInviteFn",
+            runtime=lambda_.Runtime.PYTHON_3_13,
+            handler="src.handlers.profile_sharing.redeem_profile_invite",
+            code=asset_bundling,
+            timeout=Duration.seconds(30),
+            memory_size=256,
+            role=self.lambda_execution_role,
+            environment=lambda_env,
+        )
+
+        self.share_profile_direct_fn = lambda_.Function(
+            self,
+            "ShareProfileDirectFn",
+            runtime=lambda_.Runtime.PYTHON_3_13,
+            handler="src.handlers.profile_sharing.share_profile_direct",
+            code=asset_bundling,
+            timeout=Duration.seconds(30),
+            memory_size=256,
+            role=self.lambda_execution_role,
+            environment=lambda_env,
+        )
+
+        self.revoke_share_fn = lambda_.Function(
+            self,
+            "RevokeShareFn",
+            runtime=lambda_.Runtime.PYTHON_3_13,
+            handler="src.handlers.profile_sharing.revoke_share",
+            code=asset_bundling,
+            timeout=Duration.seconds(30),
+            memory_size=256,
+            role=self.lambda_execution_role,
+            environment=lambda_env,
+        )
 
         # ====================================================================
         # Cognito User Pool - Authentication (Essentials tier)
@@ -434,6 +527,52 @@ class CdkStack(Stack):
             self.dynamodb_datasource = self.api.add_dynamo_db_data_source(
                 "DynamoDBDataSource",
                 table=self.table,
+            )
+
+            # Lambda data sources for profile sharing
+            self.create_profile_invite_ds = self.api.add_lambda_data_source(
+                "CreateProfileInviteDS",
+                lambda_function=self.create_profile_invite_fn,
+            )
+            
+            self.redeem_profile_invite_ds = self.api.add_lambda_data_source(
+                "RedeemProfileInviteDS",
+                lambda_function=self.redeem_profile_invite_fn,
+            )
+            
+            self.share_profile_direct_ds = self.api.add_lambda_data_source(
+                "ShareProfileDirectDS",
+                lambda_function=self.share_profile_direct_fn,
+            )
+            
+            self.revoke_share_ds = self.api.add_lambda_data_source(
+                "RevokeShareDS",
+                lambda_function=self.revoke_share_fn,
+            )
+
+            # Resolvers for profile sharing mutations
+            self.create_profile_invite_ds.create_resolver(
+                "CreateProfileInviteResolver",
+                type_name="Mutation",
+                field_name="createProfileInvite",
+            )
+            
+            self.redeem_profile_invite_ds.create_resolver(
+                "RedeemProfileInviteResolver",
+                type_name="Mutation",
+                field_name="redeemProfileInvite",
+            )
+            
+            self.share_profile_direct_ds.create_resolver(
+                "ShareProfileDirectResolver",
+                type_name="Mutation",
+                field_name="shareProfileDirect",
+            )
+            
+            self.revoke_share_ds.create_resolver(
+                "RevokeShareResolver",
+                type_name="Mutation",
+                field_name="revokeShare",
             )
 
             # Custom domain for AppSync API

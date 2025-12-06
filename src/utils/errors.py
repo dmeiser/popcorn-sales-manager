@@ -10,7 +10,7 @@ from typing import Any, Dict, Optional
 class AppError(Exception):
     """
     Application error with error code and message.
-    
+
     Used to return structured errors to GraphQL clients.
     """
 
@@ -36,22 +36,22 @@ class ErrorCode:
     # Authorization errors
     FORBIDDEN = "FORBIDDEN"
     UNAUTHORIZED = "UNAUTHORIZED"
-    
+
     # Resource errors
     NOT_FOUND = "NOT_FOUND"
     ALREADY_EXISTS = "ALREADY_EXISTS"
-    
+
     # Validation errors
     INVALID_INPUT = "INVALID_INPUT"
     INVALID_PHONE = "INVALID_PHONE"
     INVALID_ADDRESS = "INVALID_ADDRESS"
-    
+
     # Business logic errors
     INVITE_EXPIRED = "INVITE_EXPIRED"
     INVITE_ALREADY_USED = "INVITE_ALREADY_USED"
     SEASON_READ_ONLY = "SEASON_READ_ONLY"
     INSUFFICIENT_PERMISSIONS = "INSUFFICIENT_PERMISSIONS"
-    
+
     # System errors
     INTERNAL_ERROR = "INTERNAL_ERROR"
     DATABASE_ERROR = "DATABASE_ERROR"
@@ -60,16 +60,16 @@ class ErrorCode:
 def handle_error(error: Exception) -> Dict[str, Any]:
     """
     Convert exception to standardized error response.
-    
+
     Args:
         error: Exception to handle
-        
+
     Returns:
         Error dictionary for GraphQL response
     """
     if isinstance(error, AppError):
         return error.to_dict()
-    
+
     # Unexpected error - log and return generic message
     return {
         "errorCode": ErrorCode.INTERNAL_ERROR,

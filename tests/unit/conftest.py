@@ -93,7 +93,9 @@ def sample_profile_id() -> str:
 
 
 @pytest.fixture
-def sample_profile(dynamodb_table: Any, sample_account_id: str, sample_profile_id: str) -> Dict[str, Any]:
+def sample_profile(
+    dynamodb_table: Any, sample_account_id: str, sample_profile_id: str
+) -> Dict[str, Any]:
     """Create sample profile in DynamoDB."""
     profile = {
         "PK": sample_profile_id,

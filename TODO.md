@@ -130,16 +130,21 @@
 ## Phase 1: Backend - Core API & Data Layer
 
 ### DynamoDB Schema Implementation
-- [ ] Create table with physical schema from `dynamodb_physical_schema_v1.md`
-- [ ] Implement GSI1 (Profiles Shared With Me)
-- [ ] Implement GSI2 (Orders by Profile)
-- [ ] Implement GSI3 (Catalog Ownership)
-- [ ] Add TTL configuration for ProfileInvite and CatalogShareInvite items
+- [x] Create table with physical schema (PK, SK, GSI1/GSI2/GSI3) ✅ (Deployed in Phase 0)
+- [x] Implement GSI1 (Profiles Shared With Me) ✅
+- [x] Implement GSI2 (Orders by Profile) ✅
+- [x] Implement GSI3 (Catalog Ownership) ✅
+- [x] Add TTL configuration for ProfileInvite and CatalogShareInvite items ✅ (Added Dec 6, 2025)
 - [ ] Test key access patterns with sample data
 
 ### AppSync GraphQL API
-- [ ] Deploy AppSync API with Cognito User Pools auth
-- [ ] Implement complete schema from `graphql_schema_v1.md`
+- [x] Deploy AppSync API with Cognito User Pools auth ✅ (Deployed in Phase 0)
+- [x] Implement complete schema from `graphql_schema_v1.md` ✅ (Schema deployed)
+- [x] Wire up Lambda resolvers for profile sharing mutations ✅ (Dec 6, 2025)
+  - [x] `createProfileInvite` ✅
+  - [x] `redeemProfileInvite` ✅
+  - [x] `shareProfileDirect` ✅
+  - [x] `revokeShare` ✅
 - [ ] Create direct DynamoDB resolvers for:
   - [ ] `me` query
   - [ ] `listProfiles`, `getProfile`
@@ -147,22 +152,31 @@
   - [ ] `listOrders`, `getOrder`
   - [ ] `listCatalogs`, `getCatalog`
   - [ ] Simple CRUD mutations (createProfile, updateProfile, createSeason, etc.)
-- [ ] Implement authorization checks in VTL or Lambda resolvers
-  - [ ] Owner-based access (ownerAccountId)
-  - [ ] Share-based access (READ/WRITE permissions)
-  - [ ] Admin override with logging
+- [x] Implement authorization checks in Lambda resolvers ✅ (Profile sharing done)
+  - [x] Owner-based access (ownerAccountId) ✅
+  - [x] Share-based access (READ/WRITE permissions) ✅
+  - [x] Admin override with logging ✅
 
 ### Lambda Functions (Python)
-- [x] Set up Lambda layer for shared dependencies (boto3, openpyxl, etc.) ✅
+- [x] Set up Lambda deployment in CDK ✅ (Dec 6, 2025)
 - [x] Create shared utilities module: ✅
   - [x] JSON logging helper with correlation IDs ✅
   - [x] Error handling utilities (errorCode + message pattern) ✅
   - [x] Authorization helper functions (owner/share checks) ✅
-- [x] Implement Lambda resolvers: ✅ (Profile sharing complete)
-  - [x] Profile sharing (`createProfileInvite`, `redeemProfileInvite`, `shareProfileDirect`, `revokeShare`) ✅
-  - [ ] Catalog sharing (`createCatalogShareInvite`, `redeemCatalogShareInvite`)
-  - [ ] Catalog corrections (`createCatalogCorrection`, `acceptCatalogCorrection`, `rejectCatalogCorrection`)
-  - [ ] Report generation (`requestSeasonReport` - CSV/XLSX export)
+- [x] Implement and deploy profile sharing Lambda functions: ✅ (Dec 6, 2025)
+  - [x] `createProfileInvite` - Creates invite codes for sharing profiles ✅
+  - [x] `redeemProfileInvite` - Redeems invite codes to create shares ✅
+  - [x] `shareProfileDirect` - Direct sharing without invites ✅
+  - [x] `revokeShare` - Revokes profile access ✅
+- [ ] Implement catalog sharing Lambda functions:
+  - [ ] `createCatalogShareInvite`
+  - [ ] `redeemCatalogShareInvite`
+- [ ] Implement catalog corrections Lambda functions:
+  - [ ] `createCatalogCorrection`
+  - [ ] `acceptCatalogCorrection`
+  - [ ] `rejectCatalogCorrection`
+- [ ] Implement report generation Lambda function:
+  - [ ] `requestSeasonReport` - CSV/XLSX export
 - [x] Define customer input validation rules: ✅
   - [x] Name (required) ✅
   - [x] Phone and/or Address (at least one required, both allowed) ✅
@@ -174,28 +188,50 @@
 - [ ] Implement background job (EventBridge + Lambda) to mark seasons READ_ONLY after 90 days of inactivity
 
 ### Lambda Testing & Quality
-- [x] **Target: 100% unit test coverage for all Lambda functions** ✅ (99.6% achieved with 84 tests)
-- [x] Write comprehensive unit tests with pytest: ✅
-  - [x] All Lambda resolvers (profile sharing, catalog sharing, corrections, reports) ✅ (Profile sharing complete)
+- [x] **Target: 100% unit test coverage for all Lambda functions** ✅ (100% achieved with 85 tests for profile sharing - Dec 6, 2025)
+- [x] Write comprehensive unit tests with pytest for profile sharing: ✅
+  - [x] All profile sharing Lambda resolvers ✅
   - [x] All utility functions (logging, error handling, authorization) ✅
   - [x] All validation logic (customer input, invite expiration, etc.) ✅
-  - [x] Mock AWS services using moto (DynamoDB, S3, SNS/SES, EventBridge) ✅
+  - [x] Mock AWS services using moto (DynamoDB) ✅
   - [x] Use pytest fixtures for common test data and AWS resource mocking ✅
   - [x] Test all authorization paths (owner, shared READ/WRITE, admin) ✅
   - [x] Test all error handling and edge cases ✅
   - [x] Test happy paths and failure scenarios ✅
 - [x] Configure pytest-cov for coverage reporting ✅
 - [x] Set up coverage requirements in pytest configuration (100% threshold) ✅
-- [ ] Run mypy for type checking on all Lambda code (strict mode)
-- [ ] Run Black for code formatting
-- [ ] Run isort for import sorting
+- [ ] Write tests for catalog sharing, corrections, and reports (when implemented)
+- [x] Run mypy for type checking on all Lambda code (strict mode) ✅ (Dec 6, 2025)
+- [x] Run Black for code formatting ✅ (Dec 6, 2025 - 7 files reformatted)
+- [x] Run isort for import sorting ✅ (Dec 6, 2025 - already sorted)
 - [x] Create comprehensive test fixtures for: ✅
   - [x] Mock DynamoDB tables with test data ✅
-  - [ ] Mock S3 buckets and objects
+  - [ ] Mock S3 buckets and objects (for report generation)
   - [x] Sample accounts, profiles, seasons, orders ✅
   - [x] Auth contexts (owner, contributor, admin) ✅
 - [ ] Add coverage reports to CI/CD (when implemented)
 - [ ] Note: Unit tests use moto; integration tests use AWS dev account
+
+### Data Validation & Business Logic
+- [x] Define customer input validation rules: ✅
+  - [x] Name (required) ✅
+  - [x] Phone and/or Address (at least one required, both allowed) ✅
+  - [x] Phone format validation (US: 10 digits with optional formatting) ✅
+  - [x] Address validation (all fields required if address provided) ✅
+- [x] Set default invite expiration: 14 days for both profile and catalog invites (single-use) ✅
+- [ ] Define report CSV/XLSX layout using `Popcorn 2025 - anonymized.xlsx` as reference format
+- [ ] Add `lastActivityAt` to Season schema
+- [ ] Implement background job (EventBridge + Lambda) to mark seasons READ_ONLY after 90 days of inactivity
+
+### CDK Infrastructure Updates (Dec 6, 2025)
+- [x] Add TTL configuration to DynamoDB table ✅
+- [x] Add Lambda functions to CDK stack with proper asset bundling ✅
+- [x] Configure Lambda environment variables (TABLE_NAME, EXPORTS_BUCKET, etc.) ✅
+- [x] Create Lambda data sources in AppSync ✅
+- [x] Wire up resolvers for profile sharing mutations ✅
+- [x] Deploy all changes to AWS dev environment ✅
+- [x] Fix deprecation warning: `pointInTimeRecovery` → `pointInTimeRecoverySpecification` ✅
+- [ ] Test deployed mutations end-to-end via AppSync console
 
 ### Audit & Logging
 - [ ] Set up Kinesis Firehose → S3 pipeline for application events

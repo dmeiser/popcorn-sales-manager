@@ -18,7 +18,11 @@ class TestIsProfileOwner:
     """Tests for is_profile_owner function."""
 
     def test_owner_returns_true(
-        self, dynamodb_table: Any, sample_profile: Any, sample_account_id: str, sample_profile_id: str
+        self,
+        dynamodb_table: Any,
+        sample_profile: Any,
+        sample_account_id: str,
+        sample_profile_id: str,
     ) -> None:
         """Test that owner check returns True for owner."""
         result = is_profile_owner(sample_account_id, sample_profile_id)
@@ -26,14 +30,20 @@ class TestIsProfileOwner:
         assert result is True
 
     def test_non_owner_returns_false(
-        self, dynamodb_table: Any, sample_profile: Any, sample_profile_id: str, another_account_id: str
+        self,
+        dynamodb_table: Any,
+        sample_profile: Any,
+        sample_profile_id: str,
+        another_account_id: str,
     ) -> None:
         """Test that owner check returns False for non-owner."""
         result = is_profile_owner(another_account_id, sample_profile_id)
 
         assert result is False
 
-    def test_nonexistent_profile_raises_error(self, dynamodb_table: Any, sample_account_id: str) -> None:
+    def test_nonexistent_profile_raises_error(
+        self, dynamodb_table: Any, sample_account_id: str
+    ) -> None:
         """Test that nonexistent profile raises NOT_FOUND."""
         with pytest.raises(AppError) as exc_info:
             is_profile_owner(sample_account_id, "PROFILE#nonexistent")
@@ -45,7 +55,11 @@ class TestCheckProfileAccess:
     """Tests for check_profile_access function."""
 
     def test_owner_has_read_access(
-        self, dynamodb_table: Any, sample_profile: Any, sample_account_id: str, sample_profile_id: str
+        self,
+        dynamodb_table: Any,
+        sample_profile: Any,
+        sample_account_id: str,
+        sample_profile_id: str,
     ) -> None:
         """Test that owner has READ access."""
         result = check_profile_access(sample_account_id, sample_profile_id, "READ")
@@ -53,7 +67,11 @@ class TestCheckProfileAccess:
         assert result is True
 
     def test_owner_has_write_access(
-        self, dynamodb_table: Any, sample_profile: Any, sample_account_id: str, sample_profile_id: str
+        self,
+        dynamodb_table: Any,
+        sample_profile: Any,
+        sample_account_id: str,
+        sample_profile_id: str,
     ) -> None:
         """Test that owner has WRITE access."""
         result = check_profile_access(sample_account_id, sample_profile_id, "WRITE")
@@ -124,12 +142,25 @@ class TestCheckProfileAccess:
         assert result is True
 
     def test_user_without_share_denied(
-        self, dynamodb_table: Any, sample_profile: Any, sample_profile_id: str, another_account_id: str
+        self,
+        dynamodb_table: Any,
+        sample_profile: Any,
+        sample_profile_id: str,
+        another_account_id: str,
     ) -> None:
         """Test that user without share is denied access."""
         result = check_profile_access(another_account_id, sample_profile_id, "READ")
 
         assert result is False
+
+    def test_nonexistent_profile_raises_not_found(
+        self, dynamodb_table: Any, sample_account_id: str
+    ) -> None:
+        """Test that nonexistent profile raises NOT_FOUND."""
+        with pytest.raises(AppError) as exc_info:
+            check_profile_access(sample_account_id, "PROFILE#nonexistent", "READ")
+
+        assert exc_info.value.error_code == ErrorCode.NOT_FOUND
 
     def test_profile_without_owner_denies_access(
         self,
@@ -157,7 +188,11 @@ class TestRequireProfileAccess:
     """Tests for require_profile_access function."""
 
     def test_owner_allowed(
-        self, dynamodb_table: Any, sample_profile: Any, sample_account_id: str, sample_profile_id: str
+        self,
+        dynamodb_table: Any,
+        sample_profile: Any,
+        sample_account_id: str,
+        sample_profile_id: str,
     ) -> None:
         """Test that owner is allowed."""
         # Should not raise
@@ -184,7 +219,11 @@ class TestRequireProfileAccess:
         require_profile_access(another_account_id, sample_profile_id, "READ")
 
     def test_unauthorized_user_raises_forbidden(
-        self, dynamodb_table: Any, sample_profile: Any, sample_profile_id: str, another_account_id: str
+        self,
+        dynamodb_table: Any,
+        sample_profile: Any,
+        sample_profile_id: str,
+        another_account_id: str,
     ) -> None:
         """Test that unauthorized user raises FORBIDDEN."""
         with pytest.raises(AppError) as exc_info:
@@ -239,7 +278,9 @@ class TestIsAdmin:
 
         assert result is True
 
-    def test_non_admin_account_returns_false(self, dynamodb_table: Any, sample_account_id: str) -> None:
+    def test_non_admin_account_returns_false(
+        self, dynamodb_table: Any, sample_account_id: str
+    ) -> None:
         """Test that non-admin account returns False."""
         # Create non-admin account
         dynamodb_table.put_item(
