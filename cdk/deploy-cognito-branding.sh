@@ -134,11 +134,31 @@ rm -f /tmp/cognito-branding-input.json /tmp/cognito-branding-update.json
 REGION=$(aws configure get region)
 HOSTED_UI_URL="https://popcorn-sales-manager-dev.auth.${REGION}.amazoncognito.com/login?client_id=${CLIENT_ID}&response_type=code&redirect_uri=http://localhost:5173"
 
+# Ensure domain is using Managed Login (not Hosted UI classic)
+echo -e "${YELLOW}Verifying domain branding version...${NC}"
+CURRENT_VERSION=$(aws cognito-idp describe-user-pool-domain \
+  --domain popcorn-sales-manager-dev \
+  --query 'DomainDescription.ManagedLoginVersion' \
+  --output text)
+
+if [ "$CURRENT_VERSION" != "2" ]; then
+  echo -e "${YELLOW}Domain is using version $CURRENT_VERSION. Updating to Managed Login v2...${NC}"
+  aws cognito-idp update-user-pool-domain \
+    --domain popcorn-sales-manager-dev \
+    --user-pool-id "$USER_POOL_ID" \
+    --managed-login-version 2 \
+    --output json > /dev/null
+  echo -e "${GREEN}✓ Domain updated to Managed Login v2${NC}"
+  echo -e "${YELLOW}Note: Changes may take up to 4 minutes to propagate${NC}\n"
+else
+  echo -e "${GREEN}✓ Domain already using Managed Login v2${NC}\n"
+fi
+
 echo -e "${GREEN}=== Deployment Complete ===${NC}\n"
 echo -e "Test your branding at:"
 echo -e "${GREEN}${HOSTED_UI_URL}${NC}\n"
 echo -e "You should see:"
-echo -e "  ✓ Popcorn logo at top of form"
 echo -e "  ✓ Primary blue buttons (#1976d2)"
-echo -e "  ✓ COPPA warning for 13+ age requirement"
-echo -e "  ✓ Brand colors throughout\n"
+echo -e "  ✓ Styled form with custom colors"
+echo -e "  ✓ Brand colors throughout"
+echo -e "\n${YELLOW}Note: Do a hard refresh (Ctrl+Shift+R) to clear browser cache${NC}\n"

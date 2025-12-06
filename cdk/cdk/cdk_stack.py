@@ -558,6 +558,11 @@ class CdkStack(Stack):
                 ),
             )
             
+            # Set domain to use Managed Login (version 2) instead of Hosted UI (classic)
+            # This enables the branding deployed via deploy-cognito-branding.sh
+            cfn_domain = self.user_pool_domain.node.default_child
+            cfn_domain.add_property_override("ManagedLoginVersion", 2)
+            
             # Cognito Hosted UI Customization
             # Note: CSS must be inline (no external files) and max 100KB
             # Read logo from assets
