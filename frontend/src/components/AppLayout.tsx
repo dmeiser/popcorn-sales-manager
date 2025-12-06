@@ -107,9 +107,9 @@ export const AppLayout: React.FC<{ children?: React.ReactNode }> = ({ children }
             </Typography>
 
             {!isDesktop && account && (
-              <Box sx={{ display: { xs: 'none', sm: 'flex' }, alignItems: 'center', mr: 1 }}>
-                <AccountCircleIcon sx={{ mr: 0.5, fontSize: '1.25rem' }} />
-                <Typography variant="body2" noWrap sx={{ maxWidth: 120 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', mr: 1 }}>
+                <AccountCircleIcon sx={{ fontSize: '1.5rem' }} />
+                <Typography variant="body2" noWrap sx={{ maxWidth: 120, ml: 0.5, display: { xs: 'none', sm: 'block' } }}>
                   {account.displayName}
                 </Typography>
               </Box>
