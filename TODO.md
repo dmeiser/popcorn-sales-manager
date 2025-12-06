@@ -412,12 +412,18 @@
   - [x] Open Sans for body content ✅
   - [x] Correct letter spacing (0.08em) ✅
   - [x] Branding colors from guide (#1976d2 primary, #dc004e secondary) ✅
-- [ ] Configure Cognito Hosted UI branding and COPPA compliance:
-  - [ ] Customize Hosted UI with app branding (logo, colors)
-  - [ ] Add COPPA warning to signup page via custom CSS/text
-  - [ ] Add privacy notice for parents/guardians
-  - [ ] Add terms of service link
-  - [ ] Test signup flow with COPPA warning visible
+  - [x] Material Design persistent drawer pattern (desktop) with icons ✅
+  - [x] Responsive mobile header with proper icon visibility ✅
+  - [x] Removed Vite template CSS conflicts ✅
+- [x] Configure Cognito Hosted UI branding and COPPA compliance: ✅
+  - [x] Customize Hosted UI with app branding (Satisfy/Open Sans fonts, #1976d2 primary color) ✅
+  - [x] Add COPPA warning banner with 13+ age requirement via CSS ::before pseudo-element ✅
+  - [x] Styled input fields, buttons, error messages to match branding ✅
+  - [x] Social login button styling ✅
+  - [x] Added CfnOutput for Hosted UI testing URL ✅
+  - [ ] Add privacy notice for parents/guardians (deferred - requires separate policy page)
+  - [ ] Add terms of service link (deferred - requires separate ToS page)
+  - [ ] Test signup flow with COPPA warning visible (requires CDK deployment)
 
 ### Pages & Components
 - [ ] **LoginPage** - Cognito Hosted UI redirect
