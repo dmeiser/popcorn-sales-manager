@@ -21,6 +21,8 @@ import PersonIcon from '@mui/icons-material/Person';
 import CalendarMonthIcon from '@mui/icons-material/CalendarMonth';
 import AssessmentIcon from '@mui/icons-material/Assessment';
 import LocalMallIcon from '@mui/icons-material/LocalMall';
+import AccountCircleIcon from '@mui/icons-material/AccountCircle';
+import LogoutIcon from '@mui/icons-material/Logout';
 import { useAuth } from '../contexts/AuthContext';
 import { Toast } from './Toast';
 import { Outlet } from 'react-router-dom';
@@ -102,18 +104,32 @@ export const AppLayout: React.FC<{ children?: React.ReactNode }> = ({ children }
             </Typography>
 
             {!isDesktop && account && (
-              <Typography variant="body2" sx={{ mr: 2, display: { xs: 'none', sm: 'block' } }}>
-                {account.displayName}
-              </Typography>
+              <Box sx={{ display: { xs: 'none', sm: 'flex' }, alignItems: 'center', mr: 2 }}>
+                <AccountCircleIcon sx={{ mr: 0.5, fontSize: '1.25rem' }} />
+                <Typography variant="body2">
+                  {account.displayName}
+                </Typography>
+              </Box>
             )}
 
             {isDesktop && account && (
-              <Typography variant="body2" sx={{ mr: 2 }}>
-                {account.displayName}
-              </Typography>
+              <Box sx={{ display: 'flex', alignItems: 'center', mr: 2 }}>
+                <AccountCircleIcon sx={{ mr: 0.5, fontSize: '1.25rem' }} />
+                <Typography variant="body2">
+                  {account.displayName}
+                </Typography>
+              </Box>
             )}
             
-            <Button color="inherit" onClick={logout}>
+            <Button 
+              color="inherit" 
+              onClick={logout}
+              startIcon={<LogoutIcon />}
+              sx={{ 
+                textTransform: 'none',
+                fontWeight: 500
+              }}
+            >
               Log out
             </Button>
           </Toolbar>
