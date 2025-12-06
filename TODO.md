@@ -267,7 +267,7 @@
   - [x] Phone and/or Address (at least one required, both allowed) ✅
   - [x] Phone format validation (US: 10 digits with optional formatting) ✅
   - [x] Address validation (all fields required if address provided) ✅
-- [ ] Define report CSV/XLSX layout using `Popcorn 2025 - anonymized.xlsx` as reference format
+- [x] Define report CSV/XLSX layout ✅ (Implemented in report_generation.py - Excel with formatting, CSV)
 - [x] Set default invite expiration: 14 days for both profile and catalog invites (single-use) ✅
 - [ ] Add `lastActivityAt` to Season schema
 - [ ] Implement background job (EventBridge + Lambda) to mark seasons READ_ONLY after 90 days of inactivity
