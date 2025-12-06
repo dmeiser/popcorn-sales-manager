@@ -30,8 +30,8 @@ export const AppLayout: React.FC<{ children?: React.ReactNode }> = ({ children }
   return (
     <Box sx={{ display: 'flex', minHeight: '100vh', flexDirection: 'column' }}>
       <AppBar position="static" color="primary">
-        <Container maxWidth="lg" disableGutters>
-          <Toolbar sx={{ px: { xs: 2, sm: 3 } }}>
+        <Toolbar sx={{ px: { xs: 2, sm: 3 } }}>
+          <Container maxWidth="lg" disableGutters sx={{ display: 'flex', alignItems: 'center' }}>
             {/* Menu button */}
             <IconButton 
               edge="start" 
@@ -75,8 +75,8 @@ export const AppLayout: React.FC<{ children?: React.ReactNode }> = ({ children }
                 {isMobile ? 'Logout' : 'Log out'}
               </Button>
             </Box>
-          </Toolbar>
-        </Container>
+          </Container>
+        </Toolbar>
       </AppBar>
 
       <Drawer anchor="left" open={drawerOpen} onClose={toggleDrawer}>
