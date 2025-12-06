@@ -352,7 +352,7 @@
 
 ## Phase 2: Frontend - React SPA
 
-**Status:** Phase 2 - In Progress (Step 1/9 Complete)  
+**Status:** Phase 2 - In Progress (Step 2/9 Complete)  
 **Last Updated:** 2025-12-06
 
 ### Project Setup ✅ COMPLETE
@@ -368,15 +368,23 @@
   - [x] Updated .gitignore to exclude .env ✅
   - [x] Dev server verified at http://localhost:5173/ ✅
 
-### Authentication & Auth Context
-- [ ] Implement Cognito Hosted UI integration
-- [ ] Create AuthProvider context with:
-  - [ ] Login/logout flows
-  - [ ] Token refresh logic
-  - [ ] Current Account state
-  - [ ] isAdmin flag
-- [ ] Implement protected route wrapper
-- [ ] Add COPPA warning on signup/registration page
+### Authentication & Auth Context ✅ COMPLETE
+- [x] Implement Cognito Hosted UI integration ✅
+  - [x] AWS Amplify configuration (lib/amplify.ts) ✅
+  - [x] OAuth configuration with Google provider ✅
+- [x] Create AuthProvider context with: ✅
+  - [x] Login/logout flows ✅
+  - [x] Token refresh logic ✅
+  - [x] Current Account state ✅
+  - [x] isAdmin flag ✅
+- [x] Implement protected route wrapper ✅
+  - [x] ProtectedRoute component with loading state ✅
+  - [x] Admin access control ✅
+  - [x] Redirect to login for unauthenticated users ✅
+- [x] Add COPPA warning on signup/registration page ✅
+  - [x] LoginPage with age requirement notice ✅
+  - [x] Privacy notice for parents/guardians ✅
+  - [x] Terms of service acknowledgment ✅
 
 ### Apollo Client Setup
 - [ ] Configure Apollo Client with AppSync endpoint
