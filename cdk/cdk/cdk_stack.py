@@ -568,26 +568,15 @@ class CdkStack(Stack):
             except FileNotFoundError:
                 logo_base64 = None  # Deploy without logo if file not found
                 
-            # AWS Cognito only accepts "basic style rules" in CSS
-            # Complex rules (::before, :hover, transitions, @import) are rejected
-            # Simplified to basic property assignments only
+            # AWS Cognito has a very restrictive whitelist of allowed CSS classes
+            # Only submit button appears to be reliably supported
+            # Other customization (logo, fonts, COPPA warning) must be done via:
+            # 1. Logo: AWS Console or CLI after deployment
+            # 2. Custom fonts: Not supported in basic tier
+            # 3. COPPA warning: Implement in app UI, not in Cognito
             cognito_ui_css = """
                 .submitButton-customizable {
                     background-color: #1976d2;
-                    color: #ffffff;
-                }
-                
-                .banner-customizable {
-                    background-color: #fff3cd;
-                    padding: 16px;
-                }
-                
-                .input-customizable {
-                    border: 1px solid #ccc;
-                }
-                
-                .anchor-customizable {
-                    color: #1976d2;
                 }
             """
             
