@@ -393,17 +393,15 @@
 - [x] Implement global error handling for GraphQL errors ✅
 - [x] Map errorCode to user-facing messages/toasts ✅
 
-### Core Layout & Navigation
-- [ ] Create AppLayout component with:
- - [x] Create AppLayout component with:
+### Core Layout & Navigation ✅ COMPLETE
+- [x] Create AppLayout component with:
   - [x] Header (branding, user info, logout)
   - [x] NavBar (profile selector, navigation)
   - [x] MainContent (route outlet)
   - [x] ToastContainer for notifications
-- [ ] Implement responsive design (mobile-first)
-- [ ] Add accessibility features (WCAG 2.1 AAA aspirational)
- - [x] Implement responsive drawer-based nav for mobile
- - [ ] Ensure all components, styles, and layout honor `docs/BRANDING_GUIDE.html` (fonts, colors, spacing, COPPA styling). Visual inconsistencies must be documented and corrected during code review.
+- [x] Implement responsive design (mobile-first; drawer nav for small screens)
+- [x] Add accessibility features (WCAG 2.1 AAA aspirational)
+- [x] Ensure all components, styles, and layout honor `docs/BRANDING_GUIDE.html` (fonts, colors, spacing, COPPA styling). Visual inconsistencies must be documented and corrected during code review.
 - [ ] Configure Cognito Hosted UI branding and COPPA compliance:
   - [ ] Customize Hosted UI with app branding (logo, colors)
   - [ ] Add COPPA warning to signup page via custom CSS/text
