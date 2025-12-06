@@ -141,6 +141,33 @@ class CdkStack(Stack):
                 projection_type=dynamodb.ProjectionType.ALL,
             )
 
+            # GSI4: Profile lookup by profileId (for direct getProfile queries)
+            self.table.add_global_secondary_index(
+                index_name="GSI4",
+                partition_key=dynamodb.Attribute(
+                    name="profileId", type=dynamodb.AttributeType.STRING
+                ),
+                projection_type=dynamodb.ProjectionType.ALL,
+            )
+
+            # GSI5: Season lookup by seasonId (for direct getSeason queries)
+            self.table.add_global_secondary_index(
+                index_name="GSI5",
+                partition_key=dynamodb.Attribute(
+                    name="seasonId", type=dynamodb.AttributeType.STRING
+                ),
+                projection_type=dynamodb.ProjectionType.ALL,
+            )
+
+            # GSI6: Order lookup by orderId (for direct getOrder queries)
+            self.table.add_global_secondary_index(
+                index_name="GSI6",
+                partition_key=dynamodb.Attribute(
+                    name="orderId", type=dynamodb.AttributeType.STRING
+                ),
+                projection_type=dynamodb.ProjectionType.ALL,
+            )
+
             # TTL configuration for invite expiration
             # ProfileInvite and CatalogShareInvite items have expiresAt attribute
             cfn_table = self.table.node.default_child
@@ -602,7 +629,7 @@ $util.toJson($ctx.result)
                 """),
             )
 
-            # getProfile - Get a specific profile by ID
+            # getProfile - Get a specific profile by ID (using GSI4)
             self.dynamodb_datasource.create_resolver(
                 "GetProfileResolver",
                 type_name="Query",
@@ -610,11 +637,15 @@ $util.toJson($ctx.result)
                 request_mapping_template=appsync.MappingTemplate.from_string("""
 {
     "version": "2017-02-28",
-    "operation": "GetItem",
-    "key": {
-        "PK": $util.dynamodb.toDynamoDBJson($ctx.args.profileId),
-        "SK": $util.dynamodb.toDynamoDBJson("METADATA")
-    }
+    "operation": "Query",
+    "index": "GSI4",
+    "query": {
+        "expression": "profileId = :profileId",
+        "expressionValues": {
+            ":profileId": $util.dynamodb.toDynamoDBJson($ctx.args.profileId)
+        }
+    },
+    "limit": 1
 }
                 """),
                 response_mapping_template=appsync.MappingTemplate.from_string("""
@@ -622,11 +653,11 @@ $util.toJson($ctx.result)
     $util.error($ctx.error.message, $ctx.error.type)
 #end
 ## Check authorization: caller must be owner or have share access
-#if($ctx.result.isEmpty())
+#if($ctx.result.items.isEmpty())
     $util.error("Profile not found", "NotFound")
 #end
 ## TODO: Add authorization check here (owner or shared user)
-$util.toJson($ctx.result)
+$util.toJson($ctx.result.items[0])
                 """),
             )
 
@@ -685,7 +716,7 @@ $util.toJson($ctx.result.items)
                 """),
             )
 
-            # getSeason - Get a specific season by ID
+            # getSeason - Get a specific season by ID (using GSI5)
             self.dynamodb_datasource.create_resolver(
                 "GetSeasonResolver",
                 type_name="Query",
@@ -693,18 +724,26 @@ $util.toJson($ctx.result.items)
                 request_mapping_template=appsync.MappingTemplate.from_string("""
 {
     "version": "2017-02-28",
-    "operation": "GetItem",
-    "key": {
-        "PK": $util.dynamodb.toDynamoDBJson($ctx.args.seasonId),
-        "SK": $util.dynamodb.toDynamoDBJson("METADATA")
-    }
+    "operation": "Query",
+    "index": "GSI5",
+    "query": {
+        "expression": "seasonId = :seasonId",
+        "expressionValues": {
+            ":seasonId": $util.dynamodb.toDynamoDBJson($ctx.args.seasonId)
+        }
+    },
+    "limit": 1
 }
                 """),
                 response_mapping_template=appsync.MappingTemplate.from_string("""
 #if($ctx.error)
     $util.error($ctx.error.message, $ctx.error.type)
 #end
-$util.toJson($ctx.result)
+#if($ctx.result.items.isEmpty())
+    $util.toJson(null)
+#else
+    $util.toJson($ctx.result.items[0])
+#end
                 """),
             )
 
@@ -734,7 +773,7 @@ $util.toJson($ctx.result.items)
                 """),
             )
 
-            # getOrder - Get a specific order by ID
+            # getOrder - Get a specific order by ID (using GSI6)
             self.dynamodb_datasource.create_resolver(
                 "GetOrderResolver",
                 type_name="Query",
@@ -742,18 +781,26 @@ $util.toJson($ctx.result.items)
                 request_mapping_template=appsync.MappingTemplate.from_string("""
 {
     "version": "2017-02-28",
-    "operation": "GetItem",
-    "key": {
-        "PK": $util.dynamodb.toDynamoDBJson($ctx.args.orderId),
-        "SK": $util.dynamodb.toDynamoDBJson("METADATA")
-    }
+    "operation": "Query",
+    "index": "GSI6",
+    "query": {
+        "expression": "orderId = :orderId",
+        "expressionValues": {
+            ":orderId": $util.dynamodb.toDynamoDBJson($ctx.args.orderId)
+        }
+    },
+    "limit": 1
 }
                 """),
                 response_mapping_template=appsync.MappingTemplate.from_string("""
 #if($ctx.error)
     $util.error($ctx.error.message, $ctx.error.type)
 #end
-$util.toJson($ctx.result)
+#if($ctx.result.items.isEmpty())
+    $util.toJson(null)
+#else
+    $util.toJson($ctx.result.items[0])
+#end
                 """),
             )
 
