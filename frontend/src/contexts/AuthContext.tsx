@@ -129,13 +129,18 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children, apolloClie
    * This redirects the user to the Cognito Hosted UI at:
    * https://{COGNITO_DOMAIN}/oauth2/authorize
    * 
-   * The user will authenticate with their chosen social provider (Google/Facebook/Apple),
-   * and Cognito will redirect back to the app with an authorization code.
+   * The Hosted UI displays all configured authentication options:
+   * - Social providers (Google, Facebook, Apple)
+   * - Email/password signup and login
+   * - Password reset flows
+   * 
+   * After authentication, Cognito redirects back to the app with an authorization code.
    * Amplify automatically exchanges the code for JWT tokens.
    */
   const login = useCallback(async () => {
     try {
-      await signInWithRedirect({ provider: 'Google' });
+      // Redirect to Cognito Hosted UI (shows all login options)
+      await signInWithRedirect();
     } catch (error) {
       console.error('Login failed:', error);
       throw error;
