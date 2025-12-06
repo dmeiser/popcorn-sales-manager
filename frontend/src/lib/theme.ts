@@ -27,6 +27,11 @@ export const theme = createTheme({
       fontFamily: '"Satisfy", "Open Sans", cursive',
       fontWeight: 600,
       letterSpacing: '0.08em',
+      fontSize: '2rem',
+      // Larger on medium and up
+      '@media (min-width: 900px)': {
+        fontSize: '3rem',
+      },
     },
     h2: { fontFamily: '"Open Sans", sans-serif', fontWeight: 700 },
     h3: { fontFamily: '"Open Sans", sans-serif', fontWeight: 700 },
