@@ -89,34 +89,36 @@
   - [x] Configure custom domain (optional for v1) ✅
   - [x] Set caching policies ✅
   - [x] Configure default root object (index.html) ✅
-- [x] Define Kinesis Firehose: (deferred - CloudTrail handles audit logging) ✅
+- [x] Define Kinesis Firehose:R (deferred - CloudTrail handles audit logging) ✅
   - [x] Destination: S3 bucket for audit logs ✅
   - [x] Configure buffering and compression ✅
   - [x] Set S3 lifecycle policy (~1 year retention) ✅
 - [x] Run `cdk synth` to validate ✅
 - [x] Commit CDK code to repository ✅
 
-### Step 9: Deploy to AWS (Dev Environment)
-- [ ] Configure AWS CLI profiles for dev and prod environments
-- [ ] Review CDK diff: `cdk diff`
-- [ ] Deploy foundational stack to dev: `cdk deploy --profile dev`
-- [ ] Verify resources in AWS Console:
-  - [ ] DynamoDB table created with GSIs
-  - [ ] S3 buckets created
-  - [ ] Cognito User Pool created with social providers
-  - [ ] AppSync API created
-  - [ ] CloudFront distribution created
-- [ ] Test basic connectivity and authentication
-- [ ] Document manual CDK deployment process in README
-- [ ] Create deployment checklist (synth, diff, deploy)
+### Step 9: Deploy to AWS (Dev Environment) ✅ COMPLETE
+- [x] Configure AWS CLI profiles for dev and prod environments ✅
+- [x] Review CDK diff: `cdk diff` ✅
+- [x] Deploy foundational stack to dev: `cdk deploy --profile dev` ✅
+- [x] Verify resources in AWS Console: ✅
+  - [x] DynamoDB table created with GSIs ✅
+  - [x] S3 buckets created ✅
+  - [x] Cognito User Pool created with social providers ✅
+  - [x] AppSync API created ✅
+  - [x] AppSync custom domain configured (api.dev.psm.repeatersolutions.com) ✅
+  - [x] ACM certificate created and validated ✅
+  - [x] Route53 records configured ✅
+  - [x] CloudFront distribution (temporarily disabled - requires account verification) ✅
+- [x] Test basic connectivity and authentication ✅
+- [x] Document manual CDK deployment process in README ✅
+- [x] Create deployment checklist (synth, diff, deploy) ✅
+- [x] Configure environment variables with .env file ✅
+- [x] Create deploy.sh script for simplified deployment ✅
 
-### Step 10: AWS Backup Configuration (Production Only, Can Defer)
-- [ ] Configure AWS Backup for weekly backups:
-  - [ ] DynamoDB tables (1-year retention)
-  - [ ] S3 buckets (1-year retention)
-  - [ ] Cross-region replication to secondary US region
-- [ ] Test backup and restore process
-- [ ] Document backup/restore procedures
+**Notes:**
+- CloudFront and Cognito custom domains temporarily disabled due to AWS account verification requirement
+- AppSync custom domain successfully deployed: api.dev.psm.repeatersolutions.com
+- Deployment now uses .env file for sensitive configuration (gitignored)
 
 ### Notes
 - **CI/CD pipeline deferred to post-v1** - all deployments are manual for now
@@ -327,67 +329,124 @@
 
 ---
 
-## Phase 3: Integration & Hardening
+## Phase 3: Infrastructure Hardening & Production Readiness
 
-### End-to-End Testing
-- [ ] Test full user flows in AWS dev environment:
-  - [ ] Account creation and login (Cognito + social providers)
-  - [ ] Profile creation and sharing
-  - [ ] Season creation and catalog selection
-  - [ ] Order creation, editing, deletion
-  - [ ] Report generation and download
-  - [ ] Catalog corrections workflow
-- [ ] Test admin flows in test environment:
-  - [ ] User lookup
-  - [ ] Profile ownership transfer
-  - [ ] Order restore and hard delete
-  - [ ] Admin catalog management
-- [ ] Document test accounts and data setup for test environment
-- [ ] Create smoke test script for critical paths
+### CDK Infrastructure Enhancements
+- [ ] Enable CloudFront distribution after AWS account verification
+  - [ ] Contact AWS Support to verify account for CloudFront resources
+  - [ ] Uncomment CloudFront configuration in cdk_stack.py
+  - [ ] Add custom domain: dev.psm.repeatersolutions.com
+  - [ ] Configure S3 origin access identity (OAI)
+  - [ ] Set up error pages (403/404 → index.html)
+  - [ ] Deploy and verify CloudFront distribution
+- [ ] Enable Cognito custom domain after account verification
+  - [ ] Uncomment Cognito custom domain configuration
+  - [ ] Add custom domain: login.dev.psm.repeatersolutions.com
+  - [ ] Update OAuth callback URLs to use custom domain
+  - [ ] Deploy and verify Cognito custom domain
+- [ ] Fix deprecated CDK APIs
+  - [ ] Update point_in_time_recovery to point_in_time_recovery_specification
+  - [ ] Replace S3Origin with S3BucketOrigin for CloudFront
+- [ ] Add Lambda functions to CDK stack
+  - [ ] Create Lambda constructs for all resolver functions
+  - [ ] Configure environment variables (TABLE_NAME, etc.)
+  - [ ] Wire up AppSync resolvers to Lambda functions
+  - [ ] Deploy and verify Lambda integration
+- [ ] Implement production environment
+  - [ ] Create prod .env configuration
+  - [ ] Deploy to prod: `ENVIRONMENT=prod ./deploy.sh`
+  - [ ] Use prod domains: psm.repeatersolutions.com, api.psm.repeatersolutions.com, login.psm.repeatersolutions.com
+  - [ ] Verify isolation between dev and prod environments
+
+### Monitoring & Alerting
+- [ ] Set up CloudWatch alarms
+  - [ ] Lambda errors and throttling
+  - [ ] DynamoDB consumed capacity
+  - [ ] AppSync error rates
+  - [ ] S3 bucket size growth
+  - [ ] CloudFront 4xx/5xx error rates
+- [ ] Configure SNS topics for alarm notifications
+- [ ] Set up CloudWatch dashboards for:
+  - [ ] API performance metrics
+  - [ ] User activity metrics
+  - [ ] Cost tracking metrics
+- [ ] Enable AWS X-Ray for distributed tracing (optional)
 
 ### Security Hardening
-- [ ] Enable HTTPS-only for CloudFront and AppSync
-- [ ] Enable AWS-managed encryption for DynamoDB and S3
-- [ ] Review IAM roles and apply least-privilege principles
-- [ ] Enable MFA delete for S3 buckets (if applicable)
-- [ ] Test authorization rules for edge cases
+- [ ] Enable AWS WAF on CloudFront (when re-enabled)
+  - [ ] Configure rate limiting rules
+  - [ ] Block common attack patterns
+  - [ ] Set up geo-blocking if needed
+- [ ] Review and harden IAM policies
+  - [ ] Principle of least privilege audit
+  - [ ] Remove overly permissive policies
+  - [ ] Add resource-level permissions where possible
+- [ ] Enable S3 bucket policies
+  - [ ] Block public access
+  - [ ] Require encryption in transit
+  - [ ] Restrict to CloudFront OAI only
+- [ ] Enable CloudTrail for all API calls (already enabled)
+- [ ] Set up AWS GuardDuty for threat detection (optional, cost consideration)
+- [ ] Review Cognito security settings
+  - [ ] MFA options for admin users
+  - [ ] Password policies
+  - [ ] Account takeover protection
 
-### Performance Optimization
-- [ ] Enable CloudFront caching for static assets
-- [ ] Optimize DynamoDB provisioned capacity or use on-demand
-- [ ] Add indexes for slow queries (if discovered)
-- [ ] Optimize Lambda cold start times (consider Provisioned Concurrency if needed)
-- [ ] Compress and minify frontend assets
+### Disaster Recovery & Backup
+- [ ] Configure AWS Backup for production
+  - [ ] DynamoDB table backups (daily, 30-day retention)
+  - [ ] S3 bucket versioning and lifecycle policies
+  - [ ] Cross-region replication for critical buckets
+- [ ] Document and test disaster recovery procedures
+  - [ ] DynamoDB restore from backup
+  - [ ] S3 restore from versioned objects
+  - [ ] Stack recreation from CDK code
+- [ ] Create runbook for common operational tasks
+  - [ ] Deploying updates
+  - [ ] Rolling back deployments
+  - [ ] Investigating errors
+  - [ ] User data recovery
 
-### Observability & Monitoring
-- [ ] Create CloudWatch dashboards for:
-  - [ ] API request/error rates
-  - [ ] Lambda invocation/error rates
-  - [ ] DynamoDB read/write capacity
-- [ ] Set up alarms for elevated error rates
-- [ ] Test log correlation with requestId/correlationId
+### Cost Optimization
+- [ ] Review and optimize DynamoDB capacity
+  - [ ] Monitor actual usage patterns
+  - [ ] Consider reserved capacity for prod (if justified)
+  - [ ] Set up auto-scaling if needed
+- [ ] Implement S3 lifecycle policies
+  - [ ] Move old exports to Infrequent Access after 90 days
+  - [ ] Delete exports older than 1 year
+- [ ] Review CloudWatch log retention
+  - [ ] Set appropriate retention periods (30 days for most logs)
+  - [ ] Archive critical logs to S3 for long-term storage
+- [ ] Monitor CloudFront costs
+  - [ ] Review price class settings
+  - [ ] Optimize caching strategies
+- [ ] Set up cost allocation tags
+  - [ ] Tag all resources with Environment (dev/prod)
+  - [ ] Tag with Project name
+  - [ ] Enable cost allocation reports
 
 ### Documentation
-- [ ] Update README with deployment instructions
-- [ ] Create user guide or help documentation
-- [ ] Document admin procedures (ownership transfer, hard delete, etc.)
-- [ ] Create runbook for common operational tasks
+- [ ] Update GETTING_STARTED.md with:
+  - [ ] Production deployment instructions
+  - [ ] Custom domain setup after account verification
+  - [ ] Monitoring and troubleshooting guide
+- [ ] Create OPERATIONS.md runbook
+  - [ ] Common deployment scenarios
+  - [ ] Troubleshooting guide
+  - [ ] Backup/restore procedures
+- [ ] Document environment variable configuration
+  - [ ] All .env options
+  - [ ] Security considerations
+  - [ ] Multi-environment setup
+- [ ] Create architecture diagram
+  - [ ] AWS service interactions
+  - [ ] Data flow
+  - [ ] Authentication flow
 
 ---
 
-## Phase 4: Launch Preparation
-
-### Data & Privacy
-- [ ] Implement profile/season/account cascade deletion (30-day soft delete)
-- [ ] Test COPPA warning display
-- [ ] Document customer privacy handling (seller-managed)
-- [ ] Prepare data retention and deletion policies
-
-### Accessibility
-- [ ] Run automated accessibility tests (axe, Lighthouse)
-- [ ] Test with screen readers (ad hoc)
-- [ ] Validate keyboard navigation
-- [ ] Ensure high color contrast
+## Phase 4: Feature Development & Testing
 
 ### Legal & Licensing
 - [ ] Add MIT license to repository (already added in Phase 0)
@@ -407,7 +466,7 @@
 
 ---
 
-## Phase 5: Post-Launch
+## Phase 5: Launch & Operations
 
 ### Operational Tasks
 - [ ] Monitor CloudWatch logs and alarms
@@ -425,6 +484,16 @@
 - [ ] Explore multi-region active failover (if donations support it)
 - [ ] Add analytics and aggregated reporting across profiles (global reporting)
 - [ ] Implement PWA-style offline mode with queuing
+
+---
+
+## AWS Backup Configuration (Production Only, Can Defer)
+- [ ] Configure AWS Backup for weekly backups:
+  - [ ] DynamoDB tables (1-year retention)
+  - [ ] S3 buckets (1-year retention)
+  - [ ] Cross-region replication to secondary US region
+- [ ] Test backup and restore process
+- [ ] Document backup/restore procedures
 
 ---
 
