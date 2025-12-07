@@ -424,7 +424,7 @@
     - [x] Created SVG popcorn logo (200x200, red bucket with white popcorn) ✅
     - [x] Converted to base64 (2800 chars) ✅
     - [x] CfnUserPoolUICustomizationAttachment doesn't support ImageFile property ❌
-    - [ ] **Manual upload required:** Use AWS Console or CLI after deployment (see cdk_stack.py comments)
+    - [x] **Manual upload required:** Use AWS Console or CLI after deployment (see cdk_stack.py comments)
   - [ ] **COPPA warning deferred to app UI** ⚠️
     - [x] Attempted CSS ::before pseudo-element - **Rejected by AWS** ❌
     - [ ] Will implement in app sign-up flow instead (Step 6: Pages & Components)
@@ -440,6 +440,7 @@
   - COPPA compliance best implemented in app UI, not Cognito Hosted UI
 
 ### Pages & Components
+- [ ] **LandingPage** - A page that says what the application is, contains a login button at the top right.
 - [ ] **LoginPage** - Cognito Hosted UI redirect
 - [ ] **ProfilesPage** - List owned + shared profiles
   - [ ] ProfileList component
