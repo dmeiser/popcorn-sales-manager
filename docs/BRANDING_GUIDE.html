@@ -3,10 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Popcorn Sales Manager - Branding Guide</title>
+    <title>KernelWorx - Branding Guide</title>
+    <link rel="icon" type="image/x-icon" href="../cdk/assets/favicon.ico">
+    <link rel="icon" type="image/png" href="../cdk/assets/favicon.png">
+    <link rel="icon" type="image/svg+xml" href="../cdk/assets/favicon.svg">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;600;700&family=Satisfy&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Mono:ital,wght@0,200..800;1,200..800&family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400;1,700&family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&family=Kaushan+Script&family=Lexend:wght@100..900&display=swap" rel="stylesheet">
     <style>
         * {
             margin: 0;
@@ -15,8 +18,7 @@
         }
 
         body {
-            font-family: 'Open Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 
-                'Helvetica Neue', Arial, sans-serif;
+            font-family: "Atkinson Hyperlegible", "Lexend", "Inter", sans-serif;
             line-height: 1.6;
             color: #333;
             background: #f5f5f5;
@@ -33,18 +35,17 @@
         }
 
         h1 {
-            font-family: 'Satisfy', 'Open Sans', cursive;
+            font-family: 'Kaushan Script', 'Open Sans', cursive;
             color: #1976d2;
             margin-bottom: 1rem;
             font-size: 3rem;
             font-weight: 600; /* user requested weight 600 */
-            letter-spacing: 0.08em; /* kern out the title some */
             -webkit-text-stroke: 0.8px rgba(25, 118, 210, 0.8); /* add weight */
             text-shadow: 0 1px 0 rgba(25,118,210,0.12), 0 2px 0 rgba(25,118,210,0.06);
         }
 
         h2 {
-            font-family: 'Open Sans', sans-serif;
+            font-family: "Atkinson Hyperlegible", "Lexend", "Inter", sans-serif;
             color: #1976d2;
             margin: 2rem 0 1rem;
             padding-bottom: 0.5rem;
@@ -53,7 +54,7 @@
         }
 
         h3 {
-            font-family: 'Open Sans', sans-serif;
+            font-family: "Atkinson Hyperlegible", "Lexend", "Inter", sans-serif;
             color: #333;
             margin: 1.5rem 0 0.75rem;
             font-weight: 700;
@@ -99,7 +100,7 @@
         }
 
         .color-value {
-            font-family: 'Courier New', monospace;
+            font-family: 'Atkinson Hyperlegible Mono', monospace;
             font-size: 0.9rem;
             color: #666;
         }
@@ -145,12 +146,11 @@
         }
 
         .app-name {
-            font-family: 'Satisfy', 'Open Sans', cursive;
+            font-family: 'Kaushan Script', 'Open Sans', cursive;
             font-size: 2rem;
             font-weight: 600;
             color: #1976d2;
             line-height: 1.1;
-            letter-spacing: 0.06em; /* kern out the display title slightly */
             -webkit-text-stroke: 0.6px rgba(25, 118, 210, 0.8);
             text-shadow: 0 1px 0 rgba(25,118,210,0.12);
         }
@@ -218,7 +218,7 @@
             border-radius: 4px;
             overflow-x: auto;
             margin: 1rem 0;
-            font-family: 'Courier New', monospace;
+            font-family: 'Atkinson Hyperlegible Mono', monospace;
             font-size: 0.9rem;
         }
 
@@ -255,24 +255,24 @@
 </head>
 <body>
     <div class="container">
-        <h1>🍿 Popcorn Sales Manager</h1>
+        <h1><img src="../cdk/assets/popcorn-logo.svg" alt="Popcorn icon" style="width:64px; height:64px; vertical-align:middle; margin-right:0.5rem;">KernelWorx</h1>
         <p class="subtitle">Branding Guide & Design System</p>
 
         <!-- Logo & Identity -->
         <section class="section">
             <h2>Logo & Identity</h2>
-            <p style="margin-bottom: 1rem;"><strong>Primary display (App Title) uses Satisfy:</strong></p>
+            <p style="margin-bottom: 1rem;"><strong>Primary display (App Title) uses Kaushan Script:</strong></p>
             
             <div class="logo-container" style="background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%); border: 3px solid #1976d2;">
-                <div class="logo-icon">🍿</div>
+                <div class="logo-icon"><img src="../cdk/assets/popcorn-logo.svg" alt="Popcorn icon" style="width:40px; height:40px;" /></div>
                 <div class="logo-text">
-                    <div class="app-name">Popcorn Sales Manager</div>
+                    <div class="app-name">KernelWorx</div>
                     <div class="app-tagline">Manage your fundraising sales with ease</div>
                 </div>
-                <div style="background: #1976d2; color: white; padding: 0.5rem 1rem; border-radius: 4px; font-weight: 700; font-size: 0.875rem;">✓ Satisfy - Title</div>
+                <div style="background: #1976d2; color: white; padding: 0.5rem 1rem; border-radius: 4px; font-weight: 700; font-size: 0.875rem;">✓ Kaushan Script - Title</div>
             </div>
 
-            <p style="margin-top: 2rem;"><strong>Logo Usage:</strong> The popcorn emoji (🍿) serves as our app icon. Simple, recognizable, and on-brand.</p>
+            <p style="margin-top: 2rem;"><strong>Logo Usage:</strong> The primary app icon is `popcorn-logo.svg` at the project root. Use this SVG as the source of truth for all iconography (square, banner, favicon). Simple, recognizable, and on-brand.</p>
         </section>
 
         <!-- Color Palette -->
@@ -377,30 +377,29 @@
             <h2>Typography</h2>
             
             <div class="typography-sample">
-                <div class="font-size-demo" style="font-family: 'Satisfy', cursive; font-size: 3rem; font-weight: 600; letter-spacing: 0.08em;">Heading 1 - Satisfy 3rem / 600 (Title)</div>
-                <div class="font-size-demo" style="font-family: 'Open Sans', sans-serif; font-size: 2rem; font-weight: 700; margin-top: 1rem;">Heading 2 - Open Sans 2rem / 700</div>
-                <div class="font-size-demo" style="font-family: 'Open Sans', sans-serif; font-size: 1.5rem; font-weight: 700; margin-top: 1rem;">Heading 3 - Open Sans 1.5rem / 700</div>
-                <div class="font-size-demo" style="font-family: 'Open Sans', sans-serif; font-size: 1.25rem; font-weight: 600; margin-top: 1rem;">Heading 4 - Open Sans 1.25rem / 600</div>
-                <div class="font-size-demo" style="font-family: 'Open Sans', sans-serif; font-size: 1rem; margin-top: 1rem;">Body Text - Open Sans 1rem / 400</div>
-                <div class="font-size-demo" style="font-family: 'Open Sans', sans-serif; font-size: 0.875rem; color: #666; margin-top: 0.5rem;">Small Text - Open Sans 0.875rem / 400</div>
+                <h1>Heading 1 - Kaushan Script 3rem / 600 (Title)</h1>
+                <h2>Heading 2 - Atkinson Hyperlegible 2rem / 700</h2>
+                <h3>Heading 3 - Atkinson Hyperlegible 1.5rem / 700</h3>
+                <h4>Heading 4 - Atkinson Hyperlegible 1.25rem / 600</h4>
+                <p>Body Text - Atkinson Hyperlegible 1rem / 400</p>
+                <p>Small Text - Atkinson Hyperlegible 0.875rem / 400</p>
             </div>
 
             <h3>Font Stack</h3>
-            <p><strong>Primary Font (Body & H3-H4):</strong> Open Sans - Highly readable, professional, optimized for both screen and print</p>
+            <p><strong>Primary Font (Body & H3-H4):</strong> Atkinson Hyperlegible - Highly readable, professional, optimized for both screen and print</p>
             <div class="code-block">
-                font-family: 'Open Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 
-                    'Helvetica Neue', Arial, sans-serif;
+                font-family: "Atkinson Hyperlegible", "Lexend", "Inter", sans-serif;
             </div>
             
-            <p style="margin-top: 1rem;"><strong>Display Font (H1-H2 & App Title):</strong> Satisfy - a stylish hand-lettered display font that lends personality and warmth to our app while still remaining legible when styled with stronger strokes and spacing.</p>
+            <p style="margin-top: 1rem;"><strong>Display Font (H1-H2 & App Title):</strong> Kaushan Script - a stylish hand-lettered display font that lends personality and warmth to our app while still remaining legible when styled with stronger strokes and spacing.</p>
             <div class="code-block">
-                font-family: 'Satisfy', 'Open Sans', cursive;
+                font-family: 'Kaushan Script', 'Open Sans', cursive;
             </div>
             
             <div style="margin-top: 1rem; padding: 1rem; background: #e3f2fd; border-left: 4px solid #1976d2; border-radius: 4px;">
-                <strong>Why Satisfy?</strong>
+                <strong>Why Kaushan Script?</strong>
                 <ul style="margin-top: 0.5rem; margin-left: 1.5rem; line-height: 1.8;">
-                    <li>✅ <strong>Distinctive and friendly</strong> - Satisfy sets a unique tone without becoming unprofessional</li>
+                    <li>✅ <strong>Distinctive and friendly</strong> - Kaushan Script sets a unique tone without becoming unprofessional</li>
                     <li>✅ <strong>Customizable intensity</strong> - We increase perceived weight using text-stroke and shadow so it reads confidently on UI elements and headings</li>
                     <li>✅ <strong>Pairs well with Open Sans</strong> - Hand-lettered display + neutral body creates a pleasant contrast</li>
                     <li>✅ <strong>Improved readability</strong> - We provide additional spacing (kerning) and stroke for better clarity on small and large screens
@@ -408,7 +407,7 @@
                     <li>❌ <strong>Rejected alternatives:</strong>
                         <ul style="margin-left: 1.5rem; margin-top: 0.25rem;">
                             <li>Dosis - Too geometric/modern</li>
-                            <li>Cabin - Slightly less distinctive than Satisfy, though still professional</li>
+                            <li>Cabin - Slightly less distinctive than Kaushan Script, though still professional</li>
                             <li>Pacifico/Permanent Marker - Too casual for financial/sales interface</li>
                         </ul>
                     </li>
@@ -417,8 +416,7 @@
             
             <p style="margin-top: 1rem;"><strong>Body Text:</strong> System font stack for optimal performance</p>
             <div class="code-block">
-                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-                    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+                font-family: "Atkinson Hyperlegible", "Lexend", "Inter", sans-serif;
             </div>
         </section>
 
@@ -513,11 +511,11 @@
                 </tr>
                 <tr>
                     <td>App Name</td>
-                    <td>Popcorn Sales Manager</td>
+                    <td>KernelWorx</td>
                 </tr>
                 <tr>
                     <td>Logo Image URL</td>
-                    <td>🍿 (or upload custom logo SVG/PNG)</td>
+                    <td><code>Popcorn.svg</code> (project root) (or upload custom logo SVG/PNG)</td>
                 </tr>
                 <tr>
                     <td>Primary Color</td>
@@ -613,30 +611,26 @@
   },
   typography: {
     fontFamily: [
-      '"Open Sans"',
-      '-apple-system',
-      'BlinkMacSystemFont',
-      '"Segoe UI"',
-      'Roboto',
-      '"Helvetica Neue"',
-      'Arial',
-      'sans-serif',
+        '"Atkinson Hyperlegible"',
+        '"Lexend"',
+        '"Inter"',
+        sans-serif,
     ].join(','),
         h1: {
-            fontFamily: '"Satisfy", "Open Sans", cursive',
+            fontFamily: '"Kaushan Script", "Open Sans", cursive',
             fontWeight: 600,
             letterSpacing: '0.08em',
         },
         h2: {
-            fontFamily: '"Open Sans", sans-serif',
+            fontFamily: '"Atkinson Hyperlegible", "Lexend", "Inter", sans-serif',
             fontWeight: 700,
         },
     h3: {
-      fontFamily: '"Open Sans", sans-serif',
+      fontFamily: '"Atkinson Hyperlegible", "Lexend", "Inter", sans-serif',
       fontWeight: 700,
     },
     h4: {
-      fontFamily: '"Open Sans", sans-serif',
+      fontFamily: '"Atkinson Hyperlegible", "Lexend", "Inter", sans-serif',
       fontWeight: 600,
     },
   },
@@ -646,7 +640,7 @@
         </section>
 
         <footer style="margin-top: 3rem; padding-top: 2rem; border-top: 1px solid #e0e0e0; color: #666; text-align: center;">
-            <p>Popcorn Sales Manager - Volunteer-Run Scouting America Fundraising Tool</p>
+            <p>KernelWorx - Volunteer-Run Scouting America Fundraising Tool</p>
             <p style="font-size: 0.875rem; margin-top: 0.5rem;">Licensed under MIT License</p>
         </footer>
     </div>
