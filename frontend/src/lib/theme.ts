@@ -14,7 +14,9 @@ export const theme = createTheme({
   },
   typography: {
     fontFamily: [
-      '"Open Sans"',
+      '"Atkinson Hyperlegible"',
+      '"Lexend"',
+      '"Inter"',
       '-apple-system',
       'BlinkMacSystemFont',
       '"Segoe UI"',
@@ -24,7 +26,7 @@ export const theme = createTheme({
       'sans-serif',
     ].join(','),
     h1: {
-      fontFamily: '"Satisfy", "Open Sans", cursive',
+      fontFamily: '"Kaushan Script", "Atkinson Hyperlegible", cursive',
       fontWeight: 600,
       letterSpacing: '0.08em',
       fontSize: '2rem',
@@ -33,7 +35,7 @@ export const theme = createTheme({
         fontSize: '3rem',
       },
     },
-    h2: { fontFamily: '"Open Sans", sans-serif', fontWeight: 700 },
-    h3: { fontFamily: '"Open Sans", sans-serif', fontWeight: 700 },
+    h2: { fontFamily: '"Atkinson Hyperlegible", "Lexend", "Inter", sans-serif', fontWeight: 700 },
+    h3: { fontFamily: '"Atkinson Hyperlegible", "Lexend", "Inter", sans-serif', fontWeight: 700 },
   },
 });

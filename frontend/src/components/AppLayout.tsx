@@ -88,23 +88,37 @@ export const AppLayout: React.FC<{ children?: React.ReactNode }> = ({ children }
               </IconButton>
             )}
             
-            <Typography
-              variant="h6"
-              noWrap
-              component="div"
-              sx={{
-                flexGrow: 1,
-                fontFamily: '"Satisfy", cursive',
-                fontWeight: 600,
-                letterSpacing: '0.08em',
-                fontSize: { xs: '1rem', sm: '1.25rem', md: '1.5rem' },
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                whiteSpace: 'nowrap',
-              }}
-            >
-              🍿 Popcorn Sales Manager
-            </Typography>
+            <Box sx={{ display: 'flex', alignItems: 'center', flexGrow: 1 }}>
+              <Box
+                component="img"
+                src="/logo.svg"
+                alt="Popcorn kernel"
+                sx={{
+                  width: { xs: '28px', sm: '32px', md: '40px' },
+                  height: { xs: '28px', sm: '32px', md: '40px' },
+                  mr: { xs: 0.5, sm: 1 },
+                }}
+              />
+              <Typography
+                variant="h6"
+                noWrap
+                component="div"
+                sx={{
+                  fontFamily: '"Kaushan Script", cursive',
+                  fontWeight: 600,
+                  letterSpacing: '0.08em',
+                  fontSize: { xs: '28px', sm: '32px', md: '40px' },
+                  lineHeight: 1,
+                  WebkitTextStroke: '0.8px rgba(255, 255, 255, 0.8)',
+                  textShadow: '0 1px 0 rgba(255,255,255,0.12), 0 2px 0 rgba(255,255,255,0.06)',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                KernelWorx
+              </Typography>
+            </Box>
 
             {!isDesktop && account && (
               <Box sx={{ display: 'flex', alignItems: 'center', mr: 1 }}>
