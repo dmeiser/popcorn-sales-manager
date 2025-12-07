@@ -94,7 +94,7 @@ export const AppLayout: React.FC<{ children?: React.ReactNode }> = ({ children }
               component="div"
               sx={{
                 flexGrow: 1,
-                fontFamily: '"Satisfy", cursive',
+                fontFamily: '"Kaushan Script", cursive',
                 fontWeight: 600,
                 letterSpacing: '0.08em',
                 fontSize: { xs: '1rem', sm: '1.25rem', md: '1.5rem' },
@@ -103,7 +103,7 @@ export const AppLayout: React.FC<{ children?: React.ReactNode }> = ({ children }
                 whiteSpace: 'nowrap',
               }}
             >
-              🍿 Popcorn Sales Manager
+              KernelWorx
             </Typography>
 
             {!isDesktop && account && (
