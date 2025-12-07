@@ -40,7 +40,7 @@ class CdkStack(Stack):
         self.env_name = env_name
         
         # Load configuration from environment variables
-        base_domain = os.getenv("BASE_DOMAIN", "psm.repeatersolutions.com")
+        base_domain = os.getenv("BASE_DOMAIN", "kernelworx.app")
 
         # ====================================================================
         # Route 53 & DNS Configuration
@@ -264,31 +264,42 @@ class CdkStack(Stack):
             "LOG_LEVEL": "INFO",
         }
 
-        # Asset bundling options to exclude unnecessary files
-        from aws_cdk import BundlingOptions
-        asset_bundling = lambda_.AssetCode(
-            lambda_src_path,
+        # Create Lambda Layer for shared dependencies
+        # This reduces function deployment size by sharing common packages
+        lambda_layer_path = os.path.join(os.path.dirname(__file__), "..", "lambda-layer")
+        
+        # Check if layer exists, if not create it
+        if not os.path.exists(lambda_layer_path):
+            os.makedirs(lambda_layer_path, exist_ok=True)
+            
+        self.shared_layer = lambda_.LayerVersion(
+            self,
+            "SharedDependenciesLayer",
+            code=lambda_.Code.from_asset(lambda_layer_path),
+            compatible_runtimes=[lambda_.Runtime.PYTHON_3_13],
+            description="Shared Python dependencies for Lambda functions",
+        )
+
+        # Use only the src directory for Lambda code (not the entire repo)
+        lambda_code_path = os.path.join(os.path.dirname(__file__), "..", "..", "src")
+        
+        lambda_code = lambda_.Code.from_asset(
+            lambda_code_path,
             exclude=[
-                ".venv",
-                "cdk.out",
-                "cdk",
-                "htmlcov",
-                ".pytest_cache",
-                ".git",
-                ".temp",
-                "*.pyc",
                 "__pycache__",
-                "tests",
+                "*.pyc",
+                ".pytest_cache",
             ],
         )
 
         # Profile Sharing Lambda Functions
         self.create_profile_invite_fn = lambda_.Function(
             self,
-            "CreateProfileInviteFn",
+            "CreateProfileInviteFnV2",
             runtime=lambda_.Runtime.PYTHON_3_13,
-            handler="src.handlers.profile_sharing.create_profile_invite",
-            code=asset_bundling,
+            handler="handlers.profile_sharing.create_profile_invite",
+            code=lambda_code,
+            layers=[self.shared_layer],
             timeout=Duration.seconds(30),
             memory_size=256,
             role=self.lambda_execution_role,
@@ -297,10 +308,11 @@ class CdkStack(Stack):
 
         self.redeem_profile_invite_fn = lambda_.Function(
             self,
-            "RedeemProfileInviteFn",
+            "RedeemProfileInviteFnV2",
             runtime=lambda_.Runtime.PYTHON_3_13,
-            handler="src.handlers.profile_sharing.redeem_profile_invite",
-            code=asset_bundling,
+            handler="handlers.profile_sharing.redeem_profile_invite",
+            code=lambda_code,
+            layers=[self.shared_layer],
             timeout=Duration.seconds(30),
             memory_size=256,
             role=self.lambda_execution_role,
@@ -309,10 +321,11 @@ class CdkStack(Stack):
 
         self.share_profile_direct_fn = lambda_.Function(
             self,
-            "ShareProfileDirectFn",
+            "ShareProfileDirectFnV2",
             runtime=lambda_.Runtime.PYTHON_3_13,
-            handler="src.handlers.profile_sharing.share_profile_direct",
-            code=asset_bundling,
+            handler="handlers.profile_sharing.share_profile_direct",
+            code=lambda_code,
+            layers=[self.shared_layer],
             timeout=Duration.seconds(30),
             memory_size=256,
             role=self.lambda_execution_role,
@@ -321,10 +334,11 @@ class CdkStack(Stack):
 
         self.revoke_share_fn = lambda_.Function(
             self,
-            "RevokeShareFn",
+            "RevokeShareFnV2",
             runtime=lambda_.Runtime.PYTHON_3_13,
-            handler="src.handlers.profile_sharing.revoke_share",
-            code=asset_bundling,
+            handler="handlers.profile_sharing.revoke_share",
+            code=lambda_code,
+            layers=[self.shared_layer],
             timeout=Duration.seconds(30),
             memory_size=256,
             role=self.lambda_execution_role,
@@ -334,10 +348,11 @@ class CdkStack(Stack):
         # Season Operations Lambda Functions
         self.update_season_fn = lambda_.Function(
             self,
-            "UpdateSeasonFn",
+            "UpdateSeasonFnV2",
             runtime=lambda_.Runtime.PYTHON_3_13,
-            handler="src.handlers.season_operations.update_season",
-            code=asset_bundling,
+            handler="handlers.season_operations.update_season",
+            code=lambda_code,
+            layers=[self.shared_layer],
             timeout=Duration.seconds(30),
             memory_size=256,
             role=self.lambda_execution_role,
@@ -346,10 +361,11 @@ class CdkStack(Stack):
 
         self.delete_season_fn = lambda_.Function(
             self,
-            "DeleteSeasonFn",
+            "DeleteSeasonFnV2",
             runtime=lambda_.Runtime.PYTHON_3_13,
-            handler="src.handlers.season_operations.delete_season",
-            code=asset_bundling,
+            handler="handlers.season_operations.delete_season",
+            code=lambda_code,
+            layers=[self.shared_layer],
             timeout=Duration.seconds(30),
             memory_size=256,
             role=self.lambda_execution_role,
@@ -359,10 +375,11 @@ class CdkStack(Stack):
         # Order Operations Lambda Functions
         self.update_order_fn = lambda_.Function(
             self,
-            "UpdateOrderFn",
+            "UpdateOrderFnV2",
             runtime=lambda_.Runtime.PYTHON_3_13,
-            handler="src.handlers.order_operations.update_order",
-            code=asset_bundling,
+            handler="handlers.order_operations.update_order",
+            code=lambda_code,
+            layers=[self.shared_layer],
             timeout=Duration.seconds(30),
             memory_size=256,
             role=self.lambda_execution_role,
@@ -371,10 +388,11 @@ class CdkStack(Stack):
 
         self.delete_order_fn = lambda_.Function(
             self,
-            "DeleteOrderFn",
+            "DeleteOrderFnV2",
             runtime=lambda_.Runtime.PYTHON_3_13,
-            handler="src.handlers.order_operations.delete_order",
-            code=asset_bundling,
+            handler="handlers.order_operations.delete_order",
+            code=lambda_code,
+            layers=[self.shared_layer],
             timeout=Duration.seconds(30),
             memory_size=256,
             role=self.lambda_execution_role,
@@ -383,10 +401,11 @@ class CdkStack(Stack):
 
         self.request_season_report_fn = lambda_.Function(
             self,
-            "RequestSeasonReportFn",
+            "RequestSeasonReportFnV2",
             runtime=lambda_.Runtime.PYTHON_3_13,
-            handler="src.handlers.report_generation.request_season_report",
-            code=asset_bundling,
+            handler="handlers.report_generation.request_season_report",
+            code=lambda_code,
+            layers=[self.shared_layer],
             timeout=Duration.seconds(60),  # Reports may take longer
             memory_size=512,  # More memory for Excel generation
             role=self.lambda_execution_role,
@@ -549,12 +568,12 @@ class CdkStack(Stack):
             )
 
             # Standard Cognito domain (using default AWS domain)
-            # This provides Hosted UI at: https://popcorn-sales-manager-{env}.auth.{region}.amazoncognito.com
-            # Custom domain (login.{env}.psm.repeatersolutions.com) will be enabled after AWS account verification
+            # This provides Hosted UI at: https://kernelworx-{env}.auth.{region}.amazoncognito.com
+            # Custom domain (login.{env}.kernelworx.app) will be enabled after AWS account verification
             self.user_pool_domain = self.user_pool.add_domain(
                 "UserPoolDomain",
                 cognito_domain=cognito.CognitoDomainOptions(
-                    domain_prefix=f"popcorn-sales-manager-{env_name}",
+                    domain_prefix=f"kernelworx-{env_name}",
                 ),
             )
             

@@ -9,8 +9,14 @@ import { CssBaseline, ThemeProvider } from '@mui/material';
 import { ApolloProvider } from '@apollo/client/react';
 import { AuthProvider } from './contexts/AuthContext';
 import { ProtectedRoute } from './components/ProtectedRoute';
+import { LandingPage } from './pages/LandingPage';
 import { LoginPage } from './pages/LoginPage';
 import { ProfilesPage } from './pages/ProfilesPage';
+import { ProfileSeasonsPage } from './pages/ProfileSeasonsPage';
+import { SeasonLayout } from './pages/SeasonLayout';
+import { SettingsPage } from './pages/SettingsPage';
+import { AdminPage } from './pages/AdminPage';
+import { CatalogsPage } from './pages/CatalogsPage';
 import { apolloClient } from './lib/apollo';
 import { theme } from './lib/theme';
 import { AppLayout } from './components/AppLayout';
@@ -25,6 +31,7 @@ function App() {
           <AuthProvider>
             <Routes>
               {/* Public routes */}
+              <Route path="/" element={<LandingPage />} />
               <Route path="/login" element={<LoginPage />} />
               
               {/* Protected routes */}
@@ -39,11 +46,63 @@ function App() {
                 }
               />
               
-              {/* Default redirect */}
-              <Route path="/" element={<Navigate to="/profiles" replace />} />
+              <Route
+                path="/profiles/:profileId/seasons"
+                element={
+                  <ProtectedRoute>
+                    <AppLayout>
+                      <ProfileSeasonsPage />
+                    </AppLayout>
+                  </ProtectedRoute>
+                }
+              />
+              
+              <Route
+                path="/profiles/:profileId/seasons/:seasonId/*"
+                element={
+                  <ProtectedRoute>
+                    <AppLayout>
+                      <SeasonLayout />
+                    </AppLayout>
+                  </ProtectedRoute>
+                }
+              />
+              
+              <Route
+                path="/settings"
+                element={
+                  <ProtectedRoute>
+                    <AppLayout>
+                      <SettingsPage />
+                    </AppLayout>
+                  </ProtectedRoute>
+                }
+              />
+              
+              <Route
+                path="/catalogs"
+                element={
+                  <ProtectedRoute>
+                    <AppLayout>
+                      <CatalogsPage />
+                    </AppLayout>
+                  </ProtectedRoute>
+                }
+              />
+              
+              <Route
+                path="/admin"
+                element={
+                  <ProtectedRoute requireAdmin>
+                    <AppLayout>
+                      <AdminPage />
+                    </AppLayout>
+                  </ProtectedRoute>
+                }
+              />
               
               {/* 404 catch-all */}
-              <Route path="*" element={<Navigate to="/profiles" replace />} />
+              <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </AuthProvider>
         </BrowserRouter>

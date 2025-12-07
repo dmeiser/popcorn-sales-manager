@@ -1,4 +1,5 @@
 import React from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { 
   AppBar, 
   Box, 
@@ -18,9 +19,9 @@ import {
 } from '@mui/material';
 import MenuIcon from '@mui/icons-material/Menu';
 import PersonIcon from '@mui/icons-material/Person';
-import CalendarMonthIcon from '@mui/icons-material/CalendarMonth';
-import AssessmentIcon from '@mui/icons-material/Assessment';
-import LocalMallIcon from '@mui/icons-material/LocalMall';
+import SettingsIcon from '@mui/icons-material/Settings';
+import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings';
+import InventoryIcon from '@mui/icons-material/Inventory';
 import AccountCircleIcon from '@mui/icons-material/AccountCircle';
 import LogoutIcon from '@mui/icons-material/Logout';
 import { useAuth } from '../contexts/AuthContext';
@@ -30,42 +31,72 @@ import { Outlet } from 'react-router-dom';
 const DRAWER_WIDTH = 240;
 
 export const AppLayout: React.FC<{ children?: React.ReactNode }> = ({ children }) => {
-  const { account, logout } = useAuth();
+  const { account, logout, isAdmin } = useAuth();
   const [mobileDrawerOpen, setMobileDrawerOpen] = React.useState(false);
+  const navigate = useNavigate();
+  const location = useLocation();
   const theme = useTheme();
   const isDesktop = useMediaQuery(theme.breakpoints.up('md'));
 
   const toggleMobileDrawer = () => setMobileDrawerOpen(!mobileDrawerOpen);
+
+  const handleNavigation = (path: string) => {
+    navigate(path);
+    if (!isDesktop) {
+      setMobileDrawerOpen(false);
+    }
+  };
+
+  const isActive = (path: string) => {
+    return location.pathname === path || location.pathname.startsWith(path + '/');
+  };
 
   const drawerContent = (
     <Box>
       <Toolbar />
       <Divider />
       <List>
-        <ListItemButton>
+        <ListItemButton 
+          onClick={() => handleNavigation('/profiles')}
+          selected={isActive('/profiles')}
+        >
           <ListItemIcon>
             <PersonIcon />
           </ListItemIcon>
           <ListItemText primary="Profiles" />
         </ListItemButton>
-        <ListItemButton>
+        <ListItemButton 
+          onClick={() => handleNavigation('/catalogs')}
+          selected={isActive('/catalogs')}
+        >
           <ListItemIcon>
-            <CalendarMonthIcon />
-          </ListItemIcon>
-          <ListItemText primary="Seasons" />
-        </ListItemButton>
-        <ListItemButton>
-          <ListItemIcon>
-            <AssessmentIcon />
-          </ListItemIcon>
-          <ListItemText primary="Reports" />
-        </ListItemButton>
-        <ListItemButton>
-          <ListItemIcon>
-            <LocalMallIcon />
+            <InventoryIcon />
           </ListItemIcon>
           <ListItemText primary="Catalogs" />
         </ListItemButton>
+        <ListItemButton 
+          onClick={() => handleNavigation('/settings')}
+          selected={isActive('/settings')}
+        >
+          <ListItemIcon>
+            <SettingsIcon />
+          </ListItemIcon>
+          <ListItemText primary="Settings" />
+        </ListItemButton>
+        {isAdmin && (
+          <>
+            <Divider sx={{ my: 1 }} />
+            <ListItemButton 
+              onClick={() => handleNavigation('/admin')}
+              selected={isActive('/admin')}
+            >
+              <ListItemIcon>
+                <AdminPanelSettingsIcon color="error" />
+              </ListItemIcon>
+              <ListItemText primary="Admin Console" primaryTypographyProps={{ color: 'error' }} />
+            </ListItemButton>
+          </>
+        )}
       </List>
     </Box>
   );

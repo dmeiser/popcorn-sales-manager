@@ -165,6 +165,9 @@ cdk.context.json
 *.template.json
 *.template.yaml
 
+# Lambda layer build artifacts (built by build-lambda-layer.sh)
+lambda-layer/
+
 # ============================================================================
 # AWS & Secrets
 # ============================================================================
