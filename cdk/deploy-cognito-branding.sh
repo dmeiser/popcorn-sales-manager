@@ -12,7 +12,7 @@
 # Prerequisites:
 # - AWS CLI configured with appropriate credentials
 # - CDK stack deployed (to get User Pool ID and Client ID)
-# - Asset files (popcorn-banner.png, favicon.ico, page-background.svg) present in assets directory
+# - Asset files (popcorn-banner.png, favicon.ico, page-background.svg) present in docs/branding directory
 #
 # Usage:
 #   ./deploy-cognito-branding.sh
@@ -59,12 +59,13 @@ echo -e "Client ID: ${GREEN}$CLIENT_ID${NC}\n"
 
 # Get script directory
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+BRANDING_DIR="$SCRIPT_DIR/../docs/branding"
 
 # Check if assets exist
-LOGO_PNG="$SCRIPT_DIR/assets/popcorn-banner.png"
-FAVICON_ICO="$SCRIPT_DIR/assets/favicon.ico"
-BACKGROUND_SVG="$SCRIPT_DIR/assets/page-background.svg"
-SETTINGS_FILE="$SCRIPT_DIR/assets/managed-login-settings.json"
+LOGO_PNG="$BRANDING_DIR/popcorn-banner.png"
+FAVICON_ICO="$BRANDING_DIR/favicon.ico"
+BACKGROUND_SVG="$BRANDING_DIR/page-background.svg"
+SETTINGS_FILE="$BRANDING_DIR/managed-login-settings.json"
 
 if [ ! -f "$LOGO_PNG" ]; then
   echo -e "${RED}Error: Logo file not found: $LOGO_PNG${NC}"

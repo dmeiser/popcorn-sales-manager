@@ -102,6 +102,11 @@ ENV/
 env.bak/
 venv.bak/
 
+# Python virtual environments in subdirectories
+**/.venv/
+**/venv/
+**/env/
+
 # mypy
 .mypy_cache/
 .dmypy.json
