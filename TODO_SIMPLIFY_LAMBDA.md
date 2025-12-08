@@ -30,8 +30,7 @@
 - **Mitigation**: Consider owner-only VTL for admin operations, keep Lambda for shared access
 
 **Missing Handler Functions**:
-- `create_order` Lambda references `handlers.order_operations.create_order` but function doesn't exist
-- This is a pre-existing bug, not caused by simplification work
+- ~~`create_order` Lambda references `handlers.order_operations.create_order` but function doesn't exist~~ ✅ FIXED - Function implemented and deployed
 
 **Test/Infrastructure Mismatch (Pre-existing)**:
 - Test conftest defines GSI5 with keys `GSI5PK`/`GSI5SK`
