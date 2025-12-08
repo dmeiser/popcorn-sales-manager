@@ -207,9 +207,9 @@ Before claiming work is complete:
 
 ## Lambda Simplification Initiative
 
-**Status**: Planning Complete (see `TODO_SIMPLIFY_LAMBDA.md`)
+**Status**: Phase 2 Complete - 40% reduction achieved (see `TODO_SIMPLIFY_LAMBDA.md`)
 
-The project currently has 15 Lambda functions when only 2-3 are truly necessary. Most were created as shortcuts to avoid implementing proper AppSync resolvers.
+The project initially had 15 Lambda functions. After Phase 1 and Phase 2 implementations, it now has ~9 Lambda functions (40% reduction). The goal is to reduce to 2-3 functions (only those that truly require Lambda).
 
 ### Resolver Types (Prefer in This Order)
 
@@ -230,14 +230,16 @@ The project currently has 15 Lambda functions when only 2-3 are truly necessary.
 
 Replace with VTL/JS/Pipeline resolvers. See `TODO_SIMPLIFY_LAMBDA.md` for detailed migration plan.
 
-**Quick Wins (VTL/JS)**:
-- `list-orders-by-season` → VTL Query (pattern already exists)
-- `revoke-share` → VTL DeleteItem with condition
-- `create-invite` → JS resolver with `util.autoId()`
+**Quick Wins (VTL/JS)** - ✅ COMPLETED:
+- ✅ `list-orders-by-season` → VTL Query (DEPLOYED)
+- ✅ `revoke-share` → VTL DeleteItem (DEPLOYED)
+- ⏸️ `create-invite` → JS resolver (DEFERRED - kept as Lambda due to AppSync JS issues)
 
-**Pipeline Resolvers**:
-- `update-season` → Query GSI7 → UpdateItem
-- `update-order` → Query GSI6 → UpdateItem
+**Pipeline Resolvers** - ✅ COMPLETED:
+- ✅ `update-season` → Query GSI7 → UpdateItem (DEPLOYED)
+- ✅ `update-order` → Query GSI6 → UpdateItem (DEPLOYED)
+- ✅ `delete-season` → Query GSI7 → DeleteItem (DEPLOYED)
+- ✅ `delete-order` → Query GSI6 → DeleteItem (DEPLOYED)
 - `delete-order` → Query GSI6 → DeleteItem
 - `create-order` → GetItem catalog → PutItem order (with JS for line item enrichment)
 

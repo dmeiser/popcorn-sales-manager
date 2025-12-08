@@ -45,29 +45,41 @@ All 8 query resolvers are fully functional using VTL with DynamoDB:
    - Handles optional fields (customerPhone, customerAddress, notes)
    - Returns created order
 
-5. **Profile Sharing Mutations** (Lambda-based - fully functional)
-   - createProfileInvite
-   - redeemProfileInvite
-   - shareProfileDirect
-   - revokeShare
+5. **revokeShare** - VTL DeleteItem with condition ✅ **DEPLOYED**
+   - Deletes share by profileId + targetAccountId
+   - Simple conditional delete operation
 
-#### Partially Implemented ⚠️
+6. **Profile Sharing Mutations** (Lambda-based - fully functional)
+   - createProfileInvite (Lambda)
+   - redeemProfileInvite (Lambda)
+   - shareProfileDirect (Lambda)
 
-6. **updateSeason** - Query-based approach with limitations
-   - **Current Implementation**: Queries GSI5 to find season, returns modified object
-   - **Limitation**: Does NOT actually update DynamoDB - only returns what the result would be
-   - **Reason**: VTL cannot chain operations (Query → UpdateItem)
-   - **Recommendation**: Implement as Lambda resolver or pipeline resolver
+#### Migrated to Pipeline Resolvers ✅
 
-7. **updateOrder** - Query-based stub
-   - **Current Implementation**: Queries GSI6 to find order
-   - **Limitation**: Does NOT perform actual update
-   - **Recommendation**: Implement as Lambda resolver
+7. **updateSeason** - Pipeline resolver (GSI7 lookup → UpdateItem) ✅ **DEPLOYED**
+   - **Implementation**: 2-step pipeline with LookupSeasonFn + UpdateSeasonFn
+   - **JavaScript**: Uses AppSync JS runtime for dynamic update expressions
+   - **Authorization**: Simplified to Cognito-only (not full share-based checks)
 
-8. **deleteOrder** - Query-based stub
-   - **Current Implementation**: Queries GSI6 to find order's PK/SK
-   - **Limitation**: Does NOT perform actual deletion
-   - **Recommendation**: Implement as Lambda resolver
+8. **deleteSeason** - Pipeline resolver (GSI7 lookup → DeleteItem) ✅ **DEPLOYED**
+   - **Implementation**: 2-step pipeline with LookupSeasonFn + DeleteSeasonFn
+   - **JavaScript**: Uses AppSync JS runtime
+   
+9. **updateOrder** - Pipeline resolver (GSI6 lookup → UpdateItem) ✅ **DEPLOYED**
+   - **Implementation**: 2-step pipeline with LookupOrderFn + UpdateOrderFn
+   - **JavaScript**: Handles all order fields including lineItems and totalAmount recalculation
+
+10. **deleteOrder** - Pipeline resolver (GSI6 lookup → DeleteItem) ✅ **DEPLOYED**
+   - **Implementation**: 2-step pipeline with LookupOrderFn + DeleteOrderFn
+   - **JavaScript**: Uses AppSync JS runtime
+
+#### Legacy (Previously Partially Implemented - Now Removed)
+
+~~**updateSeason** - Query-based approach with limitations~~
+~~**updateOrder** - Query-based stub~~
+~~**deleteOrder** - Query-based stub~~
+
+These have been replaced with pipeline resolvers (see above).
 
 ## VTL Limitations
 
@@ -122,42 +134,31 @@ VTL has basic string manipulation but:
    - Batch operations
    - External API calls
 
-3. **Consider Pipeline Resolvers**:
-   - Chain multiple VTL resolvers
-   - Query GSI → UpdateItem as separate functions
+3. **Consider Pipeline Resolvers**: ✅ **NOW IMPLEMENTED**
+   - Chain multiple AppSync functions
+   - Query GSI → UpdateItem/DeleteItem as separate functions
    - Better than Lambda for pure DynamoDB operations
+   - **Deployed**: updateSeason, deleteSeason, updateOrder, deleteOrder
 
-### Migration Path
+### Migration Status (Updated December 2025)
 
-To complete Phase 1 CRUD mutations:
+**Phase 1 & 2 Complete** ✅
 
-1. **updateSeason** → Lambda resolver
-   ```python
-   def update_season(season_id, updates):
-       # Query GSI5 to find season
-       response = table.query(...)
-       # Extract PK/SK
-       # UpdateItem with proper conditions
-       # Return updated item
-   ```
+1. **VTL Resolvers Deployed**:
+   - ✅ listOrdersBySeason (VTL Query)
+   - ✅ revokeShare (VTL DeleteItem)
 
-2. **updateOrder** → Lambda resolver
-   ```python
-   def update_order(order_id, updates):
-       # Query GSI6 to find order
-       # Recalculate totalAmount if lineItems changed
-       # UpdateItem
-       # Return updated item
-   ```
+2. **Pipeline Resolvers Deployed**:
+   - ✅ updateSeason (GSI7 lookup → UpdateItem)
+   - ✅ deleteSeason (GSI7 lookup → DeleteItem)
+   - ✅ updateOrder (GSI6 lookup → UpdateItem)
+   - ✅ deleteOrder (GSI6 lookup → DeleteItem)
 
-3. **deleteOrder** → Lambda resolver
-   ```python
-   def delete_order(order_id):
-       # Query GSI6 to find order
-       # Check authorization (owner or write access)
-       # DeleteItem
-       # Return success boolean
-   ```
+**Lambda Count**: Reduced from 15 to ~9 (40% reduction)
+
+~~To complete Phase 1 CRUD mutations:~~ **COMPLETED**
+
+Legacy code examples removed - see `TODO_SIMPLIFY_LAMBDA.md` for current migration plan.
 
 ## Testing Status
 
@@ -167,27 +168,28 @@ To complete Phase 1 CRUD mutations:
 - updateSellerProfile: ✅ Updates name with ownership check
 - createSeason: ✅ Creates season with auto-ID
 - createOrder: ✅ Creates order with total calculation
-- All query resolvers: ✅ (tested in previous session)
+- listOrdersBySeason: ✅ VTL Query resolver (DEPLOYED)
+- revokeShare: ✅ VTL DeleteItem resolver (DEPLOYED)
+- updateSeason: ✅ Pipeline resolver (DEPLOYED)
+- deleteSeason: ✅ Pipeline resolver (DEPLOYED)
+- updateOrder: ✅ Pipeline resolver (DEPLOYED)
+- deleteOrder: ✅ Pipeline resolver (DEPLOYED)
+- All query resolvers: ✅ (tested in previous sessions)
 
 ### Needs Testing/Fixing ⚠️
 
-- updateSeason: Returns correct shape but doesn't persist changes
-- updateOrder: Query works but update not implemented
-- deleteOrder: Query works but delete not implemented
+None - all Phase 1 & 2 resolvers are deployed and operational.
 
-## Current Phase 1 Status
+## Current Implementation Status
 
-**CRUD Functionality: 75% Complete**
+**CRUD Functionality: 100% Complete** ✅
 
 - ✅ Create operations: 100% (Profile, Season, Order)
 - ✅ Read operations: 100% (All queries working)
-- ✅ Update operations: 50% (Profile works, Season/Order need Lambda)
-- ⚠️ Delete operations: 0% (Needs Lambda implementation)
+- ✅ Update operations: 100% (Profile via VTL, Season/Order via Pipeline)
+- ✅ Delete operations: 100% (Order/Season via Pipeline, Share via VTL)
 
-**For Phase 2 (Frontend)**, the current implementation provides:
-- Full profile management (create/update/list/get)
-- Season creation and listing
-- Order creation and listing
-- Comprehensive querying capabilities
-
-The missing update/delete operations for Season and Order can be added incrementally as frontend features require them.
+**Resolver Type Distribution**:
+- VTL Resolvers: Queries + simple mutations (listOrdersBySeason, revokeShare)
+- Pipeline Resolvers: Complex mutations requiring GSI lookup (updateSeason, deleteSeason, updateOrder, deleteOrder)
+- Lambda Resolvers: External dependencies, transactions, Cognito triggers (~9 remaining)
