@@ -6,19 +6,19 @@
 |-------|------|--------|-------|
 | **1.1** | `list-orders-by-season` → VTL | ✅ **DEPLOYED** | VTL resolver works, Lambda removed |
 | **1.2** | `revoke-share` → VTL | ✅ **DEPLOYED** | VTL DeleteItem resolver works, Lambda removed |
-| **1.3** | `create-invite` → JS | ⏸️ **DEFERRED** | AppSync JS errors persist; too complex for current tooling |
+| **1.3** | `create-invite` → JS | ✅ **DEPLOYED** | Fixed with AWS CLI testing - issue was `epochMilliSecondsToISO8601` |
 | **2.1** | `update-season` → Pipeline | ✅ **DEPLOYED** | GSI7 lookup + UpdateItem pipeline resolver |
 | **2.2** | `delete-order` → Pipeline | ✅ **DEPLOYED** | GSI6 lookup + DeleteItem pipeline resolver |
 | **2.3** | `update-order` → Pipeline | ✅ **DEPLOYED** | GSI6 lookup + UpdateItem pipeline resolver |
 | **2.4** | `delete-season` → Pipeline | ✅ **DEPLOYED** | GSI7 lookup + DeleteItem pipeline resolver |
-| **3.1** | `create-order` → Pipeline | ⏸️ **DEFERRED** | Requires loops, product lookup, enrichment - too complex for JS |
+| **3.1** | `create-order` → Pipeline | ⏸️ **DEFERRED** | Requires loops, product enrichment - too complex for JS |
 | **3.2** | `share-direct` → Pipeline | ⏸️ **DEFERRED** | Requires GSI8 on email field (schema change) |
 | **3.3** | `redeem-invite` → Pipeline | ⏸️ **DEFERRED** | Requires GSI on inviteCode OR keep Lambda |
 | **4.x** | Cleanup & Documentation | ✅ **COMPLETE** | Code cleaned, formatted, docs updated |
 
-**Last Updated**: January 2025 - Phase 1, 2, and 4 complete; Phase 3 deferred  
-**Current Lambda Count**: 7 (down from 15; 53% reduction achieved)
-**Progress**: 6/10 items complete (60%); 4 items deferred as too complex
+**Last Updated**: December 2025 - Phase 1, 2, and 4 complete!  
+**Current Lambda Count**: 6 (down from 15; 60% reduction achieved)
+**Progress**: 7/10 items complete (70%); 3 items deferred as too complex
 
 ### Deployment Success!
 
@@ -26,12 +26,16 @@ All Phase 1 (except 1.3), Phase 2, and Phase 4 changes have been successfully de
 
 ### Technical Challenges Discovered
 
-**Phase 1.3 & 3.1 (AppSync JS Limitations)**:
-- AppSync JS resolvers fail with unhelpful error: "The code contains one or more errors"
-- No line numbers, no specific error messages, no debugging tools
-- Phase 1.3: Multiple attempts to implement invite code generation failed
-- Phase 3.1: create-order requires loops over products/line items, not supported well in AppSync JS
-- **Mitigation**: Keep complex business logic in Lambda until AppSync JS tooling improves
+**Phase 1.3 (AppSync JS Debugging) - RESOLVED**:
+- CDK/CloudFormation errors: "The code contains one or more errors" with no details
+- **Solution**: Use AWS CLI `aws appsync evaluate-code` for local testing
+- **Root Cause**: Wrong function name - `epochSecondsToISO8601` doesn't exist, should be `epochMilliSecondsToISO8601`
+- **Lesson**: Always test AppSync JS resolvers with AWS CLI before deploying via CDK
+
+**Phase 3.1 (create-order complexity)**:
+- create-order requires loops over products/line items for enrichment
+- AppSync JS supports loops but complex business logic is better in Lambda
+- **Mitigation**: Keep create-order as Lambda
 
 **Phase 2 CloudFormation State Corruption** (RESOLVED):
 - CloudFormation stack retained phantom resolver metadata from previous rollback
@@ -50,10 +54,12 @@ All Phase 1 (except 1.3), Phase 2, and Phase 4 changes have been successfully de
 
 ## Executive Summary
 
-The current implementation has **7 Lambda functions** (down from 15; **53% reduction**). Phase 1, 2, and 4 tasks are complete. Phase 3 tasks (create-order, share-direct, redeem-invite) are deferred as they require either:
+The current implementation has **6 Lambda functions** (down from 15; **60% reduction**). Phase 1, 2, and 4 tasks are complete. Phase 3 tasks (create-order, share-direct, redeem-invite) are deferred as they require either:
 - Complex business logic unsuitable for AppSync JS resolvers (loops, enrichment)
 - Schema changes (adding GSI8 on email field)
 - Trade-off decisions (add GSI on inviteCode vs keep Lambda)
+
+**Key Learning**: AWS CLI `evaluate-code` command is essential for debugging AppSync JS resolvers - CDK deployment errors provide no useful debugging information.
 
 ## Current Lambda Inventory
 

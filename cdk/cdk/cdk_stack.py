@@ -290,19 +290,7 @@ class CdkStack(Stack):
         )
 
         # Profile Sharing Lambda Functions
-        self.create_profile_invite_fn = lambda_.Function(
-            self,
-            "CreateProfileInviteFnV2",
-            function_name=f"kernelworx-create-invite-{env_name}",
-            runtime=lambda_.Runtime.PYTHON_3_13,
-            handler="handlers.profile_sharing.create_profile_invite",
-            code=lambda_code,
-            layers=[self.shared_layer],
-            timeout=Duration.seconds(30),
-            memory_size=256,
-            role=self.lambda_execution_role,
-            environment=lambda_env,
-        )
+        # NOTE: create_profile_invite Lambda REMOVED - replaced with JS resolver
 
         self.redeem_profile_invite_fn = lambda_.Function(
             self,
@@ -690,10 +678,7 @@ class CdkStack(Stack):
             )
 
             # Lambda data sources for profile sharing
-            self.create_profile_invite_ds = self.api.add_lambda_data_source(
-                "CreateProfileInviteDS",
-                lambda_function=self.create_profile_invite_fn,
-            )
+            # NOTE: create_profile_invite data source REMOVED - replaced with JS resolver
 
             self.redeem_profile_invite_ds = self.api.add_lambda_data_source(
                 "RedeemProfileInviteDS",
@@ -729,10 +714,76 @@ class CdkStack(Stack):
             )
 
             # Resolvers for profile sharing mutations
-            self.create_profile_invite_ds.create_resolver(
+            # createProfileInvite - JS resolver (replaces Lambda)
+            self.dynamodb_datasource.create_resolver(
                 "CreateProfileInviteResolver",
                 type_name="Mutation",
                 field_name="createProfileInvite",
+                runtime=appsync.FunctionRuntime.JS_1_0_0,
+                code=appsync.Code.from_inline(
+                    """
+import { util } from '@aws-appsync/utils';
+
+export function request(ctx) {
+    const input = ctx.args.input;
+    const profileId = input.profileId;
+    const permissions = input.permissions;
+    const callerAccountId = ctx.identity.sub;
+    
+    // Generate invite code (first 10 chars of UUID, uppercase)
+    const inviteCode = util.autoId().substring(0, 10).toUpperCase();
+    
+    // Calculate expiry (14 days = 1209600 seconds)
+    const expirySeconds = 14 * 24 * 60 * 60;
+    const expiresAtEpoch = util.time.nowEpochSeconds() + expirySeconds;
+    const now = util.time.nowISO8601();
+    const expiresAtISO = util.time.epochMilliSecondsToISO8601(expiresAtEpoch * 1000);
+    
+    const key = {
+        PK: profileId,
+        SK: 'INVITE#' + inviteCode
+    };
+    
+    const attributes = {
+        inviteCode: inviteCode,
+        profileId: profileId,
+        permissions: permissions,
+        createdBy: callerAccountId,
+        createdAt: now,
+        expiresAt: expiresAtISO,
+        used: false,
+        TTL: expiresAtEpoch
+    };
+    
+    return {
+        operation: 'PutItem',
+        key: util.dynamodb.toMapValues(key),
+        attributeValues: util.dynamodb.toMapValues(attributes),
+        condition: {
+            expression: 'attribute_not_exists(PK)'
+        }
+    };
+}
+
+export function response(ctx) {
+    if (ctx.error) {
+        if (ctx.error.type === 'DynamoDB:ConditionalCheckFailedException') {
+            util.error('Invite code collision, please retry', 'ConflictException');
+        }
+        util.error(ctx.error.message, ctx.error.type);
+    }
+    
+    return {
+        inviteCode: ctx.result.inviteCode,
+        profileId: ctx.result.profileId,
+        permissions: ctx.result.permissions,
+        expiresAt: ctx.result.expiresAt,
+        createdBy: ctx.result.createdBy,
+        createdAt: ctx.result.createdAt
+    };
+}
+                """
+                ),
             )
 
             self.redeem_profile_invite_ds.create_resolver(
