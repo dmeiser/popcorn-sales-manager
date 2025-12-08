@@ -33,6 +33,13 @@
 - `create_order` Lambda references `handlers.order_operations.create_order` but function doesn't exist
 - This is a pre-existing bug, not caused by simplification work
 
+**Test/Infrastructure Mismatch (Pre-existing)**:
+- Test conftest defines GSI5 with keys `GSI5PK`/`GSI5SK`
+- CDK defines GSI5 with partition key `seasonId` (no sort key)
+- Same issue for GSI6 (`orderId`) and GSI7 (`seasonId`+`SK`)
+- This causes 32 test failures in season_operations and order_operations tests
+- Unrelated to Lambda simplification, needs separate fix
+
 ---
 
 ## Executive Summary
