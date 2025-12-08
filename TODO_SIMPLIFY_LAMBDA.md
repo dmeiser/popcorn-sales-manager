@@ -14,7 +14,7 @@
 | 3.x | Complex refactoring | ⬜ Not started | redeem-invite, share-direct |
 
 **Last Updated**: December 2025 - Phase 2 deployed successfully  
-**Current Lambda Count**: ~9 (down from 15; 40% reduction achieved)
+**Current Lambda Count**: 7 (down from 15; 53% reduction achieved)
 **Progress**: 6/14 items complete (43%)
 
 ### Technical Challenges Discovered
@@ -731,23 +731,23 @@ When migrating from Lambda to VTL/JS resolvers:
 
 ### Phase 4: Final Cleanup
 
-- [ ] **4.1 Verify remaining Lambdas are necessary**
-  - [ ] Confirm `post-auth` is required (Cognito trigger)
-  - [ ] Confirm `request-report` is required (openpyxl/S3)
-  - [ ] Confirm `create-profile` decision (keep for transaction or convert to pipeline)
-  - [ ] Document final Lambda count in this file
+- [x] **4.1 Verify remaining Lambdas are necessary**
+  - [x] Confirm `post-auth` is required (Cognito trigger)
+  - [x] Confirm `request-report` is required (openpyxl/S3)
+  - [x] Confirm `create-profile` decision (keeping for transaction atomicity)
+  - [x] Document final Lambda count in this file
 
-- [ ] **4.2 Code cleanup**
-  - [ ] Remove empty handler files if all functions migrated
-  - [ ] Update `src/handlers/__init__.py` if needed
+- [x] **4.2 Code cleanup**
+  - [x] Remove empty handler files if all functions migrated
+  - [x] Update `src/handlers/__init__.py` if needed
   - [ ] Remove unused Lambda layer dependencies if possible
-  - [ ] Run `uv run black` and `uv run isort` on remaining code
+  - [x] Run `uv run black` and `uv run isort` on remaining code
 
-- [ ] **4.3 Documentation updates**
-  - [ ] Update `AGENT.md` with final Lambda count
-  - [ ] Update `.github/copilot-instructions.md` if patterns changed
-  - [ ] Update `docs/VTL_RESOLVER_NOTES.md` with new resolver patterns
-  - [ ] Archive or update this TODO file
+- [x] **4.3 Documentation updates**
+  - [x] Update `AGENT.md` with final Lambda count
+  - [x] Update `.github/copilot-instructions.md` if patterns changed
+  - [x] Update `docs/VTL_RESOLVER_NOTES.md` with new resolver patterns
+  - [x] Archive or update this TODO file
 
 - [ ] **4.4 Testing verification**
   - [ ] Run full integration test suite against deployed stack
@@ -764,13 +764,13 @@ When migrating from Lambda to VTL/JS resolvers:
 | Phase 1 | 3 | 2 | ✅ 2/3 Deployed (1 deferred) |
 | Phase 2 | 4 | 4 | ✅ All deployed |
 | Phase 3 | 4 | 0 | ⬜ Not Started |
-| Phase 4 | 4 | 0 | ⬜ Not Started |
-| **Total** | **15** | **6** | **40%** (6 deployed) |
+| Phase 4 | 4 | 3 | ✅ 3/4 Complete (testing deferred) |
+| **Total** | **15** | **9** | **60%** (9 items complete) |
 
 **Target**: Reduce from 15 Lambdas to 2-3 Lambdas (80%+ reduction)
 
 **Current Status**: 
-- **Deployed**: ~9 Lambdas (40% reduction achieved)
+- **Deployed**: 7 Lambdas (53% reduction achieved)
   - ✅ `listOrdersBySeason` → VTL resolver (DEPLOYED)
   - ✅ `revokeShare` → VTL resolver (DEPLOYED)  
   - ⏸️ `createProfileInvite` → JS resolver (DEFERRED - kept as Lambda)
@@ -778,3 +778,12 @@ When migrating from Lambda to VTL/JS resolvers:
   - ✅ `deleteSeason` → Pipeline resolver (DEPLOYED)
   - ✅ `updateOrder` → Pipeline resolver (DEPLOYED)
   - ✅ `deleteOrder` → Pipeline resolver (DEPLOYED)
+
+**Remaining Lambda Functions** (7 total):
+1. `kernelworx-create-invite` - Profile invite generation
+2. `kernelworx-redeem-invite` - Multi-step invite redemption
+3. `kernelworx-share-direct` - Email-based sharing
+4. `kernelworx-create-order` - Order creation with catalog enrichment
+5. `kernelworx-create-profile` - Profile creation with transaction
+6. `kernelworx-request-report` - Excel report generation (MUST KEEP)
+7. `kernelworx-post-auth` - Cognito trigger (MUST KEEP)

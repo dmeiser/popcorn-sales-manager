@@ -154,7 +154,16 @@ VTL has basic string manipulation but:
    - ✅ updateOrder (GSI6 lookup → UpdateItem)
    - ✅ deleteOrder (GSI6 lookup → DeleteItem)
 
-**Lambda Count**: Reduced from 15 to ~9 (40% reduction)
+**Lambda Count**: Reduced from 15 to 7 (53% reduction)
+
+**Remaining Lambda Functions**: 7 total
+- `post-auth` - Cognito trigger (required)
+- `request-report` - Excel/S3 operations (required)
+- `create-profile` - DynamoDB transaction
+- `create-order` - Catalog enrichment
+- `create-invite` - Invite generation (JS resolver failed)
+- `redeem-invite` - Multi-step workflow
+- `share-direct` - Email lookup
 
 ~~To complete Phase 1 CRUD mutations:~~ **COMPLETED**
 

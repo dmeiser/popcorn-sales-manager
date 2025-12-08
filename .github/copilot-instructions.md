@@ -327,7 +327,7 @@ def generate_report(profile_id: str, season_id: str) -> str:
 ## 10. Key Files Reference
 
 - `TODO.md`: Current phase and task tracking
-- `TODO_SIMPLIFY_LAMBDA.md`: Lambda reduction plan (15 → 9 completed, target: 3 Lambdas)
+- `TODO_SIMPLIFY_LAMBDA.md`: Lambda reduction plan (15 → 7 completed, target: 2-3 Lambdas)
 - `AGENT.md`: Detailed AI agent rules and quality standards
 - `docs/VTL_RESOLVER_NOTES.md`: VTL resolver implementation notes
 - `Planning Documents/`: Complete requirements and architecture
