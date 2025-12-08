@@ -625,39 +625,58 @@ When migrating from Lambda to VTL/JS resolvers:
   - [ ] Update this checklist
   - **DEFERRED REASON**: JS resolver failed repeatedly with cryptic AppSync error "The code contains one or more errors". Attempted fixes: corrected time utilities, added imports, simplified code. All failed. Keeping as Lambda until AppSync JS debugging improves.
 
-### Phase 2: Pipeline Resolvers (5 Lambdas → 0)
+### Phase 2: Pipeline Resolvers (4 Lambdas → 0) ✅ CODE COMPLETE
 
-- [ ] **2.1 Replace `update-season` with Pipeline Resolver**
-  - [ ] Create `LookupSeasonFn` AppSync function (Query GSI7)
-  - [ ] Create `UpdateSeasonFn` AppSync function (UpdateItem)
-  - [ ] Create pipeline resolver combining both functions
-  - [ ] Remove `self.update_season_fn` and `self.update_season_ds`
-  - [ ] Remove `update_season` from `src/handlers/season_operations.py`
-  - [ ] Delete corresponding unit tests
-  - [ ] Deploy and verify season updates work
+- [x] **2.1 Replace `update-season` with Pipeline Resolver** ✅ CODE COMPLETE
+  - [x] Create `LookupSeasonFn` AppSync function (Query GSI7)
+  - [x] Create `UpdateSeasonFn` AppSync function (UpdateItem)
+  - [x] Create pipeline resolver combining both functions
+  - [x] Remove `self.update_season_fn` and `self.update_season_ds`
+  - [ ] ⏸️ Deploy and verify season updates work - **BLOCKED by CloudFormation state corruption**
+  - [ ] Remove `update_season` from `src/handlers/season_operations.py` - Defer until deployed
+  - [ ] Delete corresponding unit tests - User skipped all testing
   - [ ] Update this checklist
 
-- [ ] **2.2 Replace `delete-order` with Pipeline Resolver**
-  - [ ] Create `LookupOrderFn` AppSync function (Query GSI6)
-  - [ ] Create `DeleteOrderFn` AppSync function (DeleteItem)
-  - [ ] Create pipeline resolver combining both functions
-  - [ ] Remove `self.delete_order_fn` and `self.delete_order_ds`
-  - [ ] Remove `delete_order` from `src/handlers/order_operations.py`
-  - [ ] Delete corresponding unit tests
-  - [ ] Deploy and verify order deletion works
+- [x] **2.2 Replace `delete-order` with Pipeline Resolver** ✅ CODE COMPLETE
+  - [x] Create `LookupOrderFn` AppSync function (Query GSI6)
+  - [x] Create `DeleteOrderFn` AppSync function (DeleteItem)
+  - [x] Create pipeline resolver combining both functions
+  - [x] Remove `self.delete_order_fn` and `self.delete_order_ds`
+  - [ ] ⏸️ Deploy and verify order deletion works - **BLOCKED by CloudFormation state corruption**
+  - [ ] Remove `delete_order` from `src/handlers/order_operations.py` - Defer until deployed
+  - [ ] Delete corresponding unit tests - User skipped all testing
   - [ ] Update this checklist
 
-- [ ] **2.3 Replace `update-order` with Pipeline Resolver**
-  - [ ] Create `LookupOrderForUpdateFn` AppSync function (Query GSI6)
-  - [ ] Create `UpdateOrderFn` AppSync function (UpdateItem)
-  - [ ] Create pipeline resolver combining both functions
-  - [ ] Remove `self.update_order_fn` and `self.update_order_ds`
-  - [ ] Remove `update_order` from `src/handlers/order_operations.py`
-  - [ ] Delete corresponding unit tests
-  - [ ] Deploy and verify order updates work
+- [x] **2.3 Replace `update-order` with Pipeline Resolver** ✅ CODE COMPLETE
+  - [x] Create `LookupOrderFn` AppSync function (Query GSI6) - Reused from 2.2
+  - [x] Create `UpdateOrderFn` AppSync function (UpdateItem)
+  - [x] Create pipeline resolver combining both functions
+  - [x] Remove `self.update_order_fn` and `self.update_order_ds`
+  - [ ] ⏸️ Deploy and verify order updates work - **BLOCKED by CloudFormation state corruption**
+  - [ ] Remove `update_order` from `src/handlers/order_operations.py` - Defer until deployed
+  - [ ] Delete corresponding unit tests - User skipped all testing
   - [ ] Update this checklist
 
-- [ ] **2.4 Replace `create-order` with Pipeline Resolver**
+- [x] **2.4 Replace `delete-season` with Pipeline Resolver** ✅ CODE COMPLETE
+  - [x] Create `LookupSeasonFn` AppSync function (Query GSI7) - Reused from 2.1
+  - [x] Create `DeleteSeasonFn` AppSync function (DeleteItem)
+  - [x] Create pipeline resolver combining both functions
+  - [x] Remove `self.delete_season_fn` and `self.delete_season_ds`
+  - [ ] ⏸️ Deploy and verify season deletion works - **BLOCKED by CloudFormation state corruption**
+  - [ ] Remove `delete_season` from `src/handlers/season_operations.py` - Defer until deployed
+  - [ ] Delete corresponding unit tests - User skipped all testing
+  - [ ] Update this checklist
+
+**Phase 2 Notes**:
+- All 4 pipeline resolvers implemented in commit `3fbbba7`
+- 6 AppSync functions created: LookupSeasonFn, UpdateSeasonFn, DeleteSeasonFn, LookupOrderFn, UpdateOrderFn, DeleteOrderFn
+- CloudFormation deployment blocked by phantom resolver metadata (see `docs/DEPLOYMENT_ISSUES.md`)
+- Authorization simplified to Cognito-only (not full share-based access checks)
+- Deferred `create-order` and `share-direct` to Phase 3
+
+### Phase 3: Complex Refactoring (Deferred)
+
+- [ ] **3.1 Replace `create-order` with Pipeline Resolver** (Moved from Phase 2.4)
   - [ ] Create `GetCatalogFn` AppSync function (GetItem catalog)
   - [ ] Create `CreateOrderFn` AppSync function (PutItem with JS for line item enrichment)
   - [ ] Create pipeline resolver combining both functions
@@ -667,7 +686,7 @@ When migrating from Lambda to VTL/JS resolvers:
   - [ ] Deploy and verify order creation with line item enrichment works
   - [ ] Update this checklist
 
-- [ ] **2.5 Replace `share-direct` with Pipeline Resolver**
+- [ ] **3.2 Replace `share-direct` with Pipeline Resolver** (Moved from Phase 2.5)
   - [ ] Add GSI8 on `email` field for account lookup (if not exists)
   - [ ] Create `LookupAccountByEmailFn` AppSync function (Query GSI8)
   - [ ] Create `CreateShareFn` AppSync function (PutItem)
@@ -678,15 +697,42 @@ When migrating from Lambda to VTL/JS resolvers:
   - [ ] Deploy and verify direct sharing works
   - [ ] Update this checklist
 
-### Phase 3: Complex Refactoring (2 Lambdas)
-
-- [ ] **3.1 Replace `redeem-invite` with Pipeline Resolver (or keep Lambda)**
+- [ ] **3.3 Replace `redeem-invite` with Pipeline Resolver (or keep Lambda)**
   - [ ] Decide: Add GSI on `inviteCode` OR require `profileId+inviteCode` in API OR keep Lambda
   - [ ] If replacing: Create lookup, create-share, and mark-used functions
   - [ ] If keeping: Document reason in this file
   - [ ] Update this checklist
 
-- [ ] **3.2 Replace `delete-season` with Pipeline Resolver (or keep Lambda)**
+### Phase 3: Complex Refactoring (Deferred)
+
+- [ ] **3.1 Replace `create-order` with Pipeline Resolver** (Moved from Phase 2)
+  - [ ] Create `GetCatalogFn` AppSync function (GetItem catalog)
+  - [ ] Create `CreateOrderFn` AppSync function (PutItem with JS for line item enrichment)
+  - [ ] Create pipeline resolver combining both functions
+  - [ ] Remove `self.create_order_fn` and `self.create_order_ds`
+  - [ ] Remove `create_order` from `src/handlers/order_operations.py`
+  - [ ] Delete corresponding unit tests
+  - [ ] Deploy and verify order creation with line item enrichment works
+  - [ ] Update this checklist
+
+- [ ] **3.2 Replace `share-direct` with Pipeline Resolver** (Moved from Phase 2)
+  - [ ] Add GSI8 on `email` field for account lookup (if not exists)
+  - [ ] Create `LookupAccountByEmailFn` AppSync function (Query GSI8)
+  - [ ] Create `CreateShareFn` AppSync function (PutItem)
+  - [ ] Create pipeline resolver combining both functions
+  - [ ] Remove `self.share_profile_direct_fn` and `self.share_profile_direct_ds`
+  - [ ] Remove `share_profile_direct` from `src/handlers/profile_sharing.py`
+  - [ ] Delete corresponding unit tests
+  - [ ] Deploy and verify direct sharing works
+  - [ ] Update this checklist
+
+- [ ] **3.3 Replace `redeem-invite` with Pipeline Resolver (or keep Lambda)**
+  - [ ] Decide: Add GSI on `inviteCode` OR require `profileId+inviteCode` in API OR keep Lambda
+  - [ ] If replacing: Create lookup, create-share, and mark-used functions
+  - [ ] If keeping: Document reason in this file
+  - [ ] Update this checklist
+
+- [ ] **3.4 Replace `delete-season` with Pipeline Resolver (or keep Lambda)**
   - [ ] Decide: Pipeline can't batch-delete child orders efficiently
   - [ ] Option A: Keep Lambda for batch delete logic
   - [ ] Option B: Pipeline deletes season only, orphan orders cleaned by TTL or background job
@@ -726,14 +772,20 @@ When migrating from Lambda to VTL/JS resolvers:
 | Phase | Items | Completed | Status |
 |-------|-------|-----------|--------|
 | Phase 1 | 3 | 2 | ✅ 2/3 Deployed (1 deferred) |
-| Phase 2 | 5 | 0 | ⬜ Not Started |
-| Phase 3 | 2 | 0 | ⬜ Not Started |
+| Phase 2 | 4 | 4 (code) | ⏸️ Code complete, deployment blocked |
+| Phase 3 | 4 | 0 | ⬜ Not Started |
 | Phase 4 | 4 | 0 | ⬜ Not Started |
-| **Total** | **14** | **2** | **14%** |
+| **Total** | **15** | **6** | **40%** (6 complete, deployment pending for 4) |
 
 **Target**: Reduce from 15 Lambdas to 2-3 Lambdas (80%+ reduction)
 
-**Current Status**: Reduced from 15 Lambdas to ~13 Lambdas (13% reduction achieved)
-- ✅ `listOrdersBySeason` → VTL resolver (DEPLOYED)
-- ✅ `revokeShare` → VTL resolver (DEPLOYED)  
-- ⏸️ `createProfileInvite` → JS resolver (DEFERRED - kept as Lambda)
+**Current Status**: 
+- **Code Ready**: Would be ~9 Lambdas (40% reduction) after Phase 2 deployment
+- **Deployed**: ~13 Lambdas (13% reduction achieved)
+  - ✅ `listOrdersBySeason` → VTL resolver (DEPLOYED)
+  - ✅ `revokeShare` → VTL resolver (DEPLOYED)  
+  - ⏸️ `createProfileInvite` → JS resolver (DEFERRED - kept as Lambda)
+  - ✅ `updateSeason` → Pipeline resolver (CODE COMPLETE, deployment blocked)
+  - ✅ `deleteSeason` → Pipeline resolver (CODE COMPLETE, deployment blocked)
+  - ✅ `updateOrder` → Pipeline resolver (CODE COMPLETE, deployment blocked)
+  - ✅ `deleteOrder` → Pipeline resolver (CODE COMPLETE, deployment blocked)
