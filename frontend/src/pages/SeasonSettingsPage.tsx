@@ -42,7 +42,9 @@ interface Season {
 }
 
 export const SeasonSettingsPage: React.FC = () => {
-  const { profileId, seasonId } = useParams<{ profileId: string; seasonId: string }>();
+  const { profileId: encodedProfileId, seasonId: encodedSeasonId } = useParams<{ profileId: string; seasonId: string }>();
+  const profileId = encodedProfileId ? decodeURIComponent(encodedProfileId) : '';
+  const seasonId = encodedSeasonId ? decodeURIComponent(encodedSeasonId) : '';
   const navigate = useNavigate();
   const [seasonName, setSeasonName] = useState('');
   const [startDate, setStartDate] = useState('');
@@ -79,7 +81,7 @@ export const SeasonSettingsPage: React.FC = () => {
   // Delete season mutation
   const [deleteSeason] = useMutation(DELETE_SEASON, {
     onCompleted: () => {
-      navigate(`/profiles/${profileId}/seasons`);
+      navigate(`/profiles/${encodeURIComponent(profileId || '')}/seasons`);
     },
   });
 
@@ -96,12 +98,19 @@ export const SeasonSettingsPage: React.FC = () => {
 
   const handleSaveChanges = async () => {
     if (!seasonId || !seasonName.trim()) return;
+    
+    // Convert YYYY-MM-DD to ISO 8601 datetime
+    const startDateTime = new Date(startDate + 'T00:00:00.000Z').toISOString();
+    const endDateTime = endDate ? new Date(endDate + 'T23:59:59.999Z').toISOString() : null;
+    
     await updateSeason({
       variables: {
-        seasonId,
-        seasonName: seasonName.trim(),
-        startDate,
-        endDate: endDate || null,
+        input: {
+          seasonId,
+          seasonName: seasonName.trim(),
+          startDate: startDateTime,
+          endDate: endDateTime,
+        },
       },
     });
   };

@@ -42,7 +42,7 @@ export const SeasonCard: React.FC<SeasonCardProps> = ({
   const navigate = useNavigate();
 
   const handleViewSeason = () => {
-    navigate(`/profiles/${profileId}/seasons/${seasonId}`);
+    navigate(`/profiles/${encodeURIComponent(profileId)}/seasons/${encodeURIComponent(seasonId)}`);
   };
 
   const formatDate = (dateString: string) => {

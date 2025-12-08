@@ -204,38 +204,65 @@ def check_profile_access(caller_account_id: str, profile_id: str, action: str) -
     return False
 ```
 
-## 7. GraphQL Resolver Pattern
+## 7. GraphQL Resolver Pattern - PREFER NON-LAMBDA
 
-**AppSync Lambda Resolver**:
-```python
-import json
-from typing import Any, Dict
+**⚠️ IMPORTANT**: Before creating a Lambda resolver, consider alternatives. See `TODO_SIMPLIFY_LAMBDA.md`.
 
-def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
-    """
-    AppSync Lambda resolver handler.
-    
-    event['info']['fieldName'] = GraphQL field name
-    event['arguments'] = GraphQL arguments
-    event['identity'] = Cognito identity
-    """
-    field_name = event['info']['fieldName']
-    arguments = event['arguments']
-    caller_account_id = event['identity']['sub']
-    
-    # Authorization check
-    if not check_profile_access(caller_account_id, arguments['profileId'], 'read'):
-        raise Exception("Forbidden")
-    
-    # Business logic
-    if field_name == 'getProfile':
-        return get_profile(arguments['profileId'])
-    elif field_name == 'createOrder':
-        return create_order(arguments['profileId'], arguments['seasonId'], arguments)
-    # ...
-    
-    raise Exception(f"Unknown field: {field_name}")
+**Resolver Type Priority** (use first option that works):
+1. **VTL Resolver** - Simple CRUD, single DynamoDB operation
+2. **JavaScript Resolver** - ID generation, computed fields, simple logic
+3. **Pipeline Resolver** - Multi-step operations (GSI query → update/delete)
+4. **Lambda Resolver** - ONLY for external services (S3, Excel) or transactions
+
+### VTL Resolver Example (preferred for simple queries):
+```vtl
+{
+    "version": "2017-02-28",
+    "operation": "Query",
+    "query": {
+        "expression": "PK = :pk AND begins_with(SK, :sk)",
+        "expressionValues": {
+            ":pk": $util.dynamodb.toDynamoDBJson($ctx.args.seasonId),
+            ":sk": $util.dynamodb.toDynamoDBJson("ORDER#")
+        }
+    }
+}
 ```
+
+### JavaScript Resolver Example (for computed values):
+```javascript
+export function request(ctx) {
+    const inviteCode = util.autoId().substring(0, 8).toUpperCase();
+    return {
+        operation: "PutItem",
+        key: util.dynamodb.toMapValues({ PK: ctx.args.profileId, SK: `INVITE#${inviteCode}` }),
+        attributeValues: util.dynamodb.toMapValues({
+            inviteCode,
+            expiresAt: util.time.nowEpochSeconds() + (14 * 24 * 60 * 60),
+        }),
+        condition: { expression: "attribute_not_exists(PK)" }  // Prevents collisions
+    };
+}
+
+export function response(ctx) {
+    return ctx.result;
+}
+```
+
+### Pipeline Resolver (for GSI lookup → mutation):
+Use when you need to query a GSI to find PK/SK, then update or delete the item.
+
+### Lambda Resolver (ONLY when necessary):
+```python
+def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
+    """Only use for: S3 operations, Excel generation, email, transactions."""
+    # ...
+```
+
+**Currently required as Lambda:**
+- `post-auth` (Cognito trigger)
+- `request-report` (Excel/S3)
+- `create-profile` (DynamoDB transaction)
 
 ## 8. Common Patterns
 
@@ -300,7 +327,9 @@ def generate_report(profile_id: str, season_id: str) -> str:
 ## 10. Key Files Reference
 
 - `TODO.md`: Current phase and task tracking
+- `TODO_SIMPLIFY_LAMBDA.md`: Lambda reduction plan (target: 15 → 3 Lambdas)
 - `AGENT.md`: Detailed AI agent rules and quality standards
+- `docs/VTL_RESOLVER_NOTES.md`: VTL resolver implementation notes
 - `Planning Documents/`: Complete requirements and architecture
   - `graphql_schema_v1.md`: GraphQL API definition
   - `dynamodb_physical_schema_v1.md`: DynamoDB table design

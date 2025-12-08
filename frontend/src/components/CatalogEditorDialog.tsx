@@ -122,10 +122,11 @@ export const CatalogEditorDialog: React.FC<CatalogEditorDialogProps> = ({
       await onSave({
         catalogName: catalogName.trim(),
         isPublic,
-        products: products.map((p) => ({
+        products: products.map((p, index) => ({
           productName: p.productName.trim(),
           description: p.description?.trim() || undefined,
           price: p.price,
+          sortOrder: index,
         })),
       });
       onClose();

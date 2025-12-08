@@ -103,7 +103,15 @@ export const CatalogsPage: React.FC = () => {
   });
 
   const publicCatalogs = publicData?.listPublicCatalogs || [];
-  const myCatalogs = myData?.listMyCatalogs || [];
+  const myPrivateCatalogs = myData?.listMyCatalogs || [];
+  
+  // Combine private catalogs with public catalogs I own
+  const myCatalogs = [
+    ...myPrivateCatalogs,
+    ...publicCatalogs.filter(catalog => 
+      myPrivateCatalogs.every(myCat => myCat.catalogId !== catalog.catalogId)
+    )
+  ];
 
   const handleCreateCatalog = () => {
     setEditingCatalog(null);

@@ -117,11 +117,12 @@ export const SettingsPage: React.FC = () => {
             <ListItemText
               primary="Account Type"
               secondary={
-                <Stack direction="row" spacing={1} alignItems="center">
+                <Stack direction="row" spacing={1} alignItems="center" component="span" sx={{ display: 'inline-flex' }}>
                   <span>{account?.isAdmin ? 'Administrator' : 'Standard User'}</span>
                   {account?.isAdmin && <Chip label="Admin" color="error" size="small" />}
                 </Stack>
               }
+              secondaryTypographyProps={{ component: 'span' }}
             />
           </ListItem>
           <Divider component="li" />

@@ -39,7 +39,8 @@ interface Order {
 }
 
 export const SeasonSummaryPage: React.FC = () => {
-  const { seasonId } = useParams<{ seasonId: string }>();
+  const { seasonId: encodedSeasonId } = useParams<{ seasonId: string }>();
+  const seasonId = encodedSeasonId ? decodeURIComponent(encodedSeasonId) : '';
 
   const {
     data: ordersData,

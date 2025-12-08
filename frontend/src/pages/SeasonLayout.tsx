@@ -51,7 +51,12 @@ interface Profile {
 }
 
 export const SeasonLayout: React.FC = () => {
-  const { profileId, seasonId } = useParams<{ profileId: string; seasonId: string }>();
+  const { profileId: encodedProfileId, seasonId: encodedSeasonId } = useParams<{
+    profileId: string;
+    seasonId: string;
+  }>();
+  const profileId = encodedProfileId ? decodeURIComponent(encodedProfileId) : '';
+  const seasonId = encodedSeasonId ? decodeURIComponent(encodedSeasonId) : '';
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -71,6 +76,16 @@ export const SeasonLayout: React.FC = () => {
     skip: !seasonId,
   });
 
+  // Debug logging
+  if (seasonError) {
+    console.error('Season query error:', seasonError);
+    console.log('Season error details:', {
+      message: seasonError.message,
+      graphQLErrors: seasonError.graphQLErrors,
+      networkError: seasonError.networkError,
+    });
+  }
+
   // Fetch profile data
   const {
     data: profileData,
@@ -85,7 +100,7 @@ export const SeasonLayout: React.FC = () => {
   const loading = seasonLoading || profileLoading;
 
   const handleTabChange = (_event: React.SyntheticEvent, newValue: string) => {
-    navigate(`/profiles/${profileId}/seasons/${seasonId}/${newValue}`);
+    navigate(`/profiles/${encodeURIComponent(profileId)}/seasons/${encodeURIComponent(seasonId)}/${newValue}`);
   };
 
   if (loading) {
@@ -119,7 +134,7 @@ export const SeasonLayout: React.FC = () => {
         <Link
           component="button"
           variant="body1"
-          onClick={() => navigate(`/profiles/${profileId}/seasons`)}
+          onClick={() => navigate(`/profiles/${encodeURIComponent(profileId)}/seasons`)}
           sx={{ textDecoration: 'none', cursor: 'pointer' }}
         >
           {profile?.sellerName || 'Loading...'}
@@ -129,9 +144,11 @@ export const SeasonLayout: React.FC = () => {
 
       {/* Header */}
       <Stack direction="row" alignItems="center" spacing={2} mb={3}>
-        <IconButton
-          onClick={() => navigate(`/profiles/${profileId}/seasons`)}
+                <IconButton
           edge="start"
+          color="inherit"
+          onClick={() => navigate(`/profiles/${encodeURIComponent(profileId)}/seasons`)}
+          sx={{ mr: 2 }}
         >
           <ArrowBackIcon />
         </IconButton>

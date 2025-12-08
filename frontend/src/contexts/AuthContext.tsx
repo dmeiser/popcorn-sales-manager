@@ -131,14 +131,25 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
    * Logout and clear session
    * 
    * This signs the user out via Cognito and redirects to the sign-out URL.
+   * With OAuth/Hosted UI, signOut will redirect to Cognito logout endpoint.
    */
   const logout = useCallback(async () => {
     try {
-      await signOut();
+      console.log('Starting logout...');
       setAccount(null);
+      // signOut with global:true will redirect to Cognito's /logout endpoint
+      // which clears the Cognito session cookies, then redirects back to redirectSignOut
+      await signOut({ global: true });
+      // Note: The redirect happens automatically, we won't reach this line
     } catch (error) {
       console.error('Logout failed:', error);
-      throw error;
+      // If signOut fails, clear local state and do manual redirect
+      setAccount(null);
+      // Build the Cognito logout URL manually as fallback
+      const domain = import.meta.env.VITE_COGNITO_DOMAIN;
+      const clientId = import.meta.env.VITE_COGNITO_USER_POOL_CLIENT_ID;
+      const logoutUri = encodeURIComponent(import.meta.env.VITE_OAUTH_REDIRECT_SIGNOUT);
+      window.location.href = `https://${domain}/logout?client_id=${clientId}&logout_uri=${logoutUri}`;
     }
   }, []);
 

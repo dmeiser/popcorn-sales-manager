@@ -207,7 +207,7 @@ export const GET_CATALOG = gql`
 export const CREATE_SELLER_PROFILE = gql`
   ${SELLER_PROFILE_FRAGMENT}
   mutation CreateSellerProfile($sellerName: String!) {
-    createSellerProfile(sellerName: $sellerName) {
+    createSellerProfile(input: { sellerName: $sellerName }) {
       ...SellerProfileFields
     }
   }
@@ -216,7 +216,7 @@ export const CREATE_SELLER_PROFILE = gql`
 export const UPDATE_SELLER_PROFILE = gql`
   ${SELLER_PROFILE_FRAGMENT}
   mutation UpdateSellerProfile($profileId: ID!, $sellerName: String!) {
-    updateSellerProfile(profileId: $profileId, sellerName: $sellerName) {
+    updateSellerProfile(input: { profileId: $profileId, sellerName: $sellerName }) {
       ...SellerProfileFields
     }
   }
@@ -232,8 +232,8 @@ export const DELETE_SELLER_PROFILE = gql`
 
 export const CREATE_SEASON = gql`
   ${SEASON_FRAGMENT}
-  mutation CreateSeason($profileId: ID!, $seasonName: String!, $startDate: AWSDateTime!, $endDate: AWSDateTime, $catalogId: ID!) {
-    createSeason(profileId: $profileId, seasonName: $seasonName, startDate: $startDate, endDate: $endDate, catalogId: $catalogId) {
+  mutation CreateSeason($input: CreateSeasonInput!) {
+    createSeason(input: $input) {
       ...SeasonFields
     }
   }
@@ -241,8 +241,8 @@ export const CREATE_SEASON = gql`
 
 export const UPDATE_SEASON = gql`
   ${SEASON_FRAGMENT}
-  mutation UpdateSeason($seasonId: ID!, $seasonName: String, $startDate: AWSDateTime, $endDate: AWSDateTime, $catalogId: ID) {
-    updateSeason(seasonId: $seasonId, seasonName: $seasonName, startDate: $startDate, endDate: $endDate, catalogId: $catalogId) {
+  mutation UpdateSeason($input: UpdateSeasonInput!) {
+    updateSeason(input: $input) {
       ...SeasonFields
     }
   }
@@ -276,9 +276,7 @@ export const UPDATE_ORDER = gql`
 
 export const DELETE_ORDER = gql`
   mutation DeleteOrder($orderId: ID!) {
-    deleteOrder(orderId: $orderId) {
-      orderId
-    }
+    deleteOrder(orderId: $orderId)
   }
 `;
 

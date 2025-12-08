@@ -53,10 +53,10 @@ def sample_orders(
             "createdAt": "2025-09-20T14:30:00+00:00",
         },
     ]
-    
+
     for order in orders:
         dynamodb_table.put_item(Item=order)
-    
+
     return orders
 
 
@@ -99,9 +99,7 @@ class TestRequestSeasonReport:
         assert objects["Contents"][0]["Key"].endswith(".xlsx")
 
         # Verify Excel content
-        obj = s3_bucket.get_object(
-            Bucket=bucket_name, Key=objects["Contents"][0]["Key"]
-        )
+        obj = s3_bucket.get_object(Bucket=bucket_name, Key=objects["Contents"][0]["Key"])
         wb = openpyxl.load_workbook(BytesIO(obj["Body"].read()))
         ws = wb.active
 
@@ -148,9 +146,7 @@ class TestRequestSeasonReport:
         assert objects["Contents"][0]["Key"].endswith(".csv")
 
         # Verify CSV content
-        obj = s3_bucket.get_object(
-            Bucket=bucket_name, Key=objects["Contents"][0]["Key"]
-        )
+        obj = s3_bucket.get_object(Bucket=bucket_name, Key=objects["Contents"][0]["Key"])
         csv_content = obj["Body"].read().decode("utf-8")
 
         assert "Customer Name" in csv_content
@@ -292,9 +288,7 @@ class TestRequestSeasonReport:
         # Verify CSV content shows 0 orders
         bucket_name = os.environ.get("EXPORTS_BUCKET", "test-exports-bucket")
         objects = s3_bucket.list_objects_v2(Bucket=bucket_name)
-        obj = s3_bucket.get_object(
-            Bucket=bucket_name, Key=objects["Contents"][0]["Key"]
-        )
+        obj = s3_bucket.get_object(Bucket=bucket_name, Key=objects["Contents"][0]["Key"])
         csv_content = obj["Body"].read().decode("utf-8")
 
         assert "Total Orders,0" in csv_content

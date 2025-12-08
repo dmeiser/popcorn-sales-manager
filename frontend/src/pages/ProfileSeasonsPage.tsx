@@ -47,7 +47,8 @@ interface Profile {
 }
 
 export const ProfileSeasonsPage: React.FC = () => {
-  const { profileId } = useParams<{ profileId: string }>();
+  const { profileId: encodedProfileId } = useParams<{ profileId: string }>();
+  const profileId = encodedProfileId ? decodeURIComponent(encodedProfileId) : '';
   const navigate = useNavigate();
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
 
@@ -86,13 +87,20 @@ export const ProfileSeasonsPage: React.FC = () => {
     catalogId: string
   ) => {
     if (!profileId) return;
+    
+    // Convert YYYY-MM-DD to ISO 8601 datetime
+    const startDateTime = new Date(startDate + 'T00:00:00.000Z').toISOString();
+    const endDateTime = endDate ? new Date(endDate + 'T23:59:59.999Z').toISOString() : null;
+    
     await createSeason({
       variables: {
-        profileId,
-        seasonName,
-        startDate,
-        endDate,
-        catalogId,
+        input: {
+          profileId,
+          seasonName,
+          startDate: startDateTime,
+          endDate: endDateTime,
+          catalogId,
+        },
       },
     });
   };

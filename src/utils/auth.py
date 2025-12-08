@@ -5,10 +5,12 @@ Implements owner-based and share-based authorization model.
 """
 
 import os
-from typing import Any, Dict, Optional
+from typing import TYPE_CHECKING, Any, Dict, Optional
 
 import boto3
-from mypy_boto3_dynamodb.service_resource import Table
+
+if TYPE_CHECKING:
+    from mypy_boto3_dynamodb.service_resource import Table
 
 from .errors import AppError, ErrorCode
 
@@ -16,7 +18,7 @@ from .errors import AppError, ErrorCode
 dynamodb = boto3.resource("dynamodb", endpoint_url=os.getenv("DYNAMODB_ENDPOINT"))
 
 
-def get_table() -> Table:
+def get_table() -> "Table":
     """Get DynamoDB table instance."""
     table_name = os.getenv("TABLE_NAME", "PsmApp")
     return dynamodb.Table(table_name)

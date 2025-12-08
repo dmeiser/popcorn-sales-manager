@@ -1,5 +1,5 @@
 [project]
-name = "popcorn-sales-manager"
+name = "kernelworx"
 version = "0.1.0"
 description = "Popcorn Sales Manager - Lambda functions and backend code"
 requires-python = ">=3.13"

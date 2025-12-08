@@ -33,7 +33,8 @@ interface ReportResult {
 }
 
 export const ReportsPage: React.FC = () => {
-  const { seasonId } = useParams<{ seasonId: string }>();
+  const { seasonId: encodedSeasonId } = useParams<{ seasonId: string }>();
+  const seasonId = encodedSeasonId ? decodeURIComponent(encodedSeasonId) : '';
   const [format, setFormat] = useState<'CSV' | 'XLSX'>('XLSX');
   const [lastReport, setLastReport] = useState<ReportResult | null>(null);
 

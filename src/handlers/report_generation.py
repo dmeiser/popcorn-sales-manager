@@ -65,7 +65,7 @@ def request_season_report(event: Dict[str, Any], context: Any) -> Dict[str, Any]
         # Get season and verify authorization
         table = get_table()
         season = _get_season(table, season_id)
-        
+
         if not season:
             raise AppError(ErrorCode.NOT_FOUND, f"Season {season_id} not found")
 
@@ -90,7 +90,7 @@ def request_season_report(event: Dict[str, Any], context: Any) -> Dict[str, Any]
 
         # Upload to S3
         report_id = f"REPORT#{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}"
-        exports_bucket = os.getenv("EXPORTS_BUCKET", "popcorn-sales-manager-dev-exports")
+        exports_bucket = os.getenv("EXPORTS_BUCKET", "kernelworx-exports-dev")
         s3_key = f"reports/{profile_id}/{season_id}/{report_id}.{file_extension}"
 
         s3_client.put_object(
@@ -169,25 +169,29 @@ def _generate_csv_report(season: Dict[str, Any], orders: list[Dict[str, Any]]) -
     writer.writerow([])
 
     # Orders header
-    writer.writerow([
-        "Order Date",
-        "Customer Name",
-        "Customer Phone",
-        "Payment Method",
-        "Total Amount",
-        "Notes",
-    ])
+    writer.writerow(
+        [
+            "Order Date",
+            "Customer Name",
+            "Customer Phone",
+            "Payment Method",
+            "Total Amount",
+            "Notes",
+        ]
+    )
 
     # Orders
     for order in orders:
-        writer.writerow([
-            order.get("orderDate", ""),
-            order.get("customerName", ""),
-            order.get("customerPhone", ""),
-            order.get("paymentMethod", ""),
-            order.get("totalAmount", 0),
-            order.get("notes", ""),
-        ])
+        writer.writerow(
+            [
+                order.get("orderDate", ""),
+                order.get("customerName", ""),
+                order.get("customerPhone", ""),
+                order.get("paymentMethod", ""),
+                order.get("totalAmount", 0),
+                order.get("notes", ""),
+            ]
+        )
 
     # Summary
     total_orders = len(orders)
@@ -200,9 +204,7 @@ def _generate_csv_report(season: Dict[str, Any], orders: list[Dict[str, Any]]) -
     return output.getvalue().encode("utf-8")
 
 
-def _generate_excel_report(
-    season: Dict[str, Any], orders: list[Dict[str, Any]]
-) -> bytes:
+def _generate_excel_report(season: Dict[str, Any], orders: list[Dict[str, Any]]) -> bytes:
     """Generate Excel report."""
     wb = Workbook()
     ws = wb.active

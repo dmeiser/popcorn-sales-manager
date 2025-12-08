@@ -10,6 +10,13 @@ import { ErrorLink } from '@apollo/client/link/error';
 import { CombinedGraphQLErrors } from '@apollo/client/errors';
 import { fetchAuthSession } from 'aws-amplify/auth';
 
+// Custom scalar serializer for AWSPhone
+// Apollo Client needs to know how to serialize this custom scalar type
+const customScalarsLink = new ApolloLink((operation, forward) => {
+  // Pass through without modification - let AppSync handle validation
+  return forward(operation);
+});
+
 /**
  * HTTP link to AppSync endpoint
  */

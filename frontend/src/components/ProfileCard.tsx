@@ -38,7 +38,7 @@ export const ProfileCard: React.FC<ProfileCardProps> = ({
   const navigate = useNavigate();
 
   const handleViewSeasons = () => {
-    navigate(`/profiles/${profileId}/seasons`);
+    navigate(`/profiles/${encodeURIComponent(profileId)}/seasons`);
   };
 
   const canEdit = isOwner || permissions.includes('WRITE');

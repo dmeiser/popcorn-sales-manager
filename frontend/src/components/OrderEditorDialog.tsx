@@ -114,7 +114,15 @@ export const OrderEditorDialog: React.FC<OrderEditorDialogProps> = ({
       if (order) {
         // Edit mode
         setCustomerName(order.customerName);
-        setCustomerPhone(order.customerPhone || '');
+        // Convert E.164 format (+11234567890) to formatted display (123) 456-7890
+        if (order.customerPhone) {
+          const digits = order.customerPhone.replace(/\D/g, '');
+          // Remove leading 1 if present (US country code)
+          const phoneDigits = digits.startsWith('1') && digits.length === 11 ? digits.slice(1) : digits;
+          setCustomerPhone(formatPhoneNumber(phoneDigits));
+        } else {
+          setCustomerPhone('');
+        }
         setStreet(order.customerAddress?.street || '');
         setCity(order.customerAddress?.city || '');
         setState(order.customerAddress?.state || '');
@@ -147,6 +155,29 @@ export const OrderEditorDialog: React.FC<OrderEditorDialogProps> = ({
     setLineItems([]);
     setNotes('');
     setOrderDate('');
+  };
+
+  // Format phone number as user types: (123) 456-7890
+  const formatPhoneNumber = (value: string) => {
+    // Remove all non-digits
+    const digits = value.replace(/\D/g, '');
+    
+    // Limit to 10 digits
+    const limited = digits.slice(0, 10);
+    
+    // Format as (XXX) XXX-XXXX
+    if (limited.length <= 3) {
+      return limited;
+    } else if (limited.length <= 6) {
+      return `(${limited.slice(0, 3)}) ${limited.slice(3)}`;
+    } else {
+      return `(${limited.slice(0, 3)}) ${limited.slice(3, 6)}-${limited.slice(6)}`;
+    }
+  };
+
+  const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const formatted = formatPhoneNumber(e.target.value);
+    setCustomerPhone(formatted);
   };
 
   const [createOrder, { loading: creating, error: createError }] = useMutation(CREATE_ORDER, {
@@ -199,7 +230,7 @@ export const OrderEditorDialog: React.FC<OrderEditorDialogProps> = ({
 
     const input: any = {
       customerName: customerName.trim(),
-      orderDate,
+      orderDate: new Date(orderDate + 'T00:00:00.000Z').toISOString(),
       paymentMethod,
       lineItems: lineItems.map((item) => ({
         productId: item.productId,
@@ -208,7 +239,22 @@ export const OrderEditorDialog: React.FC<OrderEditorDialogProps> = ({
     };
 
     if (customerPhone.trim()) {
-      input.customerPhone = customerPhone.trim();
+      // AWSPhone requires valid area code/exchange - format as +1XXXXXXXXXX
+      const digits = customerPhone.replace(/\D/g, '');
+      const number = digits.startsWith('1') && digits.length === 11 ? digits.slice(1) : digits;
+      
+      if (number.length !== 10) {
+        alert(`Phone must be 10 digits. Got: ${number.length} digits`);
+        throw new Error('Invalid phone number length');
+      }
+      
+      input.customerPhone = `+1${number}`;
+      console.log('Phone debug:', { 
+        original: customerPhone, 
+        digits, 
+        number, 
+        final: input.customerPhone
+      });
     }
 
     if (hasAddress) {
@@ -235,6 +281,14 @@ export const OrderEditorDialog: React.FC<OrderEditorDialogProps> = ({
         });
       } else {
         // Create new order
+        console.log('FULL MUTATION PAYLOAD:', JSON.stringify({
+          input: {
+            ...input,
+            profileId,
+            seasonId,
+          },
+        }, null, 2));
+        
         await createOrder({
           variables: {
             input: {
@@ -245,8 +299,31 @@ export const OrderEditorDialog: React.FC<OrderEditorDialogProps> = ({
           },
         });
       }
-    } catch (err) {
-      console.error('Failed to save order:', err);
+    } catch (err: any) {
+      console.error('Failed to save order - FULL ERROR:', err);
+      console.error('Error name:', err.name);
+      console.error('Error message:', err.message);
+      console.error('Error stack:', err.stack);
+      console.error('Error constructor:', err.constructor.name);
+      console.error('Error keys:', Object.keys(err));
+      if (err.graphQLErrors) {
+        console.error('GraphQL Errors:', err.graphQLErrors);
+        console.error('First GraphQL Error:', err.graphQLErrors[0]);
+        if (err.graphQLErrors[0]) {
+          console.error('Error extensions:', err.graphQLErrors[0].extensions);
+          console.error('Error source:', err.graphQLErrors[0].source);
+        }
+      }
+      if (err.networkError) {
+        console.error('Network Error:', err.networkError);
+        console.error('Network Error statusCode:', err.networkError?.statusCode);
+        console.error('Network Error result:', err.networkError?.result);
+      }
+      if (err.clientErrors) {
+        console.error('Client Errors:', err.clientErrors);
+      }
+      console.error('STRINGIFIED ERROR:', JSON.stringify(err, null, 2));
+      alert(`Error: ${err.message}\n\nCheck console for full details.\n\nIs there a network request in DevTools?`);
     }
   };
 
@@ -280,9 +357,10 @@ export const OrderEditorDialog: React.FC<OrderEditorDialogProps> = ({
                 fullWidth
                 label="Phone Number"
                 value={customerPhone}
-                onChange={(e) => setCustomerPhone(e.target.value)}
+                onChange={handlePhoneChange}
                 disabled={loading}
                 helperText="Either phone or address is required"
+                placeholder="(123) 456-7890"
               />
               <TextField
                 fullWidth

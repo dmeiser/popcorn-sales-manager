@@ -56,7 +56,8 @@ interface Product {
 }
 
 export const OrdersPage: React.FC = () => {
-  const { seasonId } = useParams<{ seasonId: string }>();
+  const { seasonId: encodedSeasonId } = useParams<{ seasonId: string }>();
+  const seasonId = encodedSeasonId ? decodeURIComponent(encodedSeasonId) : '';
   const [editorOpen, setEditorOpen] = useState(false);
   const [editingOrder, setEditingOrder] = useState<Order | null>(null);
 
@@ -87,6 +88,12 @@ export const OrdersPage: React.FC = () => {
   const orders = ordersData?.listOrdersBySeason || [];
   const products: Product[] = seasonData?.getSeason?.catalog?.products || [];
 
+  console.log('[OrdersPage] seasonId:', seasonId);
+  console.log('[OrdersPage] getSeason:', seasonData?.getSeason);
+  console.log('[OrdersPage] catalog:', seasonData?.getSeason?.catalog);
+  console.log('[OrdersPage] products:', products);
+  console.log('[OrdersPage] products.length:', products.length);
+
   const handleCreateOrder = () => {
     setEditingOrder(null);
     setEditorOpen(true);
@@ -116,6 +123,18 @@ export const OrdersPage: React.FC = () => {
       month: 'short',
       day: 'numeric',
     });
+  };
+
+  const formatPhoneNumber = (phone: string) => {
+    // Format +1XXXXXXXXXX as (XXX) XXX-XXXX
+    const digits = phone.replace(/\D/g, '');
+    if (digits.length === 11 && digits.startsWith('1')) {
+      const areaCode = digits.slice(1, 4);
+      const prefix = digits.slice(4, 7);
+      const lineNumber = digits.slice(7, 11);
+      return `(${areaCode}) ${prefix}-${lineNumber}`;
+    }
+    return phone; // Return as-is if format is unexpected
   };
 
   const paymentMethodColors: Record<string, 'default' | 'primary' | 'secondary' | 'success' | 'warning'> = {
@@ -173,7 +192,7 @@ export const OrdersPage: React.FC = () => {
                   </TableCell>
                   <TableCell>
                     <Typography variant="body2" color="text.secondary">
-                      {order.customerPhone || '—'}
+                      {order.customerPhone ? formatPhoneNumber(order.customerPhone) : '—'}
                     </Typography>
                   </TableCell>
                   <TableCell>
