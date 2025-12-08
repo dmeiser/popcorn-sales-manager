@@ -2,9 +2,9 @@
  * SeasonSummaryPage - High-level statistics and summary for a season
  */
 
-import React from 'react';
-import { useParams } from 'react-router-dom';
-import { useQuery } from '@apollo/client/react';
+import React from "react";
+import { useParams } from "react-router-dom";
+import { useQuery } from "@apollo/client/react";
 import {
   Box,
   Grid,
@@ -13,14 +13,14 @@ import {
   Stack,
   CircularProgress,
   Alert,
-} from '@mui/material';
+} from "@mui/material";
 import {
   ShoppingCart,
   AttachMoney,
   TrendingUp,
   People,
-} from '@mui/icons-material';
-import { LIST_ORDERS_BY_SEASON } from '../lib/graphql';
+} from "@mui/icons-material";
+import { LIST_ORDERS_BY_SEASON } from "../lib/graphql";
 
 interface LineItem {
   productId: string;
@@ -40,7 +40,7 @@ interface Order {
 
 export const SeasonSummaryPage: React.FC = () => {
   const { seasonId: encodedSeasonId } = useParams<{ seasonId: string }>();
-  const seasonId = encodedSeasonId ? decodeURIComponent(encodedSeasonId) : '';
+  const seasonId = encodedSeasonId ? decodeURIComponent(encodedSeasonId) : "";
 
   const {
     data: ordersData,
@@ -55,27 +55,37 @@ export const SeasonSummaryPage: React.FC = () => {
 
   // Calculate statistics
   const totalOrders = orders.length;
-  const totalRevenue = orders.reduce((sum, order) => sum + order.totalAmount, 0);
-  const uniqueCustomers = new Set(orders.map((order) => order.customerName)).size;
+  const totalRevenue = orders.reduce(
+    (sum, order) => sum + order.totalAmount,
+    0,
+  );
+  const uniqueCustomers = new Set(orders.map((order) => order.customerName))
+    .size;
   const averageOrderValue = totalOrders > 0 ? totalRevenue / totalOrders : 0;
 
   // Payment method breakdown
-  const paymentBreakdown = orders.reduce((acc, order) => {
-    acc[order.paymentMethod] = (acc[order.paymentMethod] || 0) + 1;
-    return acc;
-  }, {} as Record<string, number>);
+  const paymentBreakdown = orders.reduce(
+    (acc, order) => {
+      acc[order.paymentMethod] = (acc[order.paymentMethod] || 0) + 1;
+      return acc;
+    },
+    {} as Record<string, number>,
+  );
 
   // Product breakdown
-  const productBreakdown = orders.reduce((acc, order) => {
-    order.lineItems.forEach((item) => {
-      if (!acc[item.productName]) {
-        acc[item.productName] = { quantity: 0, revenue: 0 };
-      }
-      acc[item.productName].quantity += item.quantity;
-      acc[item.productName].revenue += item.subtotal;
-    });
-    return acc;
-  }, {} as Record<string, { quantity: number; revenue: number }>);
+  const productBreakdown = orders.reduce(
+    (acc, order) => {
+      order.lineItems.forEach((item) => {
+        if (!acc[item.productName]) {
+          acc[item.productName] = { quantity: 0, revenue: 0 };
+        }
+        acc[item.productName].quantity += item.quantity;
+        acc[item.productName].revenue += item.subtotal;
+      });
+      return acc;
+    },
+    {} as Record<string, { quantity: number; revenue: number }>,
+  );
 
   const topProducts = Object.entries(productBreakdown)
     .sort((a, b) => b[1].revenue - a[1].revenue)
@@ -83,18 +93,28 @@ export const SeasonSummaryPage: React.FC = () => {
 
   if (loading) {
     return (
-      <Box display="flex" justifyContent="center" alignItems="center" minHeight="200px">
+      <Box
+        display="flex"
+        justifyContent="center"
+        alignItems="center"
+        minHeight="200px"
+      >
         <CircularProgress />
       </Box>
     );
   }
 
   if (error) {
-    return <Alert severity="error">Failed to load summary: {error.message}</Alert>;
+    return (
+      <Alert severity="error">Failed to load summary: {error.message}</Alert>
+    );
   }
 
   const formatCurrency = (amount: number) =>
-    new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
+    new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: "USD",
+    }).format(amount);
 
   return (
     <Box>
@@ -123,7 +143,9 @@ export const SeasonSummaryPage: React.FC = () => {
             <Stack direction="row" spacing={2} alignItems="center">
               <AttachMoney color="success" sx={{ fontSize: 40 }} />
               <Box>
-                <Typography variant="h4">{formatCurrency(totalRevenue)}</Typography>
+                <Typography variant="h4">
+                  {formatCurrency(totalRevenue)}
+                </Typography>
                 <Typography variant="body2" color="text.secondary">
                   Total Revenue
                 </Typography>
@@ -137,7 +159,9 @@ export const SeasonSummaryPage: React.FC = () => {
             <Stack direction="row" spacing={2} alignItems="center">
               <TrendingUp color="secondary" sx={{ fontSize: 40 }} />
               <Box>
-                <Typography variant="h4">{formatCurrency(averageOrderValue)}</Typography>
+                <Typography variant="h4">
+                  {formatCurrency(averageOrderValue)}
+                </Typography>
                 <Typography variant="body2" color="text.secondary">
                   Avg Order Value
                 </Typography>
@@ -170,7 +194,9 @@ export const SeasonSummaryPage: React.FC = () => {
           {Object.entries(paymentBreakdown).map(([method, count]) => (
             <Grid key={method} size={{ xs: 6, sm: 4, md: 3 }}>
               <Box>
-                <Typography variant="body1">{method.replace('_', ' ')}</Typography>
+                <Typography variant="body1">
+                  {method.replace("_", " ")}
+                </Typography>
                 <Typography variant="h6" color="primary">
                   {count} orders
                 </Typography>
@@ -195,7 +221,11 @@ export const SeasonSummaryPage: React.FC = () => {
         <Stack spacing={2}>
           {topProducts.map(([productName, stats]) => (
             <Box key={productName}>
-              <Stack direction="row" justifyContent="space-between" alignItems="center">
+              <Stack
+                direction="row"
+                justifyContent="space-between"
+                alignItems="center"
+              >
                 <Typography variant="body1">{productName}</Typography>
                 <Stack direction="row" spacing={3} alignItems="center">
                   <Typography variant="body2" color="text.secondary">

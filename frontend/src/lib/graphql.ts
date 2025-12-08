@@ -2,7 +2,7 @@
  * GraphQL queries and mutations for the app
  */
 
-import { gql } from '@apollo/client';
+import { gql } from "@apollo/client";
 
 // ============================================================================
 // Fragments
@@ -216,7 +216,9 @@ export const CREATE_SELLER_PROFILE = gql`
 export const UPDATE_SELLER_PROFILE = gql`
   ${SELLER_PROFILE_FRAGMENT}
   mutation UpdateSellerProfile($profileId: ID!, $sellerName: String!) {
-    updateSellerProfile(input: { profileId: $profileId, sellerName: $sellerName }) {
+    updateSellerProfile(
+      input: { profileId: $profileId, sellerName: $sellerName }
+    ) {
       ...SellerProfileFields
     }
   }
@@ -295,7 +297,10 @@ export const REQUEST_SEASON_REPORT = gql`
 `;
 
 export const CREATE_PROFILE_INVITE = gql`
-  mutation CreateProfileInvite($profileId: ID!, $permissions: [PermissionType!]!) {
+  mutation CreateProfileInvite(
+    $profileId: ID!
+    $permissions: [PermissionType!]!
+  ) {
     createProfileInvite(profileId: $profileId, permissions: $permissions) {
       inviteCode
       profileId
@@ -321,8 +326,16 @@ export const REDEEM_PROFILE_INVITE = gql`
 `;
 
 export const SHARE_PROFILE_DIRECT = gql`
-  mutation ShareProfileDirect($profileId: ID!, $targetAccountId: ID!, $permissions: [PermissionType!]!) {
-    shareProfileDirect(profileId: $profileId, targetAccountId: $targetAccountId, permissions: $permissions) {
+  mutation ShareProfileDirect(
+    $profileId: ID!
+    $targetAccountId: ID!
+    $permissions: [PermissionType!]!
+  ) {
+    shareProfileDirect(
+      profileId: $profileId
+      targetAccountId: $targetAccountId
+      permissions: $permissions
+    ) {
       shareId
       profileId
       targetAccountId

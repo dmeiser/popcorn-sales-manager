@@ -2,9 +2,9 @@
  * ReportsPage - Generate and download season reports
  */
 
-import React, { useState } from 'react';
-import { useParams } from 'react-router-dom';
-import { useMutation } from '@apollo/client/react';
+import React, { useState } from "react";
+import { useParams } from "react-router-dom";
+import { useMutation } from "@apollo/client/react";
 import {
   Box,
   Typography,
@@ -18,12 +18,12 @@ import {
   Alert,
   CircularProgress,
   Link,
-} from '@mui/material';
+} from "@mui/material";
 import {
   Download as DownloadIcon,
   Description as FileIcon,
-} from '@mui/icons-material';
-import { REQUEST_SEASON_REPORT } from '../lib/graphql';
+} from "@mui/icons-material";
+import { REQUEST_SEASON_REPORT } from "../lib/graphql";
 
 interface ReportResult {
   reportId: string;
@@ -34,8 +34,8 @@ interface ReportResult {
 
 export const ReportsPage: React.FC = () => {
   const { seasonId: encodedSeasonId } = useParams<{ seasonId: string }>();
-  const seasonId = encodedSeasonId ? decodeURIComponent(encodedSeasonId) : '';
-  const [format, setFormat] = useState<'CSV' | 'XLSX'>('XLSX');
+  const seasonId = encodedSeasonId ? decodeURIComponent(encodedSeasonId) : "";
+  const [format, setFormat] = useState<"CSV" | "XLSX">("XLSX");
   const [lastReport, setLastReport] = useState<ReportResult | null>(null);
 
   const [requestReport, { loading, error }] = useMutation<{
@@ -66,8 +66,9 @@ export const ReportsPage: React.FC = () => {
           Generate Season Report
         </Typography>
         <Typography variant="body2" color="text.secondary" paragraph>
-          Export all orders for this season to Excel or CSV format. The report includes customer
-          names, contact info, order details, payment methods, and totals.
+          Export all orders for this season to Excel or CSV format. The report
+          includes customer names, contact info, order details, payment methods,
+          and totals.
         </Typography>
 
         <Stack direction="row" spacing={2} alignItems="center" mb={2}>
@@ -76,7 +77,7 @@ export const ReportsPage: React.FC = () => {
             <Select
               value={format}
               label="Format"
-              onChange={(e) => setFormat(e.target.value as 'CSV' | 'XLSX')}
+              onChange={(e) => setFormat(e.target.value as "CSV" | "XLSX")}
               disabled={loading}
             >
               <MenuItem value="XLSX">
@@ -96,11 +97,13 @@ export const ReportsPage: React.FC = () => {
 
           <Button
             variant="contained"
-            startIcon={loading ? <CircularProgress size={20} /> : <DownloadIcon />}
+            startIcon={
+              loading ? <CircularProgress size={20} /> : <DownloadIcon />
+            }
             onClick={handleGenerateReport}
             disabled={loading}
           >
-            {loading ? 'Generating...' : 'Generate Report'}
+            {loading ? "Generating..." : "Generate Report"}
           </Button>
         </Stack>
 
@@ -112,10 +115,10 @@ export const ReportsPage: React.FC = () => {
 
         {lastReport && (
           <Alert
-            severity={lastReport.status === 'COMPLETED' ? 'success' : 'info'}
+            severity={lastReport.status === "COMPLETED" ? "success" : "info"}
             sx={{ mt: 2 }}
           >
-            {lastReport.status === 'COMPLETED' && lastReport.reportUrl ? (
+            {lastReport.status === "COMPLETED" && lastReport.reportUrl ? (
               <Stack spacing={1}>
                 <Typography variant="body2">
                   ✅ Report generated successfully! Your download is ready.
@@ -125,17 +128,18 @@ export const ReportsPage: React.FC = () => {
                   target="_blank"
                   rel="noopener noreferrer"
                   download
-                  sx={{ fontWeight: 'medium' }}
+                  sx={{ fontWeight: "medium" }}
                 >
                   Download Report ({format})
                 </Link>
                 {lastReport.expiresAt && (
                   <Typography variant="caption" color="text.secondary">
-                    Link expires: {new Date(lastReport.expiresAt).toLocaleString()}
+                    Link expires:{" "}
+                    {new Date(lastReport.expiresAt).toLocaleString()}
                   </Typography>
                 )}
               </Stack>
-            ) : lastReport.status === 'PENDING' ? (
+            ) : lastReport.status === "PENDING" ? (
               <Typography variant="body2">
                 ⏳ Report is being generated. This may take a moment...
               </Typography>
@@ -155,18 +159,19 @@ export const ReportsPage: React.FC = () => {
         </Typography>
         <Stack spacing={1}>
           <Typography variant="body2">
-            • <strong>Excel (XLSX):</strong> Formatted spreadsheet with multiple columns,
-            suitable for further analysis and pivot tables.
+            • <strong>Excel (XLSX):</strong> Formatted spreadsheet with multiple
+            columns, suitable for further analysis and pivot tables.
           </Typography>
           <Typography variant="body2">
-            • <strong>CSV:</strong> Plain text file, compatible with all spreadsheet programs
-            and databases.
+            • <strong>CSV:</strong> Plain text file, compatible with all
+            spreadsheet programs and databases.
           </Typography>
           <Typography variant="body2">
             • Report links expire after 24 hours for security reasons.
           </Typography>
           <Typography variant="body2">
-            • All customer data is securely encrypted during storage and transmission.
+            • All customer data is securely encrypted during storage and
+            transmission.
           </Typography>
         </Stack>
       </Paper>

@@ -2,8 +2,8 @@
  * Profiles page - List of owned and shared seller profiles
  */
 
-import React, { useState } from 'react';
-import { useQuery, useMutation } from '@apollo/client/react';
+import React, { useState } from "react";
+import { useQuery, useMutation } from "@apollo/client/react";
 import {
   Typography,
   Box,
@@ -13,17 +13,17 @@ import {
   CircularProgress,
   Stack,
   Divider,
-} from '@mui/material';
-import { Add as AddIcon } from '@mui/icons-material';
-import { ProfileCard } from '../components/ProfileCard';
-import { CreateProfileDialog } from '../components/CreateProfileDialog';
-import { EditProfileDialog } from '../components/EditProfileDialog';
+} from "@mui/material";
+import { Add as AddIcon } from "@mui/icons-material";
+import { ProfileCard } from "../components/ProfileCard";
+import { CreateProfileDialog } from "../components/CreateProfileDialog";
+import { EditProfileDialog } from "../components/EditProfileDialog";
 import {
   LIST_MY_PROFILES,
   LIST_SHARED_PROFILES,
   CREATE_SELLER_PROFILE,
   UPDATE_SELLER_PROFILE,
-} from '../lib/graphql';
+} from "../lib/graphql";
 
 interface Profile {
   profileId: string;
@@ -39,7 +39,9 @@ interface EditingProfile {
 
 export const ProfilesPage: React.FC = () => {
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
-  const [editingProfile, setEditingProfile] = useState<EditingProfile | null>(null);
+  const [editingProfile, setEditingProfile] = useState<EditingProfile | null>(
+    null,
+  );
 
   // Fetch owned profiles
   const {
@@ -81,14 +83,20 @@ export const ProfilesPage: React.FC = () => {
   };
 
   const myProfiles: Profile[] = myProfilesData?.listMyProfiles || [];
-  const sharedProfiles: Profile[] = sharedProfilesData?.listSharedProfiles || [];
+  const sharedProfiles: Profile[] =
+    sharedProfilesData?.listSharedProfiles || [];
 
   const loading = myProfilesLoading || sharedProfilesLoading;
   const error = myProfilesError || sharedProfilesError;
 
   if (loading && myProfiles.length === 0 && sharedProfiles.length === 0) {
     return (
-      <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
+      <Box
+        display="flex"
+        justifyContent="center"
+        alignItems="center"
+        minHeight="400px"
+      >
         <CircularProgress />
       </Box>
     );
@@ -97,7 +105,12 @@ export const ProfilesPage: React.FC = () => {
   return (
     <Box>
       {/* Header */}
-      <Stack direction="row" justifyContent="space-between" alignItems="center" mb={3}>
+      <Stack
+        direction="row"
+        justifyContent="space-between"
+        alignItems="center"
+        mb={3}
+      >
         <Typography variant="h4" component="h1">
           My Profiles
         </Typography>
@@ -159,7 +172,7 @@ export const ProfilesPage: React.FC = () => {
                   isOwner={profile.isOwner}
                   permissions={profile.permissions}
                   onEdit={
-                    profile.permissions.includes('WRITE')
+                    profile.permissions.includes("WRITE")
                       ? () =>
                           setEditingProfile({
                             profileId: profile.profileId,
@@ -177,7 +190,8 @@ export const ProfilesPage: React.FC = () => {
       {/* Empty State */}
       {myProfiles.length === 0 && sharedProfiles.length === 0 && !loading && (
         <Alert severity="info">
-          You don't have any seller profiles yet. Click "Create Profile" to get started!
+          You don't have any seller profiles yet. Click "Create Profile" to get
+          started!
         </Alert>
       )}
 
@@ -200,4 +214,3 @@ export const ProfilesPage: React.FC = () => {
     </Box>
   );
 };
-

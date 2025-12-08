@@ -2,8 +2,8 @@
  * CatalogsPage - Manage product catalogs (public and user-owned)
  */
 
-import React, { useState } from 'react';
-import { useQuery, useMutation } from '@apollo/client/react';
+import React, { useState } from "react";
+import { useQuery, useMutation } from "@apollo/client/react";
 import {
   Box,
   Button,
@@ -22,22 +22,22 @@ import {
   TableRow,
   IconButton,
   Chip,
-} from '@mui/material';
+} from "@mui/material";
 import {
   Add as AddIcon,
   Edit as EditIcon,
   Delete as DeleteIcon,
   Public as PublicIcon,
   Lock as PrivateIcon,
-} from '@mui/icons-material';
-import { CatalogEditorDialog } from '../components/CatalogEditorDialog';
+} from "@mui/icons-material";
+import { CatalogEditorDialog } from "../components/CatalogEditorDialog";
 import {
   LIST_PUBLIC_CATALOGS,
   LIST_MY_CATALOGS,
   CREATE_CATALOG,
   UPDATE_CATALOG,
   DELETE_CATALOG,
-} from '../lib/graphql';
+} from "../lib/graphql";
 
 interface Product {
   productId: string;
@@ -104,13 +104,13 @@ export const CatalogsPage: React.FC = () => {
 
   const publicCatalogs = publicData?.listPublicCatalogs || [];
   const myPrivateCatalogs = myData?.listMyCatalogs || [];
-  
+
   // Combine private catalogs with public catalogs I own
   const myCatalogs = [
     ...myPrivateCatalogs,
-    ...publicCatalogs.filter(catalog => 
-      myPrivateCatalogs.every(myCat => myCat.catalogId !== catalog.catalogId)
-    )
+    ...publicCatalogs.filter((catalog) =>
+      myPrivateCatalogs.every((myCat) => myCat.catalogId !== catalog.catalogId),
+    ),
   ];
 
   const handleCreateCatalog = () => {
@@ -123,8 +123,15 @@ export const CatalogsPage: React.FC = () => {
     setEditorOpen(true);
   };
 
-  const handleDeleteCatalog = async (catalogId: string, catalogName: string) => {
-    if (confirm(`Are you sure you want to delete "${catalogName}"? This action cannot be undone.`)) {
+  const handleDeleteCatalog = async (
+    catalogId: string,
+    catalogName: string,
+  ) => {
+    if (
+      confirm(
+        `Are you sure you want to delete "${catalogName}"? This action cannot be undone.`,
+      )
+    ) {
       await deleteCatalog({ variables: { catalogId } });
     }
   };
@@ -157,19 +164,21 @@ export const CatalogsPage: React.FC = () => {
   };
 
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
+    return new Date(dateString).toLocaleDateString("en-US", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
     });
   };
 
   const renderCatalogTable = (catalogs: Catalog[], showActions: boolean) => {
     if (catalogs.length === 0) {
       return (
-        <Paper sx={{ p: 4, textAlign: 'center' }}>
+        <Paper sx={{ p: 4, textAlign: "center" }}>
           <Typography color="text.secondary">
-            {showActions ? 'No catalogs yet. Create your first catalog!' : 'No public catalogs available.'}
+            {showActions
+              ? "No catalogs yet. Create your first catalog!"
+              : "No public catalogs available."}
           </Typography>
         </Paper>
       );
@@ -197,21 +206,27 @@ export const CatalogsPage: React.FC = () => {
                     ) : (
                       <PrivateIcon fontSize="small" color="action" />
                     )}
-                    <Typography fontWeight="medium">{catalog.catalogName}</Typography>
+                    <Typography fontWeight="medium">
+                      {catalog.catalogName}
+                    </Typography>
                   </Stack>
                 </TableCell>
                 <TableCell>
                   <Chip
-                    label={catalog.isPublic ? 'Public' : 'Private'}
+                    label={catalog.isPublic ? "Public" : "Private"}
                     size="small"
-                    color={catalog.isPublic ? 'primary' : 'default'}
+                    color={catalog.isPublic ? "primary" : "default"}
                   />
                 </TableCell>
                 <TableCell>{catalog.products.length} items</TableCell>
                 <TableCell>{formatDate(catalog.createdAt)}</TableCell>
                 {showActions && (
                   <TableCell align="right">
-                    <Stack direction="row" spacing={1} justifyContent="flex-end">
+                    <Stack
+                      direction="row"
+                      spacing={1}
+                      justifyContent="flex-end"
+                    >
                       <IconButton
                         size="small"
                         onClick={() => handleEditCatalog(catalog)}
@@ -221,7 +236,12 @@ export const CatalogsPage: React.FC = () => {
                       </IconButton>
                       <IconButton
                         size="small"
-                        onClick={() => handleDeleteCatalog(catalog.catalogId, catalog.catalogName)}
+                        onClick={() =>
+                          handleDeleteCatalog(
+                            catalog.catalogId,
+                            catalog.catalogName,
+                          )
+                        }
                         color="error"
                       >
                         <DeleteIcon fontSize="small" />
@@ -239,7 +259,12 @@ export const CatalogsPage: React.FC = () => {
 
   if (publicLoading || myLoading) {
     return (
-      <Box display="flex" justifyContent="center" alignItems="center" minHeight="200px">
+      <Box
+        display="flex"
+        justifyContent="center"
+        alignItems="center"
+        minHeight="200px"
+      >
         <CircularProgress />
       </Box>
     );
@@ -256,9 +281,18 @@ export const CatalogsPage: React.FC = () => {
   return (
     <Box>
       {/* Header */}
-      <Stack direction="row" justifyContent="space-between" alignItems="center" mb={3}>
+      <Stack
+        direction="row"
+        justifyContent="space-between"
+        alignItems="center"
+        mb={3}
+      >
         <Typography variant="h4">Product Catalogs</Typography>
-        <Button variant="contained" startIcon={<AddIcon />} onClick={handleCreateCatalog}>
+        <Button
+          variant="contained"
+          startIcon={<AddIcon />}
+          onClick={handleCreateCatalog}
+        >
           New Catalog
         </Button>
       </Stack>
@@ -266,8 +300,10 @@ export const CatalogsPage: React.FC = () => {
       {/* Info Alert */}
       <Alert severity="info" sx={{ mb: 3 }}>
         <Typography variant="body2">
-          <strong>Public catalogs</strong> are visible to all users and can be used by anyone when creating seasons. 
-          <strong> Private catalogs</strong> are only visible to you and can be used for your own tracking.
+          <strong>Public catalogs</strong> are visible to all users and can be
+          used by anyone when creating seasons.
+          <strong> Private catalogs</strong> are only visible to you and can be
+          used for your own tracking.
         </Typography>
       </Alert>
 

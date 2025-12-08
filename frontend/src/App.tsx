@@ -1,26 +1,25 @@
 /**
  * Main App component
- * 
+ *
  * Sets up routing, authentication, Apollo Client, and theme.
  */
 
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { CssBaseline, ThemeProvider } from '@mui/material';
-import { ApolloProvider } from '@apollo/client/react';
-import { AuthProvider } from './contexts/AuthContext';
-import { ProtectedRoute } from './components/ProtectedRoute';
-import { LandingPage } from './pages/LandingPage';
-import { LoginPage } from './pages/LoginPage';
-import { ProfilesPage } from './pages/ProfilesPage';
-import { ProfileSeasonsPage } from './pages/ProfileSeasonsPage';
-import { SeasonLayout } from './pages/SeasonLayout';
-import { SettingsPage } from './pages/SettingsPage';
-import { AdminPage } from './pages/AdminPage';
-import { CatalogsPage } from './pages/CatalogsPage';
-import { apolloClient } from './lib/apollo';
-import { theme } from './lib/theme';
-import { AppLayout } from './components/AppLayout';
-
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { CssBaseline, ThemeProvider } from "@mui/material";
+import { ApolloProvider } from "@apollo/client/react";
+import { AuthProvider } from "./contexts/AuthContext";
+import { ProtectedRoute } from "./components/ProtectedRoute";
+import { LandingPage } from "./pages/LandingPage";
+import { LoginPage } from "./pages/LoginPage";
+import { ProfilesPage } from "./pages/ProfilesPage";
+import { ProfileSeasonsPage } from "./pages/ProfileSeasonsPage";
+import { SeasonLayout } from "./pages/SeasonLayout";
+import { SettingsPage } from "./pages/SettingsPage";
+import { AdminPage } from "./pages/AdminPage";
+import { CatalogsPage } from "./pages/CatalogsPage";
+import { apolloClient } from "./lib/apollo";
+import { theme } from "./lib/theme";
+import { AppLayout } from "./components/AppLayout";
 
 function App() {
   return (
@@ -33,7 +32,7 @@ function App() {
               {/* Public routes */}
               <Route path="/" element={<LandingPage />} />
               <Route path="/login" element={<LoginPage />} />
-              
+
               {/* Protected routes */}
               <Route
                 path="/profiles"
@@ -45,7 +44,7 @@ function App() {
                   </ProtectedRoute>
                 }
               />
-              
+
               <Route
                 path="/profiles/:profileId/seasons"
                 element={
@@ -56,7 +55,7 @@ function App() {
                   </ProtectedRoute>
                 }
               />
-              
+
               <Route
                 path="/profiles/:profileId/seasons/:seasonId/*"
                 element={
@@ -67,7 +66,7 @@ function App() {
                   </ProtectedRoute>
                 }
               />
-              
+
               <Route
                 path="/settings"
                 element={
@@ -78,7 +77,7 @@ function App() {
                   </ProtectedRoute>
                 }
               />
-              
+
               <Route
                 path="/catalogs"
                 element={
@@ -89,7 +88,7 @@ function App() {
                   </ProtectedRoute>
                 }
               />
-              
+
               <Route
                 path="/admin"
                 element={
@@ -100,7 +99,7 @@ function App() {
                   </ProtectedRoute>
                 }
               />
-              
+
               {/* 404 catch-all */}
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>

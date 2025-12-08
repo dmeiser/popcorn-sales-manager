@@ -2,8 +2,8 @@
  * ProfileCard component - Display a single seller profile
  */
 
-import React from 'react';
-import { useNavigate } from 'react-router-dom';
+import React from "react";
+import { useNavigate } from "react-router-dom";
 import {
   Card,
   CardContent,
@@ -13,12 +13,12 @@ import {
   Chip,
   Stack,
   Box,
-} from '@mui/material';
+} from "@mui/material";
 import {
   Person as PersonIcon,
   Edit as EditIcon,
   Visibility as ViewIcon,
-} from '@mui/icons-material';
+} from "@mui/icons-material";
 
 interface ProfileCardProps {
   profileId: string;
@@ -41,7 +41,7 @@ export const ProfileCard: React.FC<ProfileCardProps> = ({
     navigate(`/profiles/${encodeURIComponent(profileId)}/seasons`);
   };
 
-  const canEdit = isOwner || permissions.includes('WRITE');
+  const canEdit = isOwner || permissions.includes("WRITE");
 
   return (
     <Card elevation={2}>
@@ -56,13 +56,11 @@ export const ProfileCard: React.FC<ProfileCardProps> = ({
               Profile ID: {profileId.substring(0, 8)}...
             </Typography>
           </Box>
-          {isOwner && (
-            <Chip label="Owner" color="primary" size="small" />
-          )}
-          {!isOwner && permissions.includes('WRITE') && (
+          {isOwner && <Chip label="Owner" color="primary" size="small" />}
+          {!isOwner && permissions.includes("WRITE") && (
             <Chip label="Editor" color="secondary" size="small" />
           )}
-          {!isOwner && !permissions.includes('WRITE') && (
+          {!isOwner && !permissions.includes("WRITE") && (
             <Chip label="Viewer" color="default" size="small" />
           )}
         </Stack>
