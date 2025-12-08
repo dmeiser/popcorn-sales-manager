@@ -23,7 +23,7 @@ dynamodb = boto3.resource("dynamodb", endpoint_url=os.getenv("DYNAMODB_ENDPOINT"
 s3_client = boto3.client("s3", endpoint_url=os.getenv("S3_ENDPOINT"))
 
 
-def get_table():
+def get_table() -> Any:
     """Get DynamoDB table instance."""
     table_name = os.getenv("TABLE_NAME", "PsmApp")
     return dynamodb.Table(table_name)
@@ -131,7 +131,7 @@ def request_season_report(event: Dict[str, Any], context: Any) -> Dict[str, Any]
         raise AppError(ErrorCode.INTERNAL_ERROR, f"Failed to generate report: {str(e)}")
 
 
-def _get_season(table, season_id: str) -> Dict[str, Any] | None:
+def _get_season(table: Any, season_id: str) -> Dict[str, Any] | None:
     """Get season by ID using GSI5."""
     response = table.query(
         IndexName="GSI5",
@@ -144,14 +144,15 @@ def _get_season(table, season_id: str) -> Dict[str, Any] | None:
     return items[0] if items else None
 
 
-def _get_season_orders(table, season_id: str) -> list[Dict[str, Any]]:
+def _get_season_orders(table: Any, season_id: str) -> list[Dict[str, Any]]:
     """Get all orders for a season."""
     response = table.query(
         KeyConditionExpression="PK = :pk AND begins_with(SK, :sk)",
         ExpressionAttributeValues={":pk": season_id, ":sk": "ORDER#"},
     )
 
-    return response.get("Items", [])
+    items = response.get("Items", [])
+    return list(items) if items else []
 
 
 def _generate_csv_report(season: Dict[str, Any], orders: list[Dict[str, Any]]) -> bytes:
@@ -208,6 +209,7 @@ def _generate_excel_report(season: Dict[str, Any], orders: list[Dict[str, Any]])
     """Generate Excel report."""
     wb = Workbook()
     ws = wb.active
+    assert ws is not None, "Workbook must have an active worksheet"
     ws.title = "Season Report"
 
     # Header styling
@@ -256,12 +258,16 @@ def _generate_excel_report(season: Dict[str, Any], orders: list[Dict[str, Any]])
     # Auto-size columns
     for column in ws.columns:
         max_length = 0
-        column_letter = column[0].column_letter
-        for cell in column:
+        first_cell = column[0]
+        # Get column letter safely (MergedCell doesn't have column_letter)
+        column_letter = getattr(first_cell, "column_letter", None)
+        if column_letter is None:
+            continue
+        for cell in column:  # type: ignore[assignment]
             try:
                 if len(str(cell.value)) > max_length:
                     max_length = len(str(cell.value))
-            except:
+            except Exception:
                 pass
         adjusted_width = min(max_length + 2, 50)
         ws.column_dimensions[column_letter].width = adjusted_width
