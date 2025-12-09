@@ -64,15 +64,15 @@ class CdkStack(Stack):
             self.cognito_domain = f"login.{env_name}.{base_domain}"
 
         # ACM Certificate for custom domains (must be in us-east-1 for CloudFront/Cognito)
-        # Note: CloudFront and Cognito custom domains temporarily disabled due to account verification requirement
-        # Certificate currently only includes AppSync API domain
+        # Note: Cognito custom domain temporarily disabled due to account verification requirement
+        # Certificate includes AppSync API domain and CloudFront site domain
         self.certificate = acm.Certificate(
             self,
             "Certificate",
             domain_name=self.api_domain,
             subject_alternative_names=[
                 # self.cognito_domain,  # Uncomment when Cognito custom domain is re-enabled
-                # self.site_domain,  # Uncomment when CloudFront is re-enabled
+                self.site_domain,  # CloudFront distribution enabled
             ],
             validation=acm.CertificateValidation.from_dns(self.hosted_zone),
         )
@@ -2462,89 +2462,89 @@ $util.toJson($ctx.result)
             )
 
             # Custom domain for AppSync API
-            self.api_domain_name = appsync.CfnDomainName(
-                self,
-                "ApiDomainName",
-                certificate_arn=self.certificate.certificate_arn,
-                domain_name=self.api_domain,
-            )
+            # TEMPORARILY DISABLED: CNAME conflict with certificate validation record
+            # AppSync custom domain creation fails with "CNAME already exists" error
+            # The certificate validation CNAME for api.dev.kernelworx.app conflicts
+            # TODO: Investigate alternative approach or wait for AWS support resolution
+            # self.api_domain_name = appsync.CfnDomainName(
+            #     self,
+            #     "ApiDomainNameV3",  # V3 to ensure new resource creation
+            #     certificate_arn=self.certificate.certificate_arn,
+            #     domain_name=self.api_domain,
+            # )
 
-            # Associate custom domain with API
-            self.api_domain_association = appsync.CfnDomainNameApiAssociation(
-                self,
-                "ApiDomainAssociation",
-                api_id=self.api.api_id,
-                domain_name=self.api_domain_name.attr_domain_name,
-            )
-            # Ensure domain exists before association
-            self.api_domain_association.add_dependency(self.api_domain_name)
+            # # Associate custom domain with API
+            # self.api_domain_association = appsync.CfnDomainNameApiAssociation(
+            #     self,
+            #     "ApiDomainAssociationV3",  # V3 to match domain name
+            #     api_id=self.api.api_id,
+            #     domain_name=self.api_domain_name.attr_domain_name,
+            # )
+            # # Ensure domain exists before association
+            # self.api_domain_association.add_dependency(self.api_domain_name)
 
-            # Route53 record for AppSync custom domain
-            route53.CnameRecord(
-                self,
-                "ApiDomainRecordV2",  # V2 to force replacement for new hosted zone
-                zone=self.hosted_zone,
-                record_name=self.api_domain,
-                domain_name=self.api_domain_name.attr_app_sync_domain_name,
-            )
+            # # Route53 record for AppSync custom domain
+            # route53.CnameRecord(
+            #     self,
+            #     "ApiDomainRecordV3",  # V3 to force replacement
+            #     zone=self.hosted_zone,
+            #     record_name=self.api_domain,
+            #     domain_name=self.api_domain_name.attr_app_sync_domain_name,
+            # )
 
         # ====================================================================
         # CloudFront Distribution for SPA
         # ====================================================================
-        # TEMPORARILY DISABLED: AWS account needs verification before creating CloudFront resources
-        # Error: "Your account must be verified before you can add new CloudFront resources"
-        # Action Required: Contact AWS Support to verify account
-        # Once verified, uncomment the code below to enable CloudFront with custom domain
 
-        # # Origin Access Identity for S3
-        # self.origin_access_identity = cloudfront.OriginAccessIdentity(
-        #     self, "OAI", comment="OAI for Popcorn Sales Manager SPA"
-        # )
+        # Origin Access Identity for S3
+        self.origin_access_identity = cloudfront.OriginAccessIdentity(
+            self, "OAI", comment="OAI for Popcorn Sales Manager SPA"
+        )
 
-        # # Grant CloudFront read access to static assets bucket
-        # self.static_assets_bucket.grant_read(self.origin_access_identity)
+        # Grant CloudFront read access to static assets bucket
+        self.static_assets_bucket.grant_read(self.origin_access_identity)
 
-        # # CloudFront distribution with custom domain
-        # self.distribution = cloudfront.Distribution(
-        #     self,
-        #     "Distribution",
-        #     domain_names=[self.site_domain],
-        #     certificate=self.certificate,
-        #     default_behavior=cloudfront.BehaviorOptions(
-        #         origin=origins.S3Origin(
-        #             self.static_assets_bucket,
-        #             origin_access_identity=self.origin_access_identity,
-        #         ),
-        #         viewer_protocol_policy=cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
-        #         cache_policy=cloudfront.CachePolicy.CACHING_OPTIMIZED,
-        #         compress=True,
-        #     ),
-        #     default_root_object="index.html",
-        #     error_responses=[
-        #         cloudfront.ErrorResponse(
-        #             http_status=403,
-        #             response_http_status=200,
-        #             response_page_path="/index.html",
-        #             ttl=Duration.seconds(0),
-        #         ),
-        #         cloudfront.ErrorResponse(
-        #             http_status=404,
-        #             response_http_status=200,
-        #             response_page_path="/index.html",
-        #             ttl=Duration.seconds(0),
-        #         ),
-        #     ],
-        #     price_class=cloudfront.PriceClass.PRICE_CLASS_100,  # US, Canada, Europe only
-        #     enabled=True,
-        # )
+        # CloudFront distribution with custom domain
+        self.distribution = cloudfront.Distribution(
+            self,
+            "Distribution",
+            domain_names=[self.site_domain],
+            certificate=self.certificate,
+            default_behavior=cloudfront.BehaviorOptions(
+                origin=origins.S3BucketOrigin.with_origin_access_identity(
+                    self.static_assets_bucket,
+                    origin_access_identity=self.origin_access_identity,
+                ),
+                viewer_protocol_policy=cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
+                cache_policy=cloudfront.CachePolicy.CACHING_OPTIMIZED,
+                compress=True,
+            ),
+            default_root_object="index.html",
+            error_responses=[
+                cloudfront.ErrorResponse(
+                    http_status=403,
+                    response_http_status=200,
+                    response_page_path="/index.html",
+                    ttl=Duration.seconds(0),
+                ),
+                cloudfront.ErrorResponse(
+                    http_status=404,
+                    response_http_status=200,
+                    response_page_path="/index.html",
+                    ttl=Duration.seconds(0),
+                ),
+            ],
+            price_class=cloudfront.PriceClass.PRICE_CLASS_100,  # US, Canada, Europe only
+            enabled=True,
+        )
 
-        # # Route53 record for CloudFront distribution
-        # route53.ARecord(
-        #     self,
-        #     "SiteDomainRecord",
-        #     zone=self.hosted_zone,
-        #     record_name=self.site_domain,
-        #     target=route53.RecordTarget.from_alias(
-        #         targets.CloudFrontTarget(self.distribution)
-        #     ),
-        # )
+        # Route53 record for CloudFront distribution
+        route53.ARecord(
+            self,
+            "SiteDomainRecord",
+            zone=self.hosted_zone,
+            record_name=self.site_domain,
+            target=route53.RecordTarget.from_alias(
+                targets.CloudFrontTarget(self.distribution)
+            ),
+        )
