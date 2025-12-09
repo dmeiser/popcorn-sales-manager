@@ -3,7 +3,7 @@
 
 Essential knowledge for GitHub Copilot when working on this volunteer-run Scouting America popcorn sales management application.
 
-## 0. CRITICAL GIT RULES
+## 0. CRITICAL GIT AND DEPLOYMENT RULES
 
 **NEVER push directly to main branch!**
 
@@ -15,6 +15,17 @@ Essential knowledge for GitHub Copilot when working on this volunteer-run Scouti
 - ✅ ALWAYS create PRs for all changes
 - ✅ Let humans review and approve PRs
 - ✅ Let humans merge PRs after approval
+
+**NEVER modify AWS resources directly without explicit permission!**
+
+- ❌ NEVER run AWS CLI commands that modify resources (create, delete, update) without explicit user instruction
+- ❌ NEVER manually delete AWS resources created by CloudFormation
+- ❌ NEVER run `aws cloudformation update-stack` or similar commands without permission
+- ❌ NEVER deploy to production environment without explicit permission
+- ✅ You ARE permitted to deploy with `cdk deploy` to **dev environment only** as part of normal workflow
+- ✅ ALWAYS use `cdk diff` to preview changes before deploying
+- ✅ ONLY use read-only AWS CLI commands (describe, list, get) for verification
+- ✅ ASK before running any AWS command that modifies infrastructure outside of CDK
 
 ## 1. Project Architecture
 
