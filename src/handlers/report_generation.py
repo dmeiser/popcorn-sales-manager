@@ -76,7 +76,7 @@ def request_season_report(event: Dict[str, Any], context: Any) -> Dict[str, Any]
             raise AppError(ErrorCode.FORBIDDEN, "You don't have access to this season")
 
         # Get all orders for the season
-        orders = _get_season_orders(table, season_id)
+        orders = _get_season_orders(table, profile_id, season_id)
 
         # Generate report
         if report_format.lower() == "csv":
@@ -132,11 +132,15 @@ def request_season_report(event: Dict[str, Any], context: Any) -> Dict[str, Any]
 
 
 def _get_season(table: Any, season_id: str) -> Dict[str, Any] | None:
-    """Get season by ID using GSI5."""
+    """Get season by ID using direct GetItem (season PK/SK known from seasonId)."""
+    # Season ID format: SEASON#uuid
+    # Season is stored with PK=profileId, SK=seasonId
+    # But we don't know the profileId yet, so we need to parse it from the season item
+    # Actually, we need to use GSI2 which has seasonId
     response = table.query(
-        IndexName="GSI5",
-        KeyConditionExpression="seasonId = :seasonId",
-        ExpressionAttributeValues={":seasonId": season_id},
+        IndexName="GSI2",
+        KeyConditionExpression="GSI2PK = :pk",
+        ExpressionAttributeValues={":pk": season_id},
         Limit=1,
     )
 
@@ -144,11 +148,16 @@ def _get_season(table: Any, season_id: str) -> Dict[str, Any] | None:
     return items[0] if items else None
 
 
-def _get_season_orders(table: Any, season_id: str) -> list[Dict[str, Any]]:
-    """Get all orders for a season."""
+def _get_season_orders(table: Any, profile_id: str, season_id: str) -> list[Dict[str, Any]]:
+    """Get all orders for a season by querying profile and filtering by seasonId."""
     response = table.query(
         KeyConditionExpression="PK = :pk AND begins_with(SK, :sk)",
-        ExpressionAttributeValues={":pk": season_id, ":sk": "ORDER#"},
+        FilterExpression="seasonId = :season_id",
+        ExpressionAttributeValues={
+            ":pk": profile_id,
+            ":sk": "ORDER#",
+            ":season_id": season_id,
+        },
     )
 
     items = response.get("Items", [])
@@ -164,7 +173,7 @@ def _generate_csv_report(season: Dict[str, Any], orders: list[Dict[str, Any]]) -
     writer = csv.writer(output)
 
     # Header
-    writer.writerow([f"Season Report: {season['seasonName']}"])
+    writer.writerow([f"Season Report: {season.get('name', season.get('seasonName', 'Unknown'))}"])
     writer.writerow([f"Start Date: {season['startDate']}"])
     writer.writerow([f"End Date: {season.get('endDate', 'Ongoing')}"])
     writer.writerow([])
@@ -217,7 +226,7 @@ def _generate_excel_report(season: Dict[str, Any], orders: list[Dict[str, Any]])
     header_font = Font(bold=True, color="FFFFFF")
 
     # Title
-    ws["A1"] = f"Season Report: {season['seasonName']}"
+    ws["A1"] = f"Season Report: {season.get('name', season.get('seasonName', 'Unknown'))}"
     ws["A1"].font = Font(bold=True, size=14)
     ws["A2"] = f"Start Date: {season['startDate']}"
     ws["A3"] = f"End Date: {season.get('endDate', 'Ongoing')}"

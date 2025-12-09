@@ -209,8 +209,8 @@ def sample_season(
         "name": "Fall 2025",
         "startDate": "2025-09-01",
         "catalogId": "CATALOG#default",
-        "GSI5PK": sample_season_id,
-        "GSI5SK": "METADATA",
+        "GSI2PK": sample_season_id,  # GSI2 for season lookup
+        "GSI2SK": "METADATA",
         "createdAt": datetime.now(timezone.utc).isoformat(),
     }
 
