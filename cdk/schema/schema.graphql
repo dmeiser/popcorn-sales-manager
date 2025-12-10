@@ -91,7 +91,7 @@ type Order {
   profileId: ID!
   seasonId: ID!
   customerName: String!
-  customerPhone: AWSPhone
+  customerPhone: String
   customerAddress: Address
   orderDate: AWSDateTime!
   paymentMethod: PaymentMethod!
@@ -191,7 +191,7 @@ input CreateOrderInput {
   profileId: ID!
   seasonId: ID!
   customerName: String!
-  customerPhone: AWSPhone
+  customerPhone: String
   customerAddress: AddressInput
   orderDate: AWSDateTime!
   paymentMethod: PaymentMethod!
@@ -202,7 +202,7 @@ input CreateOrderInput {
 input UpdateOrderInput {
   orderId: ID!
   customerName: String
-  customerPhone: AWSPhone
+  customerPhone: String
   customerAddress: AddressInput
   orderDate: AWSDateTime
   paymentMethod: PaymentMethod

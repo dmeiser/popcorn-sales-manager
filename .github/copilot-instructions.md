@@ -22,7 +22,7 @@ Essential knowledge for GitHub Copilot when working on this volunteer-run Scouti
 - ❌ NEVER manually delete AWS resources created by CloudFormation
 - ❌ NEVER run `aws cloudformation update-stack` or similar commands without permission
 - ❌ NEVER deploy to production environment without explicit permission
-- ✅ You ARE permitted to deploy with `cdk deploy` to **dev environment only** as part of normal workflow
+- ✅ You ARE permitted to deploy to **dev environment only** by running `./deploy.sh` in the `cdk/` folder as part of normal workflow
 - ✅ ALWAYS use `cdk diff` to preview changes before deploying
 - ✅ ONLY use read-only AWS CLI commands (describe, list, get) for verification
 - ✅ ASK before running any AWS command that modifies infrastructure outside of CDK
@@ -383,9 +383,8 @@ uv run mypy src/
 # Test with coverage
 uv run pytest tests/unit --cov=src --cov-fail-under=100
 
-# Deploy CDK
-cdk diff
-cdk deploy --profile dev
+# Deploy CDK (from cdk/ directory)
+cd cdk && ./deploy.sh
 ```
 
 **Frontend (React/TypeScript)**:

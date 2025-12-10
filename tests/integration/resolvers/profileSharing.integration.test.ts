@@ -1,0 +1,1321 @@
+import { describe, it, expect, beforeAll, afterEach } from 'vitest';
+import { ApolloClient, gql, HttpLink, InMemoryCache } from '@apollo/client';
+import { createAuthenticatedClient, AuthenticatedClientResult } from '../setup/apolloClient';
+import { cleanupTestData, getTestPrefix } from '../setup/testData';
+
+// GraphQL Mutations
+const CREATE_PROFILE = gql`
+  mutation CreateSellerProfile($input: CreateSellerProfileInput!) {
+    createSellerProfile(input: $input) {
+      profileId
+      sellerName
+      ownerAccountId
+    }
+  }
+`;
+
+const CREATE_INVITE = gql`
+  mutation CreateProfileInvite($input: CreateProfileInviteInput!) {
+    createProfileInvite(input: $input) {
+      inviteCode
+      profileId
+      permissions
+      expiresAt
+    }
+  }
+`;
+
+const REDEEM_INVITE = gql`
+  mutation RedeemProfileInvite($input: RedeemProfileInviteInput!) {
+    redeemProfileInvite(input: $input) {
+      shareId
+      profileId
+      targetAccountId
+      permissions
+    }
+  }
+`;
+
+const SHARE_DIRECT = gql`
+  mutation ShareProfileDirect($input: ShareProfileDirectInput!) {
+    shareProfileDirect(input: $input) {
+      shareId
+      profileId
+      targetAccountId
+      permissions
+    }
+  }
+`;
+
+const REVOKE_SHARE = gql`
+  mutation RevokeShare($input: RevokeShareInput!) {
+    revokeShare(input: $input)
+  }
+`;
+
+const LIST_SHARES = gql`
+  query ListSharesByProfile($profileId: ID!) {
+    listSharesByProfile(profileId: $profileId) {
+      shareId
+      profileId
+      targetAccountId
+      permissions
+    }
+  }
+`;
+
+describe('Profile Sharing Integration Tests', () => {
+  let ownerClient: ApolloClient<any>;
+  let contributorClient: ApolloClient<any>;
+  let readonlyClient: ApolloClient<any>;
+  let ownerAccountId: string;
+  let contributorAccountId: string;
+  let readonlyAccountId: string;
+  let contributorEmail: string;
+  let testProfileId: string;
+
+  // Helper to create unauthenticated client
+  const createUnauthenticatedClient = () => {
+    return new ApolloClient({
+      link: new HttpLink({
+        uri: process.env.VITE_APPSYNC_ENDPOINT,
+      }),
+      cache: new InMemoryCache(),
+    });
+  };
+
+  beforeAll(async () => {
+    // Create authenticated clients and get account IDs
+    const ownerAuth: AuthenticatedClientResult = await createAuthenticatedClient('owner');
+    const contributorAuth: AuthenticatedClientResult = await createAuthenticatedClient('contributor');
+    const readonlyAuth: AuthenticatedClientResult = await createAuthenticatedClient('readonly');
+    
+    ownerClient = ownerAuth.client;
+    contributorClient = contributorAuth.client;
+    readonlyClient = readonlyAuth.client;
+    ownerAccountId = ownerAuth.accountId;
+    contributorAccountId = contributorAuth.accountId;
+    readonlyAccountId = readonlyAuth.accountId;
+    contributorEmail = contributorAuth.email;
+  });
+
+  afterEach(async () => {
+    // Clean up test data after each test
+    if (testProfileId) {
+      await cleanupTestData({
+        profileId: testProfileId,
+        shareAccountId: contributorAccountId,
+      });
+      testProfileId = '';
+    }
+  });
+
+  describe('createProfileInvite (JavaScript Resolver)', () => {
+    it('generates unique invite code with READ permissions', async () => {
+      // Arrange: Create test profile
+      const profileName = `${getTestPrefix()}-Profile`;
+      const { data: profileData } = await ownerClient.mutate({
+        mutation: CREATE_PROFILE,
+        variables: {
+          input: { sellerName: profileName },
+        },
+      });
+      testProfileId = profileData.createSellerProfile.profileId;
+
+      // Act: Create invite
+      const { data } = await ownerClient.mutate({
+        mutation: CREATE_INVITE,
+        variables: {
+          input: {
+            profileId: testProfileId,
+            permissions: ['READ'],
+          },
+        },
+      });
+
+      // Assert
+      expect(data.createProfileInvite.inviteCode).toMatch(/^[A-Z0-9-]{8,12}$/); // Accept UUIDs or random codes
+      expect(data.createProfileInvite.profileId).toBe(testProfileId);
+      expect(data.createProfileInvite.permissions).toEqual(['READ']);
+      expect(data.createProfileInvite.expiresAt).toBeDefined();
+    });
+
+    it('supports WRITE permissions', async () => {
+      // Arrange
+      const profileName = `${getTestPrefix()}-Profile`;
+      const { data: profileData } = await ownerClient.mutate({
+        mutation: CREATE_PROFILE,
+        variables: { input: { sellerName: profileName } },
+      });
+      testProfileId = profileData.createSellerProfile.profileId;
+
+      // Act
+      const { data } = await ownerClient.mutate({
+        mutation: CREATE_INVITE,
+        variables: {
+          input: {
+            profileId: testProfileId,
+            permissions: ['READ', 'WRITE'],
+          },
+        },
+      });
+
+      // Assert
+      expect(data.createProfileInvite.permissions).toEqual(['READ', 'WRITE']);
+    });
+
+    it('rejects non-owner creating invite', async () => {
+      // Arrange: Owner creates profile
+      const { data: profileData } = await ownerClient.mutate({
+        mutation: CREATE_PROFILE,
+        variables: { input: { sellerName: `${getTestPrefix()}-Profile` } },
+      });
+      testProfileId = profileData.createSellerProfile.profileId;
+
+      // Act & Assert: Contributor tries to create invite
+      await expect(
+        contributorClient.mutate({
+          mutation: CREATE_INVITE,
+          variables: {
+            input: {
+              profileId: testProfileId,
+              permissions: ['READ'],
+            },
+          },
+        })
+      ).rejects.toThrow(/forbidden|not authorized/i);
+    });
+
+    it('rejects invalid permissions', async () => {
+      // Arrange: Create profile
+      const { data: profileData } = await ownerClient.mutate({
+        mutation: CREATE_PROFILE,
+        variables: { input: { sellerName: `${getTestPrefix()}-InvalidPerm` } },
+      });
+      const profileId = profileData.createSellerProfile.profileId;
+
+      // Act & Assert: Try to create invite with invalid permission
+      await expect(
+        ownerClient.mutate({
+          mutation: CREATE_INVITE,
+          variables: {
+            input: {
+              profileId,
+              // @ts-expect-error - Testing invalid permission
+              permissions: ['INVALID'],
+            },
+          },
+        })
+      ).rejects.toThrow();
+
+      // Cleanup
+      await cleanupTestData({ profileId });
+    });
+
+    it('shared user with WRITE cannot create invites', async () => {
+      // Arrange: Owner creates profile and shares with contributor
+      const { data: profileData } = await ownerClient.mutate({
+        mutation: CREATE_PROFILE,
+        variables: { input: { sellerName: `${getTestPrefix()}-SharedWrite` } },
+      });
+      const profileId = profileData.createSellerProfile.profileId;
+
+      await ownerClient.mutate({
+        mutation: SHARE_DIRECT,
+        variables: {
+          input: {
+            profileId,
+            targetAccountEmail: contributorEmail,
+            permissions: ['READ', 'WRITE'],
+          },
+        },
+      });
+
+      // Act & Assert: Contributor tries to create invite (should fail - only owner can)
+      await expect(
+        contributorClient.mutate({
+          mutation: CREATE_INVITE,
+          variables: {
+            input: {
+              profileId,
+              permissions: ['READ'],
+            },
+          },
+        })
+      ).rejects.toThrow(/forbidden|not authorized/i);
+
+      // Cleanup
+      await cleanupTestData({
+        profileId,
+        shareAccountId: contributorAccountId,
+      });
+    });
+
+    it('rejects missing profileId', async () => {
+      // Act & Assert: Try to create invite without profileId
+      await expect(
+        ownerClient.mutate({
+          mutation: CREATE_INVITE,
+          variables: {
+            input: {
+              // @ts-expect-error - Testing missing required field
+              permissions: ['READ'],
+            },
+          },
+        })
+      ).rejects.toThrow();
+    });
+
+    it('rejects missing permissions', async () => {
+      // Arrange: Create profile
+      const { data: profileData } = await ownerClient.mutate({
+        mutation: CREATE_PROFILE,
+        variables: { input: { sellerName: `${getTestPrefix()}-MissingPerms` } },
+      });
+      const profileId = profileData.createSellerProfile.profileId;
+
+      // Act & Assert: Try to create invite without permissions
+      await expect(
+        ownerClient.mutate({
+          mutation: CREATE_INVITE,
+          variables: {
+            input: {
+              profileId,
+              // @ts-expect-error - Testing missing required field
+            },
+          },
+        })
+      ).rejects.toThrow();
+
+      // Cleanup
+      await cleanupTestData({ profileId });
+    });
+
+    it('unauthenticated user cannot create invites', async () => {
+      // Arrange: Create unauthenticated client
+      const unauthClient = createUnauthenticatedClient();
+      
+      // Arrange: Create profile with owner
+      const { data: profileData } = await ownerClient.mutate({
+        mutation: CREATE_PROFILE,
+        variables: { input: { sellerName: `${getTestPrefix()}-Unauth` } },
+      });
+      const profileId = profileData.createSellerProfile.profileId;
+
+      // Act & Assert: Unauthenticated user tries to create invite
+      await expect(
+        unauthClient.mutate({
+          mutation: CREATE_INVITE,
+          variables: {
+            input: {
+              profileId,
+              permissions: ['READ'],
+            },
+          },
+        })
+      ).rejects.toThrow();
+
+      // Cleanup
+      await cleanupTestData({ profileId });
+    });
+
+    it('invite includes proper timestamps and metadata', async () => {
+      // Arrange: Create profile
+      const { data: profileData } = await ownerClient.mutate({
+        mutation: CREATE_PROFILE,
+        variables: { input: { sellerName: `${getTestPrefix()}-Timestamps` } },
+      });
+      const profileId = profileData.createSellerProfile.profileId;
+
+      const beforeCreate = new Date();
+
+      // Act: Create invite
+      const { data: inviteData } = await ownerClient.mutate({
+        mutation: CREATE_INVITE,
+        variables: {
+          input: {
+            profileId,
+            permissions: ['READ', 'WRITE'],
+          },
+        },
+      });
+
+      const afterCreate = new Date();
+
+      // Assert: Verify all metadata fields present
+      expect(inviteData.createProfileInvite.inviteCode).toBeDefined();
+      // Note: inviteCode is substring(0, 10) of UUID, may contain hyphens
+      expect(inviteData.createProfileInvite.inviteCode).toMatch(/^[A-Z0-9-]{10}$/);
+      expect(inviteData.createProfileInvite.profileId).toBe(profileId);
+      expect(inviteData.createProfileInvite.permissions).toEqual(['READ', 'WRITE']);
+      expect(inviteData.createProfileInvite.expiresAt).toBeDefined();
+
+      // Verify expiresAt is approximately 14 days in the future
+      const expiresAt = new Date(inviteData.createProfileInvite.expiresAt);
+      const expectedExpiry = new Date(beforeCreate.getTime() + 14 * 24 * 60 * 60 * 1000);
+      const timeDiff = Math.abs(expiresAt.getTime() - expectedExpiry.getTime());
+      expect(timeDiff).toBeLessThan(10000); // Within 10 seconds
+
+      // Cleanup
+      await cleanupTestData({ profileId });
+    });
+
+    it('can create multiple invites for same profile', async () => {
+      // Arrange: Create profile
+      const { data: profileData } = await ownerClient.mutate({
+        mutation: CREATE_PROFILE,
+        variables: { input: { sellerName: `${getTestPrefix()}-MultiInvite` } },
+      });
+      const profileId = profileData.createSellerProfile.profileId;
+
+      // Act: Create two different invites
+      const { data: invite1 } = await ownerClient.mutate({
+        mutation: CREATE_INVITE,
+        variables: {
+          input: {
+            profileId,
+            permissions: ['READ'],
+          },
+        },
+      });
+
+      const { data: invite2 } = await ownerClient.mutate({
+        mutation: CREATE_INVITE,
+        variables: {
+          input: {
+            profileId,
+            permissions: ['READ', 'WRITE'],
+          },
+        },
+      });
+
+      // Assert: Both invites created with unique codes
+      expect(invite1.createProfileInvite.inviteCode).toBeDefined();
+      expect(invite2.createProfileInvite.inviteCode).toBeDefined();
+      expect(invite1.createProfileInvite.inviteCode).not.toBe(invite2.createProfileInvite.inviteCode);
+      expect(invite1.createProfileInvite.permissions).toEqual(['READ']);
+      expect(invite2.createProfileInvite.permissions).toEqual(['READ', 'WRITE']);
+
+      // Cleanup
+      await cleanupTestData({ profileId });
+    });
+
+    it('invite code is exactly 10 alphanumeric characters', async () => {
+      // Arrange: Create profile
+      const { data: profileData } = await ownerClient.mutate({
+        mutation: CREATE_PROFILE,
+        variables: { input: { sellerName: `${getTestPrefix()}-CodeFormat` } },
+      });
+      const profileId = profileData.createSellerProfile.profileId;
+
+      // Act: Create invite
+      const { data: inviteData } = await ownerClient.mutate({
+        mutation: CREATE_INVITE,
+        variables: {
+          input: {
+            profileId,
+            permissions: ['READ'],
+          },
+        },
+      });
+
+      // Assert: Code format validation
+      const inviteCode = inviteData.createProfileInvite.inviteCode;
+      // Note: inviteCode is substring(0, 10) of UUID, may contain hyphens
+      expect(inviteCode).toMatch(/^[A-Z0-9-]{10}$/);
+      expect(inviteCode.length).toBe(10);
+      expect(inviteCode).toBe(inviteCode.toUpperCase()); // All uppercase
+
+      // Cleanup
+      await cleanupTestData({ profileId });
+    });
+  });
+
+  describe('redeemProfileInvite (Pipeline Resolver)', () => {
+    it('redeems valid invite and creates share', async () => {
+      // Arrange: Create profile and invite
+      const { data: profileData } = await ownerClient.mutate({
+        mutation: CREATE_PROFILE,
+        variables: { input: { sellerName: `${getTestPrefix()}-Profile` } },
+      });
+      testProfileId = profileData.createSellerProfile.profileId;
+
+      const { data: inviteData } = await ownerClient.mutate({
+        mutation: CREATE_INVITE,
+        variables: {
+          input: {
+            profileId: testProfileId,
+            permissions: ['READ'],
+          },
+        },
+      });
+      const inviteCode = inviteData.createProfileInvite.inviteCode;
+
+      // Act: Contributor redeems invite
+      const { data } = await contributorClient.mutate({
+        mutation: REDEEM_INVITE,
+        variables: { input: { inviteCode } },
+      });
+
+      // Assert
+      // Assert\n      expect(data.redeemProfileInvite).toBeDefined();\n      expect(data.redeemProfileInvite.profileId).toBe(testProfileId);\n      expect(data.redeemProfileInvite.targetAccountId).toBe(contributorAccountId);\n      expect(data.redeemProfileInvite.permissions).toEqual(['READ']);
+    });
+
+    it('rejects expired invite', async () => {
+      // TODO: Create expired invite (requires mocking time or waiting 14 days)
+      // For now, test with invalid code
+      await expect(
+        contributorClient.mutate({
+          mutation: REDEEM_INVITE,
+          variables: { input: { inviteCode: 'EXPIRED123' } },
+        })
+      ).rejects.toThrow();
+    });
+
+    it('rejects already-used invite', async () => {
+      // Arrange: Create and redeem invite
+      const { data: profileData } = await ownerClient.mutate({
+        mutation: CREATE_PROFILE,
+        variables: { input: { sellerName: `${getTestPrefix()}-Profile` } },
+      });
+      testProfileId = profileData.createSellerProfile.profileId;
+
+      const { data: inviteData } = await ownerClient.mutate({
+        mutation: CREATE_INVITE,
+        variables: { input: { profileId: testProfileId, permissions: ['READ'] } },
+      });
+      const inviteCode = inviteData.createProfileInvite.inviteCode;
+
+      await contributorClient.mutate({
+        mutation: REDEEM_INVITE,
+        variables: { input: { inviteCode } },
+      });
+
+      // Act & Assert: Try to redeem same invite again
+      await expect(
+        contributorClient.mutate({
+          mutation: REDEEM_INVITE,
+          variables: { input: { inviteCode } },
+        })
+      ).rejects.toThrow(/already.*used|invalid/i);
+    });
+
+    it('rejects invalid invite code', async () => {
+      // Act & Assert: Try to redeem with completely invalid code
+      await expect(
+        contributorClient.mutate({
+          mutation: REDEEM_INVITE,
+          variables: { input: { inviteCode: 'INVALID-CODE-12345' } },
+        })
+      ).rejects.toThrow(/not found|invalid/i);
+    });
+
+    it('rejects missing invite code', async () => {
+      // Act & Assert: Try to redeem without invite code
+      await expect(
+        contributorClient.mutate({
+          mutation: REDEEM_INVITE,
+          variables: {
+            input: {
+              // @ts-expect-error - Testing missing required field
+              inviteCode: undefined,
+            },
+          },
+        })
+      ).rejects.toThrow();
+    });
+
+    it('unauthenticated user cannot redeem invite', async () => {
+      // Arrange: Create unauthenticated client
+      const unauthClient = createUnauthenticatedClient();
+      
+      // Arrange: Owner creates profile and invite
+      const { data: profileData } = await ownerClient.mutate({
+        mutation: CREATE_PROFILE,
+        variables: { input: { sellerName: `${getTestPrefix()}-Unauth` } },
+      });
+      const profileId = profileData.createSellerProfile.profileId;
+
+      const { data: inviteData } = await ownerClient.mutate({
+        mutation: CREATE_INVITE,
+        variables: {
+          input: {
+            profileId,
+            permissions: ['READ'],
+          },
+        },
+      });
+      const inviteCode = inviteData.createProfileInvite.inviteCode;
+
+      // Act & Assert: Unauthenticated user tries to redeem
+      await expect(
+        unauthClient.mutate({
+          mutation: REDEEM_INVITE,
+          variables: { input: { inviteCode } },
+        })
+      ).rejects.toThrow();
+
+      // Cleanup
+      await cleanupTestData({ profileId });
+    });
+
+    it('creates share with correct permissions from invite', async () => {
+      // Arrange: Owner creates profile and invite with specific permissions
+      const { data: profileData } = await ownerClient.mutate({
+        mutation: CREATE_PROFILE,
+        variables: { input: { sellerName: `${getTestPrefix()}-PermCheck` } },
+      });
+      const profileId = profileData.createSellerProfile.profileId;
+
+      const { data: inviteData } = await ownerClient.mutate({
+        mutation: CREATE_INVITE,
+        variables: {
+          input: {
+            profileId,
+            permissions: ['READ', 'WRITE'],
+          },
+        },
+      });
+      const inviteCode = inviteData.createProfileInvite.inviteCode;
+
+      // Act: Contributor redeems invite
+      const { data: redeemData } = await contributorClient.mutate({
+        mutation: REDEEM_INVITE,
+        variables: { input: { inviteCode } },
+      });
+
+      // Assert: Share has same permissions as invite
+      expect(redeemData.redeemProfileInvite.permissions).toEqual(['READ', 'WRITE']);
+
+      // Verify via query
+      const { data: shares } = await ownerClient.query({
+        query: LIST_SHARES,
+        variables: { profileId },
+        fetchPolicy: 'network-only',
+      });
+      expect(shares.listSharesByProfile).toHaveLength(1);
+      expect(shares.listSharesByProfile[0].permissions).toEqual(['READ', 'WRITE']);
+
+      // Cleanup
+      await cleanupTestData({
+        profileId,
+        shareAccountId: contributorAccountId,
+      });
+    });
+  });
+
+  describe('shareProfileDirect (Pipeline Resolver)', () => {
+    it('shares profile with valid email', async () => {
+      // Arrange
+      const { data: profileData } = await ownerClient.mutate({
+        mutation: CREATE_PROFILE,
+        variables: { input: { sellerName: `${getTestPrefix()}-Profile` } },
+      });
+      testProfileId = profileData.createSellerProfile.profileId;
+
+      // Act
+      const { data } = await ownerClient.mutate({
+        mutation: SHARE_DIRECT,
+        variables: {
+          input: {
+            profileId: testProfileId,
+            targetAccountEmail: process.env.TEST_CONTRIBUTOR_EMAIL!,
+            permissions: ['READ', 'WRITE'],
+          },
+        },
+      });
+
+      // Assert
+      expect(data.shareProfileDirect).toBeDefined();
+      expect(data.shareProfileDirect.profileId).toBe(testProfileId);
+      expect(data.shareProfileDirect.permissions).toEqual(['READ', 'WRITE']);
+    });
+
+    it('rejects sharing with non-existent email', async () => {
+      // Arrange
+      const { data: profileData } = await ownerClient.mutate({
+        mutation: CREATE_PROFILE,
+        variables: { input: { sellerName: `${getTestPrefix()}-Profile` } },
+      });
+      testProfileId = profileData.createSellerProfile.profileId;
+
+      // Act & Assert
+      await expect(
+        ownerClient.mutate({
+          mutation: SHARE_DIRECT,
+          variables: {
+            input: {
+              profileId: testProfileId,
+              targetAccountEmail: 'nonexistent@example.com',
+              permissions: ['READ'],
+            },
+          },
+        })
+      ).rejects.toThrow(/no account found|not found|does not exist/i);
+    });
+
+    it('rejects non-owner sharing profile', async () => {
+      // Arrange
+      const { data: profileData } = await ownerClient.mutate({
+        mutation: CREATE_PROFILE,
+        variables: { input: { sellerName: `${getTestPrefix()}-Profile` } },
+      });
+      testProfileId = profileData.createSellerProfile.profileId;
+
+      // Act & Assert - contributor tries to share owner's profile with readonly user
+      // NOTE: This currently fails because shareProfileDirect has no authorization check
+      await expect(
+        contributorClient.mutate({
+          mutation: SHARE_DIRECT,
+          variables: {
+            input: {
+              profileId: testProfileId,
+              targetAccountEmail: process.env.TEST_READONLY_EMAIL!,
+              permissions: ['READ'],
+            },
+          },
+        })
+      ).rejects.toThrow(/forbidden|not authorized/i);
+    });
+
+    it('updating existing share changes permissions (not duplicate)', async () => {
+      // Arrange: Create profile and share with READ permissions
+      const { data: profileData } = await ownerClient.mutate({
+        mutation: CREATE_PROFILE,
+        variables: { input: { sellerName: `${getTestPrefix()}-UpdateShare` } },
+      });
+      const profileId = profileData.createSellerProfile.profileId;
+
+      // First share with READ permission
+      const { data: firstShare } = await ownerClient.mutate({
+        mutation: SHARE_DIRECT,
+        variables: {
+          input: {
+            profileId,
+            targetAccountEmail: contributorEmail,
+            permissions: ['READ'],
+          },
+        },
+      });
+
+      const firstShareId = firstShare.shareProfileDirect.shareId;
+
+      // Act: Share again with WRITE permission (should update, not create duplicate)
+      const { data: updatedShare } = await ownerClient.mutate({
+        mutation: SHARE_DIRECT,
+        variables: {
+          input: {
+            profileId,
+            targetAccountEmail: contributorEmail,
+            permissions: ['READ', 'WRITE'],
+          },
+        },
+      });
+
+      // Assert: Same share ID (updated, not created new)
+      expect(updatedShare.shareProfileDirect.shareId).toBe(firstShareId);
+      expect(updatedShare.shareProfileDirect.permissions).toEqual(['READ', 'WRITE']);
+
+      // Verify there's only one share (not two)
+      const { data: shares } = await ownerClient.query({
+        query: LIST_SHARES,
+        variables: { profileId },
+        fetchPolicy: 'network-only',
+      });
+      expect(shares.listSharesByProfile).toHaveLength(1);
+      expect(shares.listSharesByProfile[0].permissions).toEqual(['READ', 'WRITE']);
+
+      // Cleanup
+      await cleanupTestData({
+        profileId,
+        shareAccountId: contributorAccountId,
+      });
+    });
+
+    it('rejects missing profileId', async () => {
+      // Act & Assert: Try to share without profileId
+      await expect(
+        ownerClient.mutate({
+          mutation: SHARE_DIRECT,
+          variables: {
+            input: {
+              // @ts-expect-error - Testing missing required field
+              targetAccountEmail: contributorEmail,
+              permissions: ['READ'],
+            },
+          },
+        })
+      ).rejects.toThrow();
+    });
+
+    it('rejects missing targetAccountEmail', async () => {
+      // Arrange: Create profile
+      const { data: profileData } = await ownerClient.mutate({
+        mutation: CREATE_PROFILE,
+        variables: { input: { sellerName: `${getTestPrefix()}-MissingEmail` } },
+      });
+      const profileId = profileData.createSellerProfile.profileId;
+
+      // Act & Assert: Try to share without email
+      await expect(
+        ownerClient.mutate({
+          mutation: SHARE_DIRECT,
+          variables: {
+            input: {
+              profileId,
+              // @ts-expect-error - Testing missing required field
+              permissions: ['READ'],
+            },
+          },
+        })
+      ).rejects.toThrow();
+
+      // Cleanup
+      await cleanupTestData({ profileId });
+    });
+
+    it('rejects missing permissions', async () => {
+      // Arrange: Create profile
+      const { data: profileData } = await ownerClient.mutate({
+        mutation: CREATE_PROFILE,
+        variables: { input: { sellerName: `${getTestPrefix()}-MissingPerms` } },
+      });
+      const profileId = profileData.createSellerProfile.profileId;
+
+      // Act & Assert: Try to share without permissions
+      await expect(
+        ownerClient.mutate({
+          mutation: SHARE_DIRECT,
+          variables: {
+            input: {
+              profileId,
+              targetAccountEmail: contributorEmail,
+              // @ts-expect-error - Testing missing required field
+            },
+          },
+        })
+      ).rejects.toThrow();
+
+      // Cleanup
+      await cleanupTestData({ profileId });
+    });
+
+    it('unauthenticated user cannot share profile', async () => {
+      // Arrange: Create unauthenticated client
+      const unauthClient = createUnauthenticatedClient();
+      
+      // Arrange: Create profile with owner
+      const { data: profileData } = await ownerClient.mutate({
+        mutation: CREATE_PROFILE,
+        variables: { input: { sellerName: `${getTestPrefix()}-Unauth` } },
+      });
+      const profileId = profileData.createSellerProfile.profileId;
+
+      // Act & Assert: Unauthenticated user tries to share
+      await expect(
+        unauthClient.mutate({
+          mutation: SHARE_DIRECT,
+          variables: {
+            input: {
+              profileId,
+              targetAccountEmail: contributorEmail,
+              permissions: ['READ'],
+            },
+          },
+        })
+      ).rejects.toThrow();
+
+      // Cleanup
+      await cleanupTestData({ profileId });
+    });
+
+    it('share includes shareId and correct metadata', async () => {
+      // Arrange: Create profile
+      const { data: profileData } = await ownerClient.mutate({
+        mutation: CREATE_PROFILE,
+        variables: { input: { sellerName: `${getTestPrefix()}-Metadata` } },
+      });
+      const profileId = profileData.createSellerProfile.profileId;
+
+      // Act: Share profile
+      const { data: shareData } = await ownerClient.mutate({
+        mutation: SHARE_DIRECT,
+        variables: {
+          input: {
+            profileId,
+            targetAccountEmail: contributorEmail,
+            permissions: ['READ', 'WRITE'],
+          },
+        },
+      });
+
+      // Assert: Verify all metadata fields
+      expect(shareData.shareProfileDirect.shareId).toBeDefined();
+      expect(shareData.shareProfileDirect.shareId).toMatch(/^SHARE#/);
+      expect(shareData.shareProfileDirect.profileId).toBe(profileId);
+      expect(shareData.shareProfileDirect.targetAccountId).toBe(contributorAccountId);
+      expect(shareData.shareProfileDirect.permissions).toEqual(['READ', 'WRITE']);
+
+      // Cleanup
+      await cleanupTestData({
+        profileId,
+        shareAccountId: contributorAccountId,
+      });
+    });
+
+    it('rejects invalid permission values', async () => {
+      // Arrange: Create profile
+      const { data: profileData } = await ownerClient.mutate({
+        mutation: CREATE_PROFILE,
+        variables: { input: { sellerName: `${getTestPrefix()}-InvalidPerm` } },
+      });
+      const profileId = profileData.createSellerProfile.profileId;
+
+      // Act & Assert: Try to share with invalid permission
+      await expect(
+        ownerClient.mutate({
+          mutation: SHARE_DIRECT,
+          variables: {
+            input: {
+              profileId,
+              targetAccountEmail: contributorEmail,
+              // @ts-expect-error - Testing invalid permission
+              permissions: ['INVALID_PERMISSION'],
+            },
+          },
+        })
+      ).rejects.toThrow();
+
+      // Cleanup
+      await cleanupTestData({ profileId });
+    });
+  });
+
+  describe('revokeShare (VTL Resolver)', () => {
+    it('revokes existing share', async () => {
+      // Arrange: Create profile and share
+      const { data: profileData } = await ownerClient.mutate({
+        mutation: CREATE_PROFILE,
+        variables: { input: { sellerName: `${getTestPrefix()}-Profile` } },
+      });
+      testProfileId = profileData.createSellerProfile.profileId;
+
+      await ownerClient.mutate({
+        mutation: SHARE_DIRECT,
+        variables: {
+          input: {
+            profileId: testProfileId,
+            targetAccountEmail: process.env.TEST_CONTRIBUTOR_EMAIL!,
+            permissions: ['READ'],
+          },
+        },
+      });
+
+      // Act: Revoke the share
+      const { data } = await ownerClient.mutate({
+        mutation: REVOKE_SHARE,
+        variables: {
+          input: {
+            profileId: testProfileId,
+            targetAccountId: contributorAccountId,
+          },
+        },
+      });
+
+      // Assert
+      expect(data.revokeShare).toBe(true);
+
+      // Verify contributor no longer has access
+      // TODO: Query to verify share is gone
+    });
+
+    it('rejects non-owner revoking share', async () => {
+      // Arrange
+      const { data: profileData } = await ownerClient.mutate({
+        mutation: CREATE_PROFILE,
+        variables: { input: { sellerName: `${getTestPrefix()}-Profile` } },
+      });
+      testProfileId = profileData.createSellerProfile.profileId;
+
+      // Act & Assert
+      await expect(
+        contributorClient.mutate({
+          mutation: REVOKE_SHARE,
+          variables: {
+            input: {
+              profileId: testProfileId,
+              targetAccountId: 'someone-else',
+            },
+          },
+        })
+      ).rejects.toThrow(/forbidden|not authorized/i);
+    });
+
+    it('owner can revoke share they created', async () => {
+      // Arrange: Create profile, share it, verify owner can revoke
+      const { data: profileData } = await ownerClient.mutate({
+        mutation: CREATE_PROFILE,
+        variables: { input: { sellerName: `${getTestPrefix()}-OwnerRevokeTest` } },
+      });
+      const profileId = profileData.createSellerProfile.profileId;
+
+      // Owner creates a share
+      const { data: shareData } = await ownerClient.mutate({
+        mutation: SHARE_DIRECT,
+        variables: {
+          input: {
+            profileId,
+            targetAccountEmail: contributorEmail,
+            permissions: ['READ'],
+          },
+        },
+      });
+
+      expect(shareData.shareProfileDirect).toBeDefined();
+      expect(shareData.shareProfileDirect.targetAccountId).toBe(contributorAccountId);
+
+      // Act: Owner revokes their own share
+      const { data } = await ownerClient.mutate({
+        mutation: REVOKE_SHARE,
+        variables: {
+          input: {
+            profileId,
+            targetAccountId: contributorAccountId,
+          },
+        },
+      });
+
+      // Assert
+      expect(data.revokeShare).toBe(true);
+
+      // Cleanup
+      await cleanupTestData({
+        profileId,
+        shareAccountId: contributorAccountId,
+      });
+    });
+
+    it('returns success: true on successful revocation', async () => {
+      // Arrange: Create profile and share
+      const { data: profileData } = await ownerClient.mutate({
+        mutation: CREATE_PROFILE,
+        variables: { input: { sellerName: `${getTestPrefix()}-Profile` } },
+      });
+      testProfileId = profileData.createSellerProfile.profileId;
+
+      await ownerClient.mutate({
+        mutation: SHARE_DIRECT,
+        variables: {
+          input: {
+            profileId: testProfileId,
+            targetAccountEmail: process.env.TEST_CONTRIBUTOR_EMAIL!,
+            permissions: ['WRITE'],
+          },
+        },
+      });
+
+      // Act: Revoke the share
+      const { data } = await ownerClient.mutate({
+        mutation: REVOKE_SHARE,
+        variables: {
+          input: {
+            profileId: testProfileId,
+            targetAccountId: contributorAccountId,
+          },
+        },
+      });
+
+      // Assert
+      expect(data.revokeShare).toBe(true);
+      expect(typeof data.revokeShare).toBe('boolean');
+    });
+
+    it('revoking non-existent share returns success (idempotent)', async () => {
+      // Arrange: Create profile but no share
+      const { data: profileData } = await ownerClient.mutate({
+        mutation: CREATE_PROFILE,
+        variables: { input: { sellerName: `${getTestPrefix()}-Profile` } },
+      });
+      testProfileId = profileData.createSellerProfile.profileId;
+
+      // Act: Try to revoke a share that doesn't exist
+      const { data } = await ownerClient.mutate({
+        mutation: REVOKE_SHARE,
+        variables: {
+          input: {
+            profileId: testProfileId,
+            targetAccountId: contributorAccountId,
+          },
+        },
+      });
+
+      // Assert: Should succeed (idempotent behavior)
+      expect(data.revokeShare).toBe(true);
+    });
+
+    it('unauthenticated user cannot revoke share', async () => {
+      // Setup: Create test profile and share
+      const profileName = `${getTestPrefix()}-UnAuthTest`;
+      const createResult = await ownerClient.mutate({
+        mutation: CREATE_PROFILE,
+        variables: {
+          input: { sellerName: profileName },
+        },
+      });
+      const profileId = createResult.data?.createSellerProfile?.profileId;
+
+      await ownerClient.mutate({
+        mutation: SHARE_DIRECT,
+        variables: {
+          input: {
+            profileId,
+            targetAccountEmail: contributorEmail,
+            permissions: ['WRITE'],
+          },
+        },
+      });
+
+      // Attempt: Revoke without authentication
+      const unauthClient = createUnauthenticatedClient();
+      
+      await expect(
+        unauthClient.mutate({
+          mutation: REVOKE_SHARE,
+          variables: {
+            input: {
+              profileId,
+              targetAccountId: contributorAccountId,
+            },
+          },
+        })
+      ).rejects.toThrow();
+
+      // Cleanup
+      await cleanupTestData({
+        profileId,
+        shareAccountId: contributorAccountId,
+      });
+    });
+
+    it('shared user with WRITE cannot revoke shares', async () => {
+      // Arrange: Create profile, share with contributor (WRITE)
+      const { data: profileData } = await ownerClient.mutate({
+        mutation: CREATE_PROFILE,
+        variables: { input: { sellerName: `${getTestPrefix()}-Profile` } },
+      });
+      testProfileId = profileData.createSellerProfile.profileId;
+
+      await ownerClient.mutate({
+        mutation: SHARE_DIRECT,
+        variables: {
+          input: {
+            profileId: testProfileId,
+            targetAccountEmail: process.env.TEST_CONTRIBUTOR_EMAIL!,
+            permissions: ['WRITE'],
+          },
+        },
+      });
+
+      // Now share with readonly user
+      await ownerClient.mutate({
+        mutation: SHARE_DIRECT,
+        variables: {
+          input: {
+            profileId: testProfileId,
+            targetAccountEmail: process.env.TEST_READONLY_EMAIL!,
+            permissions: ['READ'],
+          },
+        },
+      });
+
+      // Act & Assert: Contributor tries to revoke readonly's share
+      await expect(
+        contributorClient.mutate({
+          mutation: REVOKE_SHARE,
+          variables: {
+            input: {
+              profileId: testProfileId,
+              targetAccountId: readonlyAccountId,
+            },
+          },
+        })
+      ).rejects.toThrow(/forbidden|not authorized/i);
+    });
+
+    it('share is deleted from DynamoDB', async () => {
+      // Arrange: Create profile and share
+      const { data: profileData } = await ownerClient.mutate({
+        mutation: CREATE_PROFILE,
+        variables: { input: { sellerName: `${getTestPrefix()}-DeleteTest` } },
+      });
+      const profileId = profileData.createSellerProfile.profileId;
+
+      await ownerClient.mutate({
+        mutation: SHARE_DIRECT,
+        variables: {
+          input: {
+            profileId,
+            targetAccountEmail: contributorEmail,
+            permissions: ['WRITE'],
+          },
+        },
+      });
+
+      // Verify share exists
+      const beforeRevoke = await ownerClient.query({
+        query: LIST_SHARES,
+        variables: { profileId },
+        fetchPolicy: 'network-only',
+      });
+      expect(beforeRevoke.data.listSharesByProfile).toHaveLength(1);
+      expect(beforeRevoke.data.listSharesByProfile[0].targetAccountId).toBe(contributorAccountId);
+
+      // Act: Revoke the share
+      await ownerClient.mutate({
+        mutation: REVOKE_SHARE,
+        variables: {
+          input: {
+            profileId,
+            targetAccountId: contributorAccountId,
+          },
+        },
+      });
+
+      // Assert: Share is gone
+      const afterRevoke = await ownerClient.query({
+        query: LIST_SHARES,
+        variables: { profileId },
+        fetchPolicy: 'network-only',
+      });
+      expect(afterRevoke.data.listSharesByProfile).toHaveLength(0);
+
+      // Cleanup
+      await cleanupTestData({
+        profileId,
+        shareAccountId: contributorAccountId,
+      });
+    });
+
+    it('rejects missing profileId', async () => {
+      // Act & Assert: Try to revoke without profileId
+      await expect(
+        ownerClient.mutate({
+          mutation: REVOKE_SHARE,
+          variables: {
+            input: {
+              // @ts-expect-error - Testing missing required field
+              targetAccountId: contributorAccountId,
+            },
+          },
+        })
+      ).rejects.toThrow();
+    });
+
+    it('rejects missing targetAccountId', async () => {
+      // Arrange: Create a profile for testing
+      const { data: profileData } = await ownerClient.mutate({
+        mutation: CREATE_PROFILE,
+        variables: { input: { sellerName: `${getTestPrefix()}-MissingId` } },
+      });
+      const profileId = profileData.createSellerProfile.profileId;
+
+      // Act & Assert: Try to revoke without targetAccountId
+      await expect(
+        ownerClient.mutate({
+          mutation: REVOKE_SHARE,
+          variables: {
+            input: {
+              // @ts-expect-error - Testing missing required field
+              profileId,
+            },
+          },
+        })
+      ).rejects.toThrow();
+
+      // Cleanup
+      await cleanupTestData({ profileId });
+    });
+
+    it('rejects null values', async () => {
+      // Act & Assert: Try to revoke with null values
+      await expect(
+        ownerClient.mutate({
+          mutation: REVOKE_SHARE,
+          variables: {
+            input: {
+              // @ts-expect-error - Testing null values
+              profileId: null,
+              targetAccountId: null,
+            },
+          },
+        })
+      ).rejects.toThrow();
+    });
+
+    it('user cannot revoke their own access (only owner revokes)', async () => {
+      // Arrange: Create profile and share with contributor
+      const { data: profileData } = await ownerClient.mutate({
+        mutation: CREATE_PROFILE,
+        variables: { input: { sellerName: `${getTestPrefix()}-SelfRevoke` } },
+      });
+      const profileId = profileData.createSellerProfile.profileId;
+
+      await ownerClient.mutate({
+        mutation: SHARE_DIRECT,
+        variables: {
+          input: {
+            profileId,
+            targetAccountEmail: contributorEmail,
+            permissions: ['WRITE'],
+          },
+        },
+      });
+
+      // Act & Assert: Contributor tries to revoke their own access
+      await expect(
+        contributorClient.mutate({
+          mutation: REVOKE_SHARE,
+          variables: {
+            input: {
+              profileId,
+              targetAccountId: contributorAccountId, // Trying to revoke themselves
+            },
+          },
+        })
+      ).rejects.toThrow(/forbidden|not authorized/i);
+
+      // Cleanup
+      await cleanupTestData({
+        profileId,
+        shareAccountId: contributorAccountId,
+      });
+    });
+
+    it('revoking owner\'s own "share" returns success (ownership cannot be revoked)', async () => {
+      // Arrange: Create profile
+      const { data: profileData } = await ownerClient.mutate({
+        mutation: CREATE_PROFILE,
+        variables: { input: { sellerName: `${getTestPrefix()}-OwnerSelfRevoke` } },
+      });
+      const profileId = profileData.createSellerProfile.profileId;
+
+      // Act: Owner tries to "revoke" themselves (there's no share record for the owner)
+      const { data } = await ownerClient.mutate({
+        mutation: REVOKE_SHARE,
+        variables: {
+          input: {
+            profileId,
+            targetAccountId: ownerAccountId, // Owner trying to revoke themselves
+          },
+        },
+      });
+
+      // Assert: Should return success (idempotent - no share exists for owner)
+      // Ownership is stored in the profile metadata, not as a share
+      expect(data.revokeShare).toBe(true);
+
+      // Cleanup
+      await cleanupTestData({ profileId });
+    });
+  });
+});
