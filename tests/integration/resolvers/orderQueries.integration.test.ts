@@ -190,6 +190,11 @@ describe('Order Query Operations Integration Tests', () => {
   // Second profile and season for testing authorization (not shared with contributor)
   let unsharedProfileId: string;
   let unsharedSeasonId: string;
+  let unsharedOrderId: string;
+
+  // Empty season for testing empty results
+  let emptySeasonId: string;
+  let emptyProfileId: string;
 
   beforeAll(async () => {
     try {
@@ -383,6 +388,57 @@ describe('Order Query Operations Integration Tests', () => {
       unsharedSeasonId = unsharedSeasonData.createSeason.seasonId;
       console.log(`Created unshared season: ${unsharedSeasonId}`);
 
+      console.log('Step 12: Creating unshared order...');
+      const { data: unsharedOrderData }: any = await ownerClient.mutate({
+        mutation: CREATE_ORDER,
+        variables: {
+          input: {
+            profileId: unsharedProfileId,
+            seasonId: unsharedSeasonId,
+            customerName: 'Unshared Order Customer',
+            customerPhone: '555-9999',
+            orderDate: new Date('2025-03-01T10:00:00Z').toISOString(),
+            paymentMethod: 'CASH',
+            lineItems: [
+              {
+                productId: testProductId,
+                quantity: 1,
+              },
+            ],
+          },
+        },
+      });
+      unsharedOrderId = unsharedOrderData.createOrder.orderId;
+      console.log(`Created unshared order: ${unsharedOrderId}`);
+
+      console.log('Step 13: Creating empty season (no orders)...');
+      const { data: emptySeasonData }: any = await ownerClient.mutate({
+        mutation: CREATE_SEASON,
+        variables: {
+          input: {
+            profileId: testProfileId,  // Use shared profile so owner can query it
+            seasonName: 'Empty Season',
+            startDate: new Date('2026-01-01T00:00:00Z').toISOString(),
+            endDate: new Date('2026-12-31T23:59:59Z').toISOString(),
+            catalogId: testCatalogId,
+          },
+        },
+      });
+      emptySeasonId = emptySeasonData.createSeason.seasonId;
+      console.log(`Created empty season: ${emptySeasonId}`);
+
+      console.log('Step 14: Creating empty profile (no orders)...');
+      const { data: emptyProfileData }: any = await ownerClient.mutate({
+        mutation: CREATE_SELLER_PROFILE,
+        variables: {
+          input: {
+            sellerName: 'Empty Profile',
+          },
+        },
+      });
+      emptyProfileId = emptyProfileData.createSellerProfile.profileId;
+      console.log(`Created empty profile: ${emptyProfileId}`);
+
       console.log(`Test data created successfully!`);
     } catch (error) {
       console.error('Error in beforeAll:', error);
@@ -476,19 +532,19 @@ describe('Order Query Operations Integration Tests', () => {
       expect(data.getOrder.orderId).toBe(testOrderId1);
     });
 
-    test.skip('Authorization: Non-shared user cannot get order', async () => {
-      // ⚠️ BUG #22: getOrder lacks authorization (returns orders to any authenticated user)
-      // Expected: Should throw authorization error
-      // Actual: Returns order data
+    test('Authorization: Non-shared user cannot get order', async () => {
+      // ✅ FIXED Bug #22: getOrder now includes authorization via pipeline resolver
+      // Pipeline: QueryOrderFn → VerifyProfileReadAccessFn → CheckShareReadPermissionsFn → ReturnOrderFn
       // Test: contributor tries to access order from unshared profile
+      // Expected: Returns null (query permissions model - don't error)
       
-      await expect(
-        contributorClient.query({
-          query: GET_ORDER,
-          variables: { orderId: testOrderId1 },
-          fetchPolicy: 'network-only',
-        })
-      ).rejects.toThrow();
+      const { data }: any = await contributorClient.query({
+        query: GET_ORDER,
+        variables: { orderId: unsharedOrderId },
+        fetchPolicy: 'network-only',
+      });
+      
+      expect(data.getOrder).toBeNull();
     });
 
     test('Input Validation: Returns null for non-existent orderId', async () => {
@@ -526,7 +582,7 @@ describe('Order Query Operations Integration Tests', () => {
     test('Happy Path: Returns empty array if no orders', async () => {
       const { data }: any = await ownerClient.query({
         query: LIST_ORDERS_BY_SEASON,
-        variables: { seasonId: unsharedSeasonId },
+        variables: { seasonId: emptySeasonId },
         fetchPolicy: 'network-only',
       });
 
@@ -552,8 +608,8 @@ describe('Order Query Operations Integration Tests', () => {
       expect(order).toHaveProperty('totalAmount');
     });
 
-    test.skip('Authorization: Profile owner can list orders', async () => {
-      // ⚠️ SKIP: Bug #23 - missing authorization (works but should test auth)
+    test('Authorization: Profile owner can list orders', async () => {
+      // ✅ FIXED Bug #23: listOrdersBySeason now includes authorization via pipeline resolver
       const { data }: any = await ownerClient.query({
         query: LIST_ORDERS_BY_SEASON,
         variables: { seasonId: testSeasonId },
@@ -564,8 +620,8 @@ describe('Order Query Operations Integration Tests', () => {
       expect(data.listOrdersBySeason.length).toBeGreaterThan(0);
     });
 
-    test.skip('Authorization: Shared user can list orders', async () => {
-      // ⚠️ SKIP: Bug #23 - missing authorization (works but should test auth)
+    test('Authorization: Shared user can list orders', async () => {
+      // ✅ FIXED Bug #23: listOrdersBySeason now includes authorization via pipeline resolver
       const { data }: any = await contributorClient.query({
         query: LIST_ORDERS_BY_SEASON,
         variables: { seasonId: testSeasonId },
@@ -576,19 +632,18 @@ describe('Order Query Operations Integration Tests', () => {
       expect(data.listOrdersBySeason.length).toBeGreaterThan(0);
     });
 
-    test.skip('Authorization: Non-shared user cannot list orders', async () => {
-      // ⚠️ BUG #23: listOrdersBySeason lacks authorization
-      // Expected: Should throw authorization error
-      // Actual: Returns order data
+    test('Authorization: Non-shared user cannot list orders', async () => {
+      // ✅ FIXED Bug #23: listOrdersBySeason now includes authorization via pipeline resolver
       // Test: contributor tries to list orders from unshared profile's season
+      // Expected: Returns empty array (query permissions model - don't error)
       
-      await expect(
-        contributorClient.query({
-          query: LIST_ORDERS_BY_SEASON,
-          variables: { seasonId: unsharedSeasonId },
-          fetchPolicy: 'network-only',
-        })
-      ).rejects.toThrow();
+      const { data }: any = await contributorClient.query({
+        query: LIST_ORDERS_BY_SEASON,
+        variables: { seasonId: unsharedSeasonId },
+        fetchPolicy: 'network-only',
+      });
+      
+      expect(data.listOrdersBySeason).toEqual([]);
     });
 
     test('Input Validation: Returns empty array for non-existent seasonId', async () => {
@@ -626,7 +681,7 @@ describe('Order Query Operations Integration Tests', () => {
     test('Happy Path: Returns empty array if no orders', async () => {
       const { data }: any = await ownerClient.query({
         query: LIST_ORDERS_BY_PROFILE,
-        variables: { profileId: unsharedProfileId },
+        variables: { profileId: emptyProfileId },
         fetchPolicy: 'network-only',
       });
 
@@ -652,8 +707,8 @@ describe('Order Query Operations Integration Tests', () => {
       expect(order).toHaveProperty('totalAmount');
     });
 
-    test.skip('Authorization: Profile owner can list orders', async () => {
-      // ⚠️ SKIP: Bug #24 - missing authorization (works but should test auth)
+    test('Authorization: Profile owner can list orders', async () => {
+      // ✅ FIXED Bug #24: listOrdersByProfile now includes authorization via pipeline resolver
       const { data }: any = await ownerClient.query({
         query: LIST_ORDERS_BY_PROFILE,
         variables: { profileId: testProfileId },
@@ -664,8 +719,8 @@ describe('Order Query Operations Integration Tests', () => {
       expect(data.listOrdersByProfile.length).toBeGreaterThan(0);
     });
 
-    test.skip('Authorization: Shared user can list orders', async () => {
-      // ⚠️ SKIP: Bug #24 - missing authorization (works but should test auth)
+    test('Authorization: Shared user can list orders', async () => {
+      // ✅ FIXED Bug #24: listOrdersByProfile now includes authorization via pipeline resolver
       const { data }: any = await contributorClient.query({
         query: LIST_ORDERS_BY_PROFILE,
         variables: { profileId: testProfileId },
@@ -676,19 +731,18 @@ describe('Order Query Operations Integration Tests', () => {
       expect(data.listOrdersByProfile.length).toBeGreaterThan(0);
     });
 
-    test.skip('Authorization: Non-shared user cannot list orders', async () => {
-      // ⚠️ BUG #24: listOrdersByProfile lacks authorization
-      // Expected: Should throw authorization error
-      // Actual: Returns order data
+    test('Authorization: Non-shared user cannot list orders', async () => {
+      // ✅ FIXED Bug #24: listOrdersByProfile now includes authorization via pipeline resolver
       // Test: contributor tries to list orders from unshared profile
+      // Expected: Returns empty array (query permissions model - don't error)
       
-      await expect(
-        contributorClient.query({
-          query: LIST_ORDERS_BY_PROFILE,
-          variables: { profileId: unsharedProfileId },
-          fetchPolicy: 'network-only',
-        })
-      ).rejects.toThrow();
+      const { data }: any = await contributorClient.query({
+        query: LIST_ORDERS_BY_PROFILE,
+        variables: { profileId: unsharedProfileId },
+        fetchPolicy: 'network-only',
+      });
+      
+      expect(data.listOrdersByProfile).toEqual([]);
     });
 
     test('Input Validation: Returns empty array for non-existent profileId', async () => {

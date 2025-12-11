@@ -52,6 +52,18 @@ const CREATE_PROFILE_INVITE = gql`
   }
 `;
 
+const REDEEM_PROFILE_INVITE = gql`
+  mutation RedeemProfileInvite($input: RedeemProfileInviteInput!) {
+    redeemProfileInvite(input: $input) {
+      shareId
+      profileId
+      targetAccountId
+      permissions
+      createdAt
+    }
+  }
+`;
+
 // GraphQL queries under test
 const LIST_SHARES_BY_PROFILE = gql`
   query ListSharesByProfile($profileId: ID!) {
@@ -221,10 +233,9 @@ describe('Share Query Operations Integration Tests', () => {
       expect(data.listSharesByProfile.length).toBeGreaterThan(0);
     });
 
-    test.skip('Authorization: Shared user with WRITE can list shares', async () => {
-      // ⚠️ BUG #27: listSharesByProfile lacks authorization
-      // Expected: Shared user with WRITE can list shares
-      // Actual: Authorization not implemented (returns data or throws error?)
+    test('Authorization: Shared user with WRITE can list shares', async () => {
+      // FIXED BUG #27: listSharesByProfile now requires owner or WRITE permission
+      // WRITE user can list shares
       
       const { data }: any = await contributorClient.query({
         query: LIST_SHARES_BY_PROFILE,
@@ -233,30 +244,31 @@ describe('Share Query Operations Integration Tests', () => {
       });
 
       expect(data.listSharesByProfile).toBeDefined();
+      expect(Array.isArray(data.listSharesByProfile)).toBe(true);
     });
 
-    test.skip('Authorization: Shared user with READ cannot list shares', async () => {
-      // ⚠️ BUG #28: listSharesByProfile lacks authorization
-      // Expected: READ-only shared user cannot list shares
+    test('Authorization: Shared user with READ cannot list shares', async () => {
+      // FIXED BUG #28: listSharesByProfile requires owner or WRITE permission
+      // READ-only user gets empty array (not authorized)
       
-      await expect(
-        readonlyClient.query({
-          query: LIST_SHARES_BY_PROFILE,
-          variables: { profileId: testProfileId },
-          fetchPolicy: 'network-only',
-        })
-      ).rejects.toThrow();
+      const { data }: any = await readonlyClient.query({
+        query: LIST_SHARES_BY_PROFILE,
+        variables: { profileId: testProfileId },
+        fetchPolicy: 'network-only',
+      });
+
+      expect(data.listSharesByProfile).toEqual([]);
     });
 
-    test.skip('Authorization: Non-shared user cannot list shares', async () => {
-      // Test with contributor accessing unshared profile
-      await expect(
-        contributorClient.query({
-          query: LIST_SHARES_BY_PROFILE,
-          variables: { profileId: unsharedProfileId },
-          fetchPolicy: 'network-only',
-        })
-      ).rejects.toThrow();
+    test('Authorization: Non-shared user cannot list shares', async () => {
+      // FIXED: Non-shared user gets empty array (not authorized)
+      const { data }: any = await contributorClient.query({
+        query: LIST_SHARES_BY_PROFILE,
+        variables: { profileId: unsharedProfileId },
+        fetchPolicy: 'network-only',
+      });
+
+      expect(data.listSharesByProfile).toEqual([]);
     });
 
     test('Input Validation: Returns empty array for non-existent profileId', async () => {
@@ -337,27 +349,28 @@ describe('Share Query Operations Integration Tests', () => {
       expect(data.listInvitesByProfile.length).toBeGreaterThan(0);
     });
 
-    test.skip('Authorization: Shared user cannot list invites (owner only)', async () => {
-      // ⚠️ BUG #29: listInvitesByProfile lacks authorization
-      // Expected: Only owner can list invites
+    test('Authorization: Shared user cannot list invites (owner only)', async () => {
+      // FIXED BUG #29: listInvitesByProfile now requires owner-only authorization
+      // Shared user (even with WRITE) gets empty array
       
-      await expect(
-        contributorClient.query({
-          query: LIST_INVITES_BY_PROFILE,
-          variables: { profileId: testProfileId },
-          fetchPolicy: 'network-only',
-        })
-      ).rejects.toThrow();
+      const { data }: any = await contributorClient.query({
+        query: LIST_INVITES_BY_PROFILE,
+        variables: { profileId: testProfileId },
+        fetchPolicy: 'network-only',
+      });
+
+      expect(data.listInvitesByProfile).toEqual([]);
     });
 
-    test.skip('Authorization: Non-shared user cannot list invites', async () => {
-      await expect(
-        contributorClient.query({
-          query: LIST_INVITES_BY_PROFILE,
-          variables: { profileId: unsharedProfileId },
-          fetchPolicy: 'network-only',
-        })
-      ).rejects.toThrow();
+    test('Authorization: Non-shared user cannot list invites', async () => {
+      // FIXED BUG #29: Non-owner gets empty array
+      const { data }: any = await contributorClient.query({
+        query: LIST_INVITES_BY_PROFILE,
+        variables: { profileId: unsharedProfileId },
+        fetchPolicy: 'network-only',
+      });
+
+      expect(data.listInvitesByProfile).toEqual([]);
     });
 
     test('Input Validation: Returns empty array for non-existent profileId', async () => {
@@ -370,14 +383,76 @@ describe('Share Query Operations Integration Tests', () => {
       expect(data.listInvitesByProfile).toEqual([]);
     });
 
-    test.skip('Data Integrity: Does not return expired invites', async () => {
-      // TODO: Would need to create expired invite or mock time
-      // Skipping for now - difficult to test without time manipulation
+    test('Data Integrity: Does not return expired invites', async () => {
+      // Create expired invite by directly inserting into DynamoDB
+      const { DynamoDBClient, PutItemCommand } = await import('@aws-sdk/client-dynamodb');
+      const dynamoClient = new DynamoDBClient({ region: 'us-east-1' });
+      const tableName = process.env.TABLE_NAME || 'PsmApp-dev';
+      
+      const expiredInviteCode = 'EXPIRED999';
+      const now = Math.floor(Date.now() / 1000);
+      const expiredTTL = now - (7 * 24 * 60 * 60); // Expired 7 days ago
+      
+      const putCommand = new PutItemCommand({
+        TableName: tableName,
+        Item: {
+          PK: { S: testProfileId },
+          SK: { S: `INVITE#${expiredInviteCode}` },
+          inviteCode: { S: expiredInviteCode },
+          profileId: { S: testProfileId },
+          permissions: { L: [{ S: 'READ' }] },
+          createdBy: { S: 'test-account-id' },
+          createdAt: { S: new Date(expiredTTL * 1000).toISOString() },
+          expiresAt: { S: new Date(expiredTTL * 1000).toISOString() },
+          used: { BOOL: false },
+          TTL: { N: expiredTTL.toString() },
+        },
+      });
+      
+      await dynamoClient.send(putCommand);
+
+      // Query should not return expired invite
+      const { data }: any = await ownerClient.query({
+        query: LIST_INVITES_BY_PROFILE,
+        variables: { profileId: testProfileId },
+        fetchPolicy: 'network-only',
+      });
+
+      // Should not include the expired invite
+      const inviteCodes = data.listInvitesByProfile.map((i: any) => i.inviteCode);
+      expect(inviteCodes).not.toContain(expiredInviteCode);
     });
 
-    test.skip('Data Integrity: Does not return used invites', async () => {
-      // TODO: Would need to use (redeem) an invite
-      // Skipping for now - adds complexity
+    test('Data Integrity: Does not return used invites', async () => {
+      // Create invite
+      const { data: inviteData }: any = await ownerClient.mutate({
+        mutation: CREATE_PROFILE_INVITE,
+        variables: {
+          input: {
+            profileId: testProfileId,
+            permissions: ['READ'],
+          },
+        },
+      });
+
+      const usedInviteCode = inviteData.createProfileInvite.inviteCode;
+
+      // Redeem the invite to mark it as used
+      await contributorClient.mutate({
+        mutation: REDEEM_PROFILE_INVITE,
+        variables: { input: { inviteCode: usedInviteCode } },
+      });
+
+      // Query should not return used invite
+      const { data }: any = await ownerClient.query({
+        query: LIST_INVITES_BY_PROFILE,
+        variables: { profileId: testProfileId },
+        fetchPolicy: 'network-only',
+      });
+
+      // Should not include the used invite
+      const inviteCodes = data.listInvitesByProfile.map((i: any) => i.inviteCode);
+      expect(inviteCodes).not.toContain(usedInviteCode);
     });
   });
 });

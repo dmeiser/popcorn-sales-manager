@@ -1150,7 +1150,7 @@ export function response(ctx) {
             )
 
             # VerifyProfileReadAccessFn: Checks if caller can READ profile data (owner OR has any share)
-            # Used by: getSeason, listSeasonsByProfile
+            # Used by: getSeason, listSeasonsByProfile, getOrder
             # Less restrictive than VerifyProfileWriteAccessFn - allows READ or WRITE shares
             verify_profile_read_access_fn = appsync.AppsyncFunction(
                 self,
@@ -1177,6 +1177,18 @@ export function request(ctx) {
         };
     }
     
+    // If order not found, skip this function
+    if (ctx.stash.orderNotFound) {
+        // Return a no-op read that won't affect anything
+        return {
+            operation: 'GetItem',
+            key: util.dynamodb.toMapValues({ 
+                PK: 'ACCOUNT#' + ctx.identity.sub, 
+                SK: 'METADATA' 
+            })
+        };
+    }
+    
     // Extract profileId from args or stash
     let profileId = null;
     
@@ -1184,6 +1196,9 @@ export function request(ctx) {
         profileId = ctx.args.profileId;
     } else if (ctx.stash && ctx.stash.season && ctx.stash.season.profileId) {
         profileId = ctx.stash.season.profileId;
+    } else if (ctx.stash && ctx.stash.profileId) {
+        // For orders, profileId is set directly in stash
+        profileId = ctx.stash.profileId;
     }
     
     if (!profileId) {
@@ -1204,6 +1219,12 @@ export function request(ctx) {
 export function response(ctx) {
     // If season not found, pass through (will return null at end)
     if (ctx.stash.seasonNotFound) {
+        ctx.stash.authorized = false;
+        return { authorized: false };
+    }
+    
+    // If order not found, pass through (will return null at end)
+    if (ctx.stash.orderNotFound) {
         ctx.stash.authorized = false;
         return { authorized: false };
     }
@@ -1254,8 +1275,8 @@ export function response(ctx) {
 import { util } from '@aws-appsync/utils';
 
 export function request(ctx) {
-    // If already authorized (owner), profile not found, or season not found, skip
-    if (ctx.stash.authorized || ctx.stash.profileNotFound || ctx.stash.seasonNotFound) {
+    // If already authorized (owner), profile not found, season not found, or order not found, skip
+    if (ctx.stash.authorized || ctx.stash.profileNotFound || ctx.stash.seasonNotFound || ctx.stash.orderNotFound) {
         // Use a no-op read
         return {
             operation: 'GetItem',
@@ -1279,8 +1300,8 @@ export function request(ctx) {
 }
 
 export function response(ctx) {
-    // If already authorized, profile not found, or season not found, pass through
-    if (ctx.stash.authorized || ctx.stash.profileNotFound || ctx.stash.seasonNotFound) {
+    // If already authorized, profile not found, season not found, or order not found, pass through
+    if (ctx.stash.authorized || ctx.stash.profileNotFound || ctx.stash.seasonNotFound || ctx.stash.orderNotFound) {
         return { authorized: ctx.stash.authorized };
     }
     
@@ -2923,167 +2944,721 @@ export function response(ctx) {
                 ),
             )
 
-            # getOrder - Get a specific order by ID (using GSI6)
-            self.dynamodb_datasource.create_resolver(
+            # getOrder - Get a specific order by ID with authorization (Pipeline Resolver)
+            # Pipeline: QueryOrderFn → VerifyProfileReadAccessFn → CheckShareReadPermissionsFn → ReturnOrderFn
+            
+            # Step 1: Query order from GSI6
+            query_order_fn = appsync.AppsyncFunction(
+                self,
+                "QueryOrderFn",
+                name=f"QueryOrderFn_{env_name}",
+                api=self.api,
+                data_source=self.dynamodb_datasource,
+                runtime=appsync.FunctionRuntime.JS_1_0_0,
+                code=appsync.Code.from_inline(
+                    """
+import { util } from '@aws-appsync/utils';
+
+export function request(ctx) {
+    const orderId = ctx.args.orderId;
+    return {
+        operation: 'Query',
+        index: 'GSI6',
+        query: {
+            expression: 'orderId = :orderId',
+            expressionValues: util.dynamodb.toMapValues({ 
+                ':orderId': orderId
+            })
+        },
+        limit: 1
+    };
+}
+
+export function response(ctx) {
+    if (ctx.error) {
+        util.error(ctx.error.message, ctx.error.type);
+    }
+    
+    if (!ctx.result.items || ctx.result.items.length === 0) {
+        // Order not found - return null (auth check will be skipped)
+        ctx.stash.orderNotFound = true;
+        return null;
+    }
+    
+    const order = ctx.result.items[0];
+    ctx.stash.order = order;
+    
+    // Extract profileId from PK (format: PROFILE#<uuid>)
+    ctx.stash.profileId = order.PK;
+    
+    return order;
+}
+                """
+                ),
+            )
+            
+            # Step 4: Return order if authorized, null otherwise
+            return_order_fn = appsync.AppsyncFunction(
+                self,
+                "ReturnOrderFn",
+                name=f"ReturnOrderFn_{env_name}",
+                api=self.api,
+                data_source=self.none_datasource,
+                runtime=appsync.FunctionRuntime.JS_1_0_0,
+                code=appsync.Code.from_inline(
+                    """
+import { util } from '@aws-appsync/utils';
+
+export function request(ctx) {
+    // No-op request (using None data source)
+    return {};
+}
+
+export function response(ctx) {
+    if (ctx.error) {
+        util.error(ctx.error.message, ctx.error.type);
+    }
+    
+    // If order not found, return null
+    if (ctx.stash.orderNotFound) {
+        return null;
+    }
+    
+    // If not authorized, return null (query permissions model - don't error)
+    if (!ctx.stash.authorized) {
+        return null;
+    }
+    
+    // Return the order
+    return ctx.stash.order;
+}
+                """
+                ),
+            )
+            
+            # getOrder Pipeline Resolver
+            self.api.create_resolver(
                 "GetOrderResolver",
                 type_name="Query",
                 field_name="getOrder",
-                request_mapping_template=appsync.MappingTemplate.from_string(
+                runtime=appsync.FunctionRuntime.JS_1_0_0,
+                pipeline_config=[
+                    query_order_fn,
+                    verify_profile_read_access_fn,
+                    check_share_read_permissions_fn,
+                    return_order_fn
+                ],
+                code=appsync.Code.from_inline(
                     """
-{
-    "version": "2017-02-28",
-    "operation": "Query",
-    "index": "GSI6",
-    "query": {
-        "expression": "orderId = :orderId",
-        "expressionValues": {
-            ":orderId": $util.dynamodb.toDynamoDBJson($ctx.args.orderId)
-        }
-    },
-    "limit": 1
+export function request(ctx) {
+    return {};
 }
-                """
-                ),
-                response_mapping_template=appsync.MappingTemplate.from_string(
-                    """
-#if($ctx.error)
-    $util.error($ctx.error.message, $ctx.error.type)
-#end
-#if($ctx.result.items.isEmpty())
-    $util.toJson(null)
-#else
-    $util.toJson($ctx.result.items[0])
-#end
+
+export function response(ctx) {
+    return ctx.prev.result;
+}
                 """
                 ),
             )
 
-            # listOrdersBySeason - List all orders for a season (VTL DynamoDB resolver)
+            # listOrdersBySeason - List all orders for a season with authorization (Pipeline Resolver)
             # NOTE: Replaced Lambda with direct DynamoDB query for better performance
-            # FIXED Bug #25: Now queries GSI5 (seasonId index) and filters for ORDER# items
-            self.dynamodb_datasource.create_resolver(
+            # FIXED Bug #25: Now uses GSI5 with filter for ORDER# items
+            # FIXED Bug #23: Added authorization check
+            # Pipeline: LookupSeasonForOrdersFn → VerifyProfileReadAccessFn → CheckShareReadPermissionsFn → QueryOrdersBySeasonFn
+            
+            # Step 1: Lookup season to get profileId
+            lookup_season_for_orders_fn = appsync.AppsyncFunction(
+                self,
+                "LookupSeasonForOrdersFn",
+                name=f"LookupSeasonForOrdersFn_{env_name}",
+                api=self.api,
+                data_source=self.dynamodb_datasource,
+                runtime=appsync.FunctionRuntime.JS_1_0_0,
+                code=appsync.Code.from_inline(
+                    """
+import { util } from '@aws-appsync/utils';
+
+export function request(ctx) {
+    const seasonId = ctx.args.seasonId;
+    return {
+        operation: 'Query',
+        index: 'GSI7',
+        query: {
+            expression: 'seasonId = :seasonId AND SK = :sk',
+            expressionValues: util.dynamodb.toMapValues({ 
+                ':seasonId': seasonId,
+                ':sk': seasonId
+            })
+        },
+        limit: 1
+    };
+}
+
+export function response(ctx) {
+    if (ctx.error) {
+        util.error(ctx.error.message, ctx.error.type);
+    }
+    
+    if (!ctx.result.items || ctx.result.items.length === 0) {
+        // Season not found - return empty, skip auth (will return empty array)
+        ctx.stash.seasonNotFound = true;
+        ctx.stash.authorized = false;
+        return null;
+    }
+    
+    const season = ctx.result.items[0];
+    ctx.stash.season = season;
+    ctx.stash.profileId = season.profileId;
+    
+    return season;
+}
+                """
+                ),
+            )
+            
+            # Step 4: Query orders (only if authorized)
+            query_orders_by_season_fn = appsync.AppsyncFunction(
+                self,
+                "QueryOrdersBySeasonFn",
+                name=f"QueryOrdersBySeasonFn_{env_name}",
+                api=self.api,
+                data_source=self.dynamodb_datasource,
+                runtime=appsync.FunctionRuntime.JS_1_0_0,
+                code=appsync.Code.from_inline(
+                    """
+import { util } from '@aws-appsync/utils';
+
+export function request(ctx) {
+    // If season not found or not authorized, return empty query (will return empty array)
+    if (ctx.stash.seasonNotFound || !ctx.stash.authorized) {
+        return {
+            operation: 'Query',
+            query: {
+                expression: 'PK = :pk AND begins_with(SK, :sk)',
+                expressionValues: util.dynamodb.toMapValues({ 
+                    ':pk': 'NONEXISTENT',
+                    ':sk': 'NONE'
+                })
+            }
+        };
+    }
+    
+    const seasonId = ctx.args.seasonId;
+    return {
+        operation: 'Query',
+        index: 'GSI5',
+        query: {
+            expression: 'seasonId = :seasonId',
+            expressionValues: util.dynamodb.toMapValues({ 
+                ':seasonId': seasonId
+            })
+        },
+        filter: {
+            expression: 'begins_with(SK, :sk)',
+            expressionValues: util.dynamodb.toMapValues({ 
+                ':sk': 'ORDER#'
+            })
+        }
+    };
+}
+
+export function response(ctx) {
+    if (ctx.error) {
+        util.error(ctx.error.message, ctx.error.type);
+    }
+    
+    return ctx.result.items || [];
+}
+                """
+                ),
+            )
+            
+            # listOrdersBySeason Pipeline Resolver
+            self.api.create_resolver(
                 "ListOrdersBySeasonResolver",
                 type_name="Query",
                 field_name="listOrdersBySeason",
-                request_mapping_template=appsync.MappingTemplate.from_string(
+                runtime=appsync.FunctionRuntime.JS_1_0_0,
+                pipeline_config=[
+                    lookup_season_for_orders_fn,
+                    verify_profile_read_access_fn,
+                    check_share_read_permissions_fn,
+                    query_orders_by_season_fn
+                ],
+                code=appsync.Code.from_inline(
                     """
-{
-    "version": "2017-02-28",
-    "operation": "Query",
-    "index": "GSI5",
-    "query": {
-        "expression": "seasonId = :seasonId",
-        "expressionValues": {
-            ":seasonId": $util.dynamodb.toDynamoDBJson($ctx.args.seasonId)
-        }
-    },
-    "filter": {
-        "expression": "begins_with(SK, :sk)",
-        "expressionValues": {
-            ":sk": $util.dynamodb.toDynamoDBJson("ORDER#")
-        }
-    }
+export function request(ctx) {
+    return {};
 }
-                """
-                ),
-                response_mapping_template=appsync.MappingTemplate.from_string(
-                    """
-#if($ctx.error)
-    $util.error($ctx.error.message, $ctx.error.type)
-#end
-$util.toJson($ctx.result.items)
+
+export function response(ctx) {
+    return ctx.prev.result;
+}
                 """
                 ),
             )
 
-            # listOrdersByProfile - List all orders for a profile (across all seasons)
+            # listOrdersByProfile - List all orders for a profile with authorization (Pipeline Resolver)
             # FIXED Bug #26: Now queries main table (PK=profileId) instead of GSI2
-            self.dynamodb_datasource.create_resolver(
+            # FIXED Bug #24: Added authorization check
+            # Pipeline: VerifyProfileReadAccessFn → CheckShareReadPermissionsFn → QueryOrdersByProfileFn
+            
+            # Query orders function
+            query_orders_by_profile_fn = appsync.AppsyncFunction(
+                self,
+                "QueryOrdersByProfileFn",
+                name=f"QueryOrdersByProfileFn_{env_name}",
+                api=self.api,
+                data_source=self.dynamodb_datasource,
+                runtime=appsync.FunctionRuntime.JS_1_0_0,
+                code=appsync.Code.from_inline(
+                    """
+import { util } from '@aws-appsync/utils';
+
+export function request(ctx) {
+    // If not authorized, return empty query (will return empty array)
+    if (!ctx.stash.authorized) {
+        return {
+            operation: 'Query',
+            query: {
+                expression: 'PK = :pk AND begins_with(SK, :sk)',
+                expressionValues: util.dynamodb.toMapValues({ 
+                    ':pk': 'NONEXISTENT',
+                    ':sk': 'NONE'
+                })
+            }
+        };
+    }
+    
+    const profileId = ctx.args.profileId;
+    return {
+        operation: 'Query',
+        query: {
+            expression: 'PK = :pk AND begins_with(SK, :sk)',
+            expressionValues: util.dynamodb.toMapValues({ 
+                ':pk': profileId,
+                ':sk': 'ORDER#'
+            })
+        }
+    };
+}
+
+export function response(ctx) {
+    if (ctx.error) {
+        util.error(ctx.error.message, ctx.error.type);
+    }
+    
+    return ctx.result.items || [];
+}
+                """
+                ),
+            )
+            
+            # listOrdersByProfile Pipeline Resolver
+            self.api.create_resolver(
                 "ListOrdersByProfileResolver",
                 type_name="Query",
                 field_name="listOrdersByProfile",
-                request_mapping_template=appsync.MappingTemplate.from_string(
+                runtime=appsync.FunctionRuntime.JS_1_0_0,
+                pipeline_config=[
+                    verify_profile_read_access_fn,
+                    check_share_read_permissions_fn,
+                    query_orders_by_profile_fn
+                ],
+                code=appsync.Code.from_inline(
                     """
-{
-    "version": "2017-02-28",
-    "operation": "Query",
-    "query": {
-        "expression": "PK = :pk AND begins_with(SK, :sk)",
-        "expressionValues": {
-            ":pk": $util.dynamodb.toDynamoDBJson($ctx.args.profileId),
-            ":sk": $util.dynamodb.toDynamoDBJson("ORDER#")
-        }
-    }
+export function request(ctx) {
+    return {};
 }
-                """
-                ),
-                response_mapping_template=appsync.MappingTemplate.from_string(
-                    """
-#if($ctx.error)
-    $util.error($ctx.error.message, $ctx.error.type)
-#end
-$util.toJson($ctx.result.items)
+
+export function response(ctx) {
+    return ctx.prev.result;
+}
                 """
                 ),
             )
 
-            # listSharesByProfile - List all shares for a profile
-            self.dynamodb_datasource.create_resolver(
+            # listSharesByProfile - List all shares for a profile with authorization (Pipeline Resolver)
+            # FIXED Bug #27/#28: Added authorization check (owner or WRITE permission required)
+            # Pipeline: VerifyProfileWriteAccessOrOwnerFn → QuerySharesFn
+            
+            # Function to query shares (only if authorized)
+            query_shares_fn = appsync.AppsyncFunction(
+                self,
+                "QuerySharesFn",
+                name=f"QuerySharesFn_{env_name}",
+                api=self.api,
+                data_source=self.dynamodb_datasource,
+                runtime=appsync.FunctionRuntime.JS_1_0_0,
+                code=appsync.Code.from_inline(
+                    """
+import { util } from '@aws-appsync/utils';
+
+export function request(ctx) {
+    // If not authorized, return empty query
+    if (!ctx.stash.isOwner && !ctx.stash.hasWritePermission) {
+        return {
+            operation: 'Query',
+            query: {
+                expression: 'PK = :pk AND begins_with(SK, :sk)',
+                expressionValues: util.dynamodb.toMapValues({ 
+                    ':pk': 'NONEXISTENT',
+                    ':sk': 'NONE'
+                })
+            }
+        };
+    }
+    
+    const profileId = ctx.args.profileId;
+    return {
+        operation: 'Query',
+        query: {
+            expression: 'PK = :pk AND begins_with(SK, :sk)',
+            expressionValues: util.dynamodb.toMapValues({ 
+                ':pk': profileId,
+                ':sk': 'SHARE#'
+            })
+        }
+    };
+}
+
+export function response(ctx) {
+    if (ctx.error) {
+        util.error(ctx.error.message, ctx.error.type);
+    }
+    
+    return ctx.result.items || [];
+}
+                """
+                ),
+            )
+            
+            # Verification function for shares (owner or WRITE permission)
+            verify_profile_write_or_owner_fn = appsync.AppsyncFunction(
+                self,
+                "VerifyProfileWriteAccessOrOwnerFn",
+                name=f"VerifyProfileWriteAccessOrOwnerFn_{env_name}",
+                api=self.api,
+                data_source=self.dynamodb_datasource,
+                runtime=appsync.FunctionRuntime.JS_1_0_0,
+                code=appsync.Code.from_inline(
+                    """
+import { util } from '@aws-appsync/utils';
+
+export function request(ctx) {
+    const profileId = ctx.args.profileId;
+    
+    // Validate profileId format - must start with 'PROFILE#' and have a UUID
+    if (!profileId || !profileId.startsWith('PROFILE#')) {
+        // Invalid format - set flags to deny and skip GetItem
+        ctx.stash.isOwner = false;
+        ctx.stash.hasWritePermission = false;
+        ctx.stash.skipGetItem = true;
+        return {
+            operation: 'GetItem',
+            key: util.dynamodb.toMapValues({ PK: 'NOOP', SK: 'NOOP' })
+        };
+    }
+    
+    // Get profile metadata to check ownership
+    return {
+        operation: 'GetItem',
+        key: util.dynamodb.toMapValues({ PK: profileId, SK: 'METADATA' }),
+        consistentRead: true
+    };
+}
+
+export function response(ctx) {
+    // Check if we skipped GetItem due to validation
+    if (ctx.stash.skipGetItem) {
+        return { authorized: false };
+    }
+    
+    if (ctx.error) {
+        // If there's a DynamoDB error (e.g., invalid key format), treat as unauthorized
+        ctx.stash.isOwner = false;
+        ctx.stash.hasWritePermission = false;
+        return { authorized: false };
+    }
+    
+    const profile = ctx.result;
+    
+    if (!profile) {
+        // Profile not found - return empty list
+        ctx.stash.isOwner = false;
+        ctx.stash.hasWritePermission = false;
+        return { authorized: false };
+    }
+    
+    // Check if caller is owner
+    const callerSub = ctx.identity.sub;
+    const profileOwner = profile.ownerAccountId;
+    
+    if (profileOwner === callerSub) {
+        ctx.stash.isOwner = true;
+        ctx.stash.hasWritePermission = false; // Not needed when owner
+        return { authorized: true };
+    }
+    
+    // Not owner - check for WRITE permission via share
+    ctx.stash.isOwner = false;
+    
+    // Only set profileId if it's valid, otherwise skip second function
+    const profileIdArg = ctx.args.profileId;
+    if (profileIdArg && profileIdArg.startsWith('PROFILE#')) {
+        ctx.stash.profileId = profileIdArg;
+    } else {
+        ctx.stash.hasWritePermission = false;
+        ctx.stash.skipGetItem = true; // Signal to skip next function
+    }
+    
+    // Get share to check permissions
+    return profile;
+}
+                """
+                ),
+            )
+            
+            # Check WRITE permission function
+            check_write_permission_fn = appsync.AppsyncFunction(
+                self,
+                "CheckWritePermissionFn",
+                name=f"CheckWritePermissionFn_{env_name}",
+                api=self.api,
+                data_source=self.dynamodb_datasource,
+                runtime=appsync.FunctionRuntime.JS_1_0_0,
+                code=appsync.Code.from_inline(
+                    """
+import { util } from '@aws-appsync/utils';
+
+export function request(ctx) {
+    // If already owner or profile was invalid/not found, skip this check
+    if (ctx.stash.isOwner || ctx.stash.skipGetItem) {
+        return {
+            operation: 'GetItem',
+            key: util.dynamodb.toMapValues({ PK: 'NOOP', SK: 'NOOP' })
+        };
+    }
+    
+    const profileId = ctx.stash.profileId;
+    
+    // Additional validation - if profileId is not set or invalid, skip
+    if (!profileId || !profileId.startsWith('PROFILE#')) {
+        ctx.stash.hasWritePermission = false;
+        return {
+            operation: 'GetItem',
+            key: util.dynamodb.toMapValues({ PK: 'NOOP', SK: 'NOOP' })
+        };
+    }
+    
+    return {
+        operation: 'GetItem',
+        key: util.dynamodb.toMapValues({ 
+            PK: profileId, 
+            SK: 'SHARE#' + ctx.identity.sub 
+        }),
+        consistentRead: true
+    };
+}
+
+export function response(ctx) {
+    // If owner, pass through
+    if (ctx.stash.isOwner) {
+        ctx.stash.hasWritePermission = false; // Not needed
+        return { authorized: true };
+    }
+    
+    if (ctx.error) {
+        util.error(ctx.error.message, ctx.error.type);
+    }
+    
+    const share = ctx.result;
+    
+    // No share found - not authorized
+    if (!share || !share.PK) {
+        ctx.stash.hasWritePermission = false;
+        return { authorized: false };
+    }
+    
+    // Check for WRITE permission
+    if (share.permissions && Array.isArray(share.permissions) && share.permissions.includes('WRITE')) {
+        ctx.stash.hasWritePermission = true;
+        return { authorized: true };
+    }
+    
+    // Share exists but no WRITE permission
+    ctx.stash.hasWritePermission = false;
+    return { authorized: false };
+}
+                """
+                ),
+            )
+            
+            # listSharesByProfile Pipeline Resolver
+            self.api.create_resolver(
                 "ListSharesByProfileResolver",
                 type_name="Query",
                 field_name="listSharesByProfile",
-                request_mapping_template=appsync.MappingTemplate.from_string(
+                runtime=appsync.FunctionRuntime.JS_1_0_0,
+                pipeline_config=[
+                    verify_profile_write_or_owner_fn,
+                    check_write_permission_fn,
+                    query_shares_fn
+                ],
+                code=appsync.Code.from_inline(
                     """
-{
-    "version": "2017-02-28",
-    "operation": "Query",
-    "query": {
-        "expression": "PK = :pk AND begins_with(SK, :sk)",
-        "expressionValues": {
-            ":pk": $util.dynamodb.toDynamoDBJson($ctx.args.profileId),
-            ":sk": $util.dynamodb.toDynamoDBJson("SHARE#")
-        }
-    }
+export function request(ctx) {
+    return {};
 }
-                """
-                ),
-                response_mapping_template=appsync.MappingTemplate.from_string(
-                    """
-#if($ctx.error)
-    $util.error($ctx.error.message, $ctx.error.type)
-#end
-$util.toJson($ctx.result.items)
+
+export function response(ctx) {
+    return ctx.prev.result;
+}
                 """
                 ),
             )
 
-            # listInvitesByProfile - List all active invites for a profile
-            self.dynamodb_datasource.create_resolver(
-                "ListInvitesByProfileResolver",
+            # listInvitesByProfile - FIXED Bug #29: Added owner-only authorization
+            # Pipeline: VerifyProfileOwnerFn -> QueryInvitesFn
+            verify_profile_owner_fn = appsync.AppsyncFunction(
+                self,
+                "VerifyProfileOwnerFn",
+                name=f"VerifyProfileOwnerFn_{env_name}",
+                api=self.api,
+                data_source=self.dynamodb_datasource,
+                runtime=appsync.FunctionRuntime.JS_1_0_0,
+                code=appsync.Code.from_inline(
+                    """
+import { util } from '@aws-appsync/utils';
+
+export function request(ctx) {
+    const profileId = ctx.args.profileId;
+    
+    return {
+        operation: 'GetItem',
+        key: util.dynamodb.toMapValues({ PK: profileId, SK: 'METADATA' })
+    };
+}
+
+export function response(ctx) {
+    if (ctx.error) {
+        util.error(ctx.error.message, ctx.error.type);
+    }
+    
+    const profile = ctx.result;
+    const callerAccountId = ctx.identity.sub;
+    
+    // Profile not found
+    if (!profile) {
+        ctx.stash.authorized = false;
+        ctx.stash.isOwner = false;
+        return profile;
+    }
+    
+    // Check if caller is the owner
+    const isOwner = profile.ownerAccountId === callerAccountId;
+    
+    ctx.stash.authorized = isOwner;
+    ctx.stash.isOwner = isOwner;
+    ctx.stash.profileId = ctx.args.profileId;
+    
+    return profile;
+}
+                    """
+                ),
+            )
+
+            query_invites_fn = appsync.AppsyncFunction(
+                self,
+                "QueryInvitesFn",
+                name=f"QueryInvitesFn_{env_name}",
+                api=self.api,
+                data_source=self.dynamodb_datasource,
+                runtime=appsync.FunctionRuntime.JS_1_0_0,
+                code=appsync.Code.from_inline(
+                    """
+import { util } from '@aws-appsync/utils';
+
+export function request(ctx) {
+    const authorized = ctx.stash.authorized;
+    const profileId = ctx.stash.profileId || ctx.args.profileId;
+    
+    if (!authorized) {
+        // Return empty query that yields no results
+        return {
+            operation: 'Query',
+            query: {
+                expression: 'PK = :pk AND begins_with(SK, :sk)',
+                expressionValues: util.dynamodb.toMapValues({
+                    ':pk': 'NONEXISTENT',
+                    ':sk': 'NONEXISTENT'
+                })
+            }
+        };
+    }
+    
+    // Owner is authorized - query invites
+    return {
+        operation: 'Query',
+        query: {
+            expression: 'PK = :pk AND begins_with(SK, :sk)',
+            expressionValues: util.dynamodb.toMapValues({
+                ':pk': profileId,
+                ':sk': 'INVITE#'
+            })
+        }
+    };
+}
+
+export function response(ctx) {
+    if (ctx.error) {
+        util.error(ctx.error.message, ctx.error.type);
+    }
+    
+    const items = ctx.result.items || [];
+    const now = util.time.nowEpochSeconds();
+    
+    // Filter out expired and used invites
+    const activeInvites = items.filter(invite => {
+        // Skip if already used
+        if (invite.used === true) {
+            return false;
+        }
+        
+        // Skip if expired (expiresAt is ISO string, need to parse)
+        // DynamoDB stores TTL as epoch seconds, check that field if available
+        if (invite.TTL && invite.TTL < now) {
+            return false;
+        }
+        
+        return true;
+    });
+    
+    return activeInvites;
+}
+                    """
+                ),
+            )
+
+            appsync.Resolver(
+                self,
+                "ListInvitesByProfilePipelineResolver",
+                api=self.api,
                 type_name="Query",
                 field_name="listInvitesByProfile",
-                request_mapping_template=appsync.MappingTemplate.from_string(
+                runtime=appsync.FunctionRuntime.JS_1_0_0,
+                pipeline_config=[verify_profile_owner_fn, query_invites_fn],
+                code=appsync.Code.from_inline(
                     """
-{
-    "version": "2017-02-28",
-    "operation": "Query",
-    "query": {
-        "expression": "PK = :pk AND begins_with(SK, :sk)",
-        "expressionValues": {
-            ":pk": $util.dynamodb.toDynamoDBJson($ctx.args.profileId),
-            ":sk": $util.dynamodb.toDynamoDBJson("INVITE#")
-        }
-    }
+export function request(ctx) {
+    return {};
 }
-                """
-                ),
-                response_mapping_template=appsync.MappingTemplate.from_string(
+
+export function response(ctx) {
+    return ctx.prev.result;
+}
                     """
-#if($ctx.error)
-    $util.error($ctx.error.message, $ctx.error.type)
-#end
-$util.toJson($ctx.result.items)
-                """
                 ),
             )
 
