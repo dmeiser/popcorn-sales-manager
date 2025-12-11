@@ -279,32 +279,6 @@ describe('Catalog Query Resolvers Integration Tests', () => {
         // Non-owner accessing private catalog should get null
         expect(data.getCatalog).toBeNull(); // Expected behavior (FIXED)
       });
-
-      it.skip('should allow unauthenticated user to get public catalog', async () => {
-        const unauthClient = createUnauthenticatedClient();
-        
-        const { data }: any = await unauthClient.query({
-          query: GET_CATALOG,
-          variables: { catalogId: publicCatalogId },
-          fetchPolicy: 'network-only',
-        });
-
-        expect((data as any).getCatalog).toBeDefined();
-        expect((data as any).getCatalog.isPublic).toBe(true);
-      });
-
-      it.skip('should reject unauthenticated user accessing private catalog', async () => {
-        const unauthClient = createUnauthenticatedClient();
-        
-        const { data }: any = await unauthClient.query({
-          query: GET_CATALOG,
-          variables: { catalogId: privateCatalogId },
-          fetchPolicy: 'network-only',
-        });
-        
-        // Private catalog should return null for unauthenticated users
-        expect(data.getCatalog).toBeNull();
-      });
     });
 
     describe('Input Validation', () => {
@@ -380,18 +354,6 @@ describe('Catalog Query Resolvers Integration Tests', () => {
 
         expect(data.listPublicCatalogs).toBeInstanceOf(Array);
         expect(data.listPublicCatalogs.length).toBeGreaterThan(0);
-      });
-
-      it.skip('should allow unauthenticated user to list public catalogs', async () => {
-        const unauthClient = createUnauthenticatedClient();
-        
-        const { data }: any = await unauthClient.query({
-          query: LIST_PUBLIC_CATALOGS,
-          fetchPolicy: 'network-only',
-        });
-
-        expect((data as any).listPublicCatalogs).toBeInstanceOf(Array);
-        expect((data as any).listPublicCatalogs.length).toBeGreaterThan(0);
       });
     });
 
@@ -486,8 +448,6 @@ describe('Catalog Query Resolvers Integration Tests', () => {
         // expect(catalogIds).toContain(contributorPublicCatalogId);
         // expect(catalogIds).toContain(contributorPrivateCatalogId);
       });
-
-            // User authentication required for all queries (USER_POOL auth mode)\n      it.skip('should reject unauthenticated user listing catalogs', async () => {\n        const unauthClient = createUnauthenticatedClient();\n        \n        await expect(\n          unauthClient.query({\n            query: LIST_MY_CATALOGS,\n            fetchPolicy: 'network-only',\n          })\n        ).rejects.toThrow();\n      });
     });
 
     describe('Data Integrity', () => {
