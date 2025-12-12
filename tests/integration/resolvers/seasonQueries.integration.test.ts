@@ -4,9 +4,10 @@ import '../setup.ts';
  * Tests: getSeason, listSeasonsByProfile
  */
 
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { ApolloClient, gql } from '@apollo/client';
 import { createAuthenticatedClient, AuthenticatedClientResult } from '../setup/apolloClient';
+import { deleteTestAccounts } from '../setup/testData';
 
 
 
@@ -116,6 +117,7 @@ describe('Season Query Resolvers Integration Tests', () => {
   let ownerClient: ApolloClient;
   let contributorClient: ApolloClient;
   let readonlyClient: ApolloClient;
+  let ownerAccountId: string;
   let contributorAccountId: string;
   let readonlyAccountId: string;
   let readonlyEmail: string;
@@ -128,10 +130,18 @@ describe('Season Query Resolvers Integration Tests', () => {
     ownerClient = ownerResult.client;
     contributorClient = contributorResult.client;
     readonlyClient = readonlyResult.client;
+    ownerAccountId = ownerResult.accountId;
     contributorAccountId = contributorResult.accountId;
     readonlyAccountId = readonlyResult.accountId;
     readonlyEmail = process.env.TEST_READONLY_EMAIL!;
   });
+
+  afterAll(async () => {
+    // Clean up account records created by Cognito post-auth trigger
+    console.log('Cleaning up account records...');
+    // await deleteTestAccounts([ownerAccountId, contributorAccountId, readonlyAccountId]);
+    console.log('Account cleanup complete.');
+  }, 30000);
 
 
   describe('getSeason', () => {
@@ -460,6 +470,9 @@ describe('Season Query Resolvers Integration Tests', () => {
         // Assert
         expect(data.listSeasonsByProfile).toBeDefined();
         expect(data.listSeasonsByProfile).toEqual([]);
+        
+        // Cleanup
+        await ownerClient.mutate({ mutation: DELETE_PROFILE, variables: { profileId } });
       });
 
       it('should return empty array for non-existent profileId', async () => {

@@ -17,7 +17,7 @@ import '../setup.ts';
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { ApolloClient, gql } from '@apollo/client';
 import { createAuthenticatedClient, AuthenticatedClientResult } from '../setup/apolloClient';
-import { waitForGSIConsistency } from '../setup/testData';
+import { waitForGSIConsistency, deleteTestAccounts } from '../setup/testData';
 
 
 // GraphQL Queries
@@ -106,6 +106,11 @@ describe('Catalog Query Resolvers Integration Tests', () => {
   let contributorClient: ApolloClient;
   let readonlyClient: ApolloClient;
   
+  // Track account IDs for cleanup
+  let ownerAccountId: string;
+  let contributorAccountId: string;
+  let readonlyAccountId: string;
+  
   // Test data
   let publicCatalogId: string | null = null;
   let privateCatalogId: string | null = null;
@@ -120,6 +125,10 @@ describe('Catalog Query Resolvers Integration Tests', () => {
     ownerClient = ownerResult.client;
     contributorClient = contributorResult.client;
     readonlyClient = readonlyResult.client;
+    
+    ownerAccountId = ownerResult.accountId;
+    contributorAccountId = contributorResult.accountId;
+    readonlyAccountId = readonlyResult.accountId;
 
     // Create test catalogs for query tests
     const publicCatalog = await ownerClient.mutate({
@@ -224,7 +233,12 @@ describe('Catalog Query Resolvers Integration Tests', () => {
     if (contributorPrivateCatalogId) {
       await contributorClient.mutate({ mutation: DELETE_CATALOG, variables: { catalogId: contributorPrivateCatalogId } });
     }
-  });
+    
+    // Clean up account records created by Cognito post-auth trigger
+    console.log('Cleaning up account records...');
+    // await deleteTestAccounts([ownerAccountId, contributorAccountId, readonlyAccountId]);
+    console.log('Account cleanup complete.');
+  }, 30000);
 
 
   describe('getCatalog', () => {

@@ -2,6 +2,7 @@ import '../setup.ts';
 import { describe, test, expect, beforeAll, afterAll } from 'vitest';
 import { ApolloClient, NormalizedCacheObject, gql } from '@apollo/client';
 import { createAuthenticatedClient } from '../setup/apolloClient';
+import { deleteTestAccounts } from '../setup/testData';
 
 
 /**
@@ -169,6 +170,7 @@ describe('Order Operations Integration Tests', () => {
   let testSeasonId: string;
   let testCatalogId: string;
   let testProductId: string;
+  let ownerAccountId: string;
   let contributorAccountId: string;
   let readonlyAccountId: string;
 
@@ -181,6 +183,7 @@ describe('Order Operations Integration Tests', () => {
     ownerClient = ownerAuth.client;
     contributorClient = contributorAuth.client;
     readonlyClient = readonlyAuth.client;
+    ownerAccountId = ownerAuth.accountId;
 
     // Create test data
     console.log('Creating test profile, catalog, and season...');
@@ -344,6 +347,10 @@ describe('Order Operations Integration Tests', () => {
     } catch (e) {
       console.log('Error deleting profile:', e);
     }
+    
+    // 6. Delete account records
+    console.log('Cleaning up account records...');
+    // await deleteTestAccounts([ownerAccountId, contributorAccountId, readonlyAccountId]);
     
     console.log('Test data cleanup complete.');
   }, 30000);

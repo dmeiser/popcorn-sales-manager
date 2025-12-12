@@ -14,9 +14,10 @@
  */
 
 import '../setup.ts'; // Load environment variables and setup
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { ApolloClient, gql } from '@apollo/client';
 import { createAuthenticatedClient, AuthenticatedClientResult } from '../setup/apolloClient';
+import { deleteTestAccounts } from '../setup/testData';
 
 // GraphQL Mutations
 const CREATE_CATALOG = gql`
@@ -68,6 +69,11 @@ describe('Catalog CRUD Integration Tests', () => {
   let ownerClient: ApolloClient;
   let contributorClient: ApolloClient;
   let readonlyClient: ApolloClient;
+  
+  // Track account IDs for cleanup
+  let ownerAccountId: string;
+  let contributorAccountId: string;
+  let readonlyAccountId: string;
 
   beforeAll(async () => {
     const ownerResult: AuthenticatedClientResult = await createAuthenticatedClient('owner');
@@ -77,7 +83,18 @@ describe('Catalog CRUD Integration Tests', () => {
     ownerClient = ownerResult.client;
     contributorClient = contributorResult.client;
     readonlyClient = readonlyResult.client;
+    
+    ownerAccountId = ownerResult.accountId;
+    contributorAccountId = contributorResult.accountId;
+    readonlyAccountId = readonlyResult.accountId;
   });
+
+  afterAll(async () => {
+    // Clean up account records created by Cognito post-auth trigger
+    console.log('Cleaning up account records...');
+    // await deleteTestAccounts([ownerAccountId, contributorAccountId, readonlyAccountId]);
+    console.log('Account cleanup complete.');
+  }, 30000);
 
   describe('createCatalog', () => {
     describe('Happy Path', () => {

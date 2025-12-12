@@ -1,7 +1,8 @@
 import '../setup.ts';
-import { describe, test, expect, beforeAll } from 'vitest';
+import { describe, test, expect, beforeAll, afterAll } from 'vitest';
 import { gql } from '@apollo/client';
 import { createAuthenticatedClient, AuthenticatedClientResult } from '../setup/apolloClient';
+import { deleteTestAccounts } from '../setup/testData';
 
 
 /**
@@ -101,45 +102,32 @@ const REQUEST_SEASON_REPORT = gql`
 
 // Cleanup mutations
 const DELETE_ORDER = gql`
-  mutation DeleteOrder($input: DeleteOrderInput!) {
-    deleteOrder(input: $input) {
-      orderId
-      profileId
-      seasonId
-    }
+  mutation DeleteOrder($orderId: ID!) {
+    deleteOrder(orderId: $orderId)
   }
 `;
 
 const DELETE_SEASON = gql`
-  mutation DeleteSeason($input: DeleteSeasonInput!) {
-    deleteSeason(input: $input) {
-      seasonId
-      profileId
-    }
+  mutation DeleteSeason($seasonId: ID!) {
+    deleteSeason(seasonId: $seasonId)
   }
 `;
 
 const DELETE_CATALOG = gql`
-  mutation DeleteCatalog($input: DeleteCatalogInput!) {
-    deleteCatalog(input: $input) {
-      catalogId
-    }
+  mutation DeleteCatalog($catalogId: ID!) {
+    deleteCatalog(catalogId: $catalogId)
   }
 `;
 
 const DELETE_SELLER_PROFILE = gql`
-  mutation DeleteSellerProfile($input: DeleteSellerProfileInput!) {
-    deleteSellerProfile(input: $input) {
-      profileId
-    }
+  mutation DeleteSellerProfile($profileId: ID!) {
+    deleteSellerProfile(profileId: $profileId)
   }
 `;
 
 const REVOKE_SHARE = gql`
   mutation RevokeShare($input: RevokeShareInput!) {
-    revokeShare(input: $input) {
-      shareId
-    }
+    revokeShare(input: $input)
   }
 `;
 
@@ -157,6 +145,7 @@ describe('requestSeasonReport Integration Tests', () => {
   let testOrderId2: string;
   let contributorShareId: string;
   let readonlyShareId: string;
+  let ownerAccountId: string;
   let contributorAccountId: string;
   let readonlyAccountId: string;
   let productId1: string;
@@ -173,6 +162,7 @@ describe('requestSeasonReport Integration Tests', () => {
     readonlyClient = readonlyAuth.client;
 
     // Get account IDs for sharing
+    ownerAccountId = ownerAuth.accountId;
     contributorAccountId = contributorAuth.accountId;
     readonlyAccountId = readonlyAuth.accountId;
 
@@ -297,6 +287,67 @@ describe('requestSeasonReport Integration Tests', () => {
     });
     readonlyShareId = readonlyShareResponse.data.shareProfileDirect.shareId;
   });
+
+  afterAll(async () => {
+    console.log('Cleaning up requestSeasonReport test data...');
+    try {
+      // 1. Delete orders
+      for (const orderId of [testOrderId1, testOrderId2]) {
+        if (orderId) {
+          await ownerClient.mutate({
+            mutation: DELETE_ORDER,
+            variables: { orderId },
+          });
+        }
+      }
+      
+      // 2. Revoke shares
+      if (contributorAccountId) {
+        await ownerClient.mutate({
+          mutation: REVOKE_SHARE,
+          variables: { input: { profileId: testProfileId, targetAccountId: contributorAccountId } },
+        });
+      }
+      if (readonlyAccountId) {
+        await ownerClient.mutate({
+          mutation: REVOKE_SHARE,
+          variables: { input: { profileId: testProfileId, targetAccountId: readonlyAccountId } },
+        });
+      }
+      
+      // 3. Delete season
+      if (testSeasonId) {
+        await ownerClient.mutate({
+          mutation: DELETE_SEASON,
+          variables: { seasonId: testSeasonId },
+        });
+      }
+      
+      // 4. Delete catalog
+      if (testCatalogId) {
+        await ownerClient.mutate({
+          mutation: DELETE_CATALOG,
+          variables: { catalogId: testCatalogId },
+        });
+      }
+      
+      // 5. Delete profile
+      if (testProfileId) {
+        await ownerClient.mutate({
+          mutation: DELETE_SELLER_PROFILE,
+          variables: { profileId: testProfileId },
+        });
+      }
+      
+      // 6. Clean up account records
+      console.log('Cleaning up account records...');
+      // await deleteTestAccounts([ownerAccountId, contributorAccountId, readonlyAccountId]);
+      
+      console.log('requestSeasonReport test data cleanup complete.');
+    } catch (error) {
+      console.log('Error in cleanup:', error);
+    }
+  }, 30000);
 
 
   describe('Owner Authorization', () => {

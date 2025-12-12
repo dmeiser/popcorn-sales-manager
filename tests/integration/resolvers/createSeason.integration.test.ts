@@ -9,9 +9,10 @@ import '../setup.ts';
  * - Data integrity (field presence, GSI attributes)
  */
 
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { ApolloClient, gql } from '@apollo/client';
 import { createAuthenticatedClient, AuthenticatedClientResult } from '../setup/apolloClient';
+import { deleteTestAccounts } from '../setup/testData';
 
 
 // Helper to generate unique test prefix
@@ -110,6 +111,7 @@ describe('createSeason Integration Tests', () => {
   let readonlyClient: ApolloClient<any>;
   let ownerAccountId: string;
   let contributorAccountId: string;
+  let readonlyAccountId: string;
   let contributorEmail: string;
 
   beforeAll(async () => {
@@ -123,8 +125,16 @@ describe('createSeason Integration Tests', () => {
     readonlyClient = readonlyAuth.client;
     ownerAccountId = ownerAuth.accountId;
     contributorAccountId = contributorAuth.accountId;
+    readonlyAccountId = readonlyAuth.accountId;
     contributorEmail = contributorAuth.email;
   });
+
+  afterAll(async () => {
+    // Clean up account records created by Cognito post-auth trigger
+    console.log('Cleaning up account records...');
+    // await deleteTestAccounts([ownerAccountId, contributorAccountId, readonlyAccountId]);
+    console.log('Account cleanup complete.');
+  }, 30000);
 
 
   describe('Happy Paths', () => {

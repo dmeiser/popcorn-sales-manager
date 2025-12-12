@@ -1,7 +1,8 @@
 import '../setup.ts';
-import { describe, test, expect, beforeAll } from 'vitest';
+import { describe, test, expect, beforeAll, afterAll } from 'vitest';
 import { ApolloClient, gql, NormalizedCacheObject } from '@apollo/client';
 import { createAuthenticatedClient } from '../setup/apolloClient';
+import { deleteTestAccounts } from '../setup/testData';
 
 
 /**
@@ -115,6 +116,11 @@ describe('Share Query Operations Integration Tests', () => {
   let ownerClient: ApolloClient<NormalizedCacheObject>;
   let contributorClient: ApolloClient<NormalizedCacheObject>;
   let readonlyClient: ApolloClient<NormalizedCacheObject>;
+  
+  // Account IDs for cleanup
+  let ownerAccountId: string;
+  let contributorAccountId: string;
+  let readonlyAccountId: string;
 
   // Test data IDs
   let testProfileId: string;
@@ -133,6 +139,9 @@ describe('Share Query Operations Integration Tests', () => {
     ownerClient = ownerAuth.client;
     contributorClient = contributorAuth.client;
     readonlyClient = readonlyAuth.client;
+    ownerAccountId = ownerAuth.accountId;
+    contributorAccountId = contributorAuth.accountId;
+    readonlyAccountId = readonlyAuth.accountId;
 
     // Create test profile
     const { data: profileData }: any = await ownerClient.mutate({
@@ -183,6 +192,100 @@ describe('Share Query Operations Integration Tests', () => {
 
     console.log(`Test data created: Profile=${testProfileId}, Share=${testShareId}, Invite=${testInviteCode}`);
   }, 30000);
+
+  afterAll(async () => {
+    console.log('Cleaning up share query test data...');
+    const { DynamoDBClient, QueryCommand, DeleteItemCommand, ScanCommand } = await import('@aws-sdk/client-dynamodb');
+    const dynamoClient = new DynamoDBClient({ region: 'us-east-1' });
+    const tableName = process.env.TABLE_NAME || 'kernelworx-app-dev';
+    
+    try {
+      // 1. Revoke shares
+      if (contributorAccountId && testProfileId) {
+        try {
+          await ownerClient.mutate({
+            mutation: REVOKE_SHARE,
+            variables: { input: { profileId: testProfileId, targetAccountId: contributorAccountId } },
+          });
+        } catch (e) { /* may already be revoked */ }
+      }
+      
+      // 2. Delete all invites for testProfileId (including those created in tests)
+      const inviteResult = await dynamoClient.send(new QueryCommand({
+        TableName: tableName,
+        KeyConditionExpression: 'PK = :pk AND begins_with(SK, :sk)',
+        ExpressionAttributeValues: {
+          ':pk': { S: testProfileId },
+          ':sk': { S: 'INVITE#' },
+        },
+        ProjectionExpression: 'PK, SK',
+      }));
+      
+      for (const item of inviteResult.Items || []) {
+        await dynamoClient.send(new DeleteItemCommand({
+          TableName: tableName,
+          Key: { PK: item.PK, SK: item.SK },
+        }));
+      }
+      
+      // 3. Delete any remaining shares for this profile
+      const shareResult = await dynamoClient.send(new QueryCommand({
+        TableName: tableName,
+        KeyConditionExpression: 'PK = :pk AND begins_with(SK, :sk)',
+        ExpressionAttributeValues: {
+          ':pk': { S: testProfileId },
+          ':sk': { S: 'SHARE#' },
+        },
+        ProjectionExpression: 'PK, SK',
+      }));
+      
+      for (const item of shareResult.Items || []) {
+        await dynamoClient.send(new DeleteItemCommand({
+          TableName: tableName,
+          Key: { PK: item.PK, SK: item.SK },
+        }));
+      }
+      
+      // 4. Delete profiles
+      if (testProfileId) {
+        await ownerClient.mutate({
+          mutation: DELETE_PROFILE,
+          variables: { profileId: testProfileId },
+        });
+      }
+      if (unsharedProfileId) {
+        await ownerClient.mutate({
+          mutation: DELETE_PROFILE,
+          variables: { profileId: unsharedProfileId },
+        });
+      }
+      
+      // 5. Final sweep: Delete ALL non-account records (catch untracked orphans)
+      const scanResult = await dynamoClient.send(new ScanCommand({
+        TableName: tableName,
+        ProjectionExpression: 'PK, SK',
+      }));
+      
+      for (const item of scanResult.Items || []) {
+        const pk = item.PK?.S || '';
+        // Skip account records (those are created by Cognito and are exempt)
+        if (!pk.startsWith('ACCOUNT#')) {
+          await dynamoClient.send(new DeleteItemCommand({
+            TableName: tableName,
+            Key: { PK: item.PK, SK: item.SK },
+          }));
+        }
+      }
+      
+      // 6. Clean up account records
+      console.log('Cleaning up account records...');
+      // await deleteTestAccounts([ownerAccountId, contributorAccountId, readonlyAccountId]);
+      
+      console.log('Share query test data cleanup complete.');
+    } catch (error) {
+      console.log('Error in cleanup:', error);
+    }
+  }, 60000);
 
 
   // ========================================

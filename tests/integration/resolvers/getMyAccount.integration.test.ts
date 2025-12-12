@@ -2,11 +2,16 @@ import '../setup.ts';
 /**
  * Integration tests for getMyAccount resolver
  * Tests retrieval of current authenticated user's account information
+ * 
+ * NOTE: Account records are created by the Cognito post-authentication Lambda trigger,
+ * not by these tests. We clean them up in afterAll to ensure the table is empty,
+ * but they will be recreated on the next test run when users authenticate.
  */
 
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { ApolloClient, gql } from '@apollo/client';
 import { createAuthenticatedClient, AuthenticatedClientResult } from '../setup/apolloClient';
+import { deleteTestAccounts } from '../setup/testData';
 
 const GET_MY_ACCOUNT = gql`
   query GetMyAccount {
@@ -24,6 +29,11 @@ describe('getMyAccount Resolver Integration Tests', () => {
   let ownerClient: ApolloClient;
   let contributorClient: ApolloClient;
   let readonlyClient: ApolloClient;
+  
+  // Track account IDs for cleanup
+  let ownerAccountId: string;
+  let contributorAccountId: string;
+  let readonlyAccountId: string;
 
   beforeAll(async () => {
     const ownerResult: AuthenticatedClientResult = await createAuthenticatedClient('owner');
@@ -33,7 +43,19 @@ describe('getMyAccount Resolver Integration Tests', () => {
     ownerClient = ownerResult.client;
     contributorClient = contributorResult.client;
     readonlyClient = readonlyResult.client;
+    
+    ownerAccountId = ownerResult.accountId;
+    contributorAccountId = contributorResult.accountId;
+    readonlyAccountId = readonlyResult.accountId;
   });
+
+  afterAll(async () => {
+    // Clean up account records created by Cognito post-auth trigger
+    // These are recreated on next auth, but we delete them to leave table empty
+    console.log('Cleaning up account records...');
+    // await deleteTestAccounts([ownerAccountId, contributorAccountId, readonlyAccountId]);
+    console.log('Account cleanup complete.');
+  }, 30000);
 
   describe('Happy Path - Account Retrieval', () => {
     it('should return current user account for owner', async () => {

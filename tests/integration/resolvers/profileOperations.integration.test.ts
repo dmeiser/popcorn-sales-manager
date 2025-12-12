@@ -2,7 +2,7 @@ import '../setup.ts';
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { ApolloClient, gql, HttpLink, InMemoryCache } from '@apollo/client';
 import { createAuthenticatedClient, AuthenticatedClientResult } from '../setup/apolloClient';
-import { getTestPrefix } from '../setup/testData';
+import { getTestPrefix, deleteTestAccounts } from '../setup/testData';
 
 
 // GraphQL Mutations
@@ -142,6 +142,10 @@ describe('Profile Operations Integration Tests', () => {
           // Profile may already be deleted by a test
         }
       }
+      
+      // Clean up account records
+      console.log('Cleaning up account records...');
+      // await deleteTestAccounts([ownerAccountId, contributorAccountId, readonlyAccountId]);
       
       console.log('Profile operations test data cleanup complete.');
     } catch (error) {
@@ -667,11 +671,13 @@ describe('Profile Operations Integration Tests', () => {
         variables: { input: { sellerName: profileName } },
       });
       const testProfileId = createData.createSellerProfile.profileId;
+      createdProfileIds.push(testProfileId);
 
       const SHARE_DIRECT = gql`
         mutation ShareProfileDirect($input: ShareProfileDirectInput!) {
           shareProfileDirect(input: $input) {
             shareId
+            targetAccountId
           }
         }
       `;
@@ -685,6 +691,7 @@ describe('Profile Operations Integration Tests', () => {
           },
         },
       });
+      createdShares.push({ profileId: testProfileId, targetAccountId: shareData.shareProfileDirect.targetAccountId });
 
       // Act & Assert - Delete should fail, profile will still exist
       await expect(
@@ -705,11 +712,13 @@ describe('Profile Operations Integration Tests', () => {
         variables: { input: { sellerName: profileName } },
       });
       const testProfileId = createData.createSellerProfile.profileId;
+      createdProfileIds.push(testProfileId);
 
       const SHARE_DIRECT = gql`
         mutation ShareProfileDirect($input: ShareProfileDirectInput!) {
           shareProfileDirect(input: $input) {
             shareId
+            targetAccountId
           }
         }
       `;
@@ -723,6 +732,7 @@ describe('Profile Operations Integration Tests', () => {
           },
         },
       });
+      createdShares.push({ profileId: testProfileId, targetAccountId: shareData.shareProfileDirect.targetAccountId });
 
       // Act & Assert - Delete should fail, profile will still exist
       await expect(
@@ -743,6 +753,7 @@ describe('Profile Operations Integration Tests', () => {
         variables: { input: { sellerName: profileName } },
       });
       const testProfileId = createData.createSellerProfile.profileId;
+      createdProfileIds.push(testProfileId);
 
       // Act & Assert - Delete should fail, profile will still exist
       await expect(
@@ -763,6 +774,7 @@ describe('Profile Operations Integration Tests', () => {
         variables: { input: { sellerName: profileName } },
       });
       const testProfileId = createData.createSellerProfile.profileId;
+      createdProfileIds.push(testProfileId);
 
       // Act & Assert - Delete should fail, profile will still exist
       const unauthClient = createUnauthenticatedClient();

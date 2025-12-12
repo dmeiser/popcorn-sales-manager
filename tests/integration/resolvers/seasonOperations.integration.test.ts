@@ -1,7 +1,8 @@
 import '../setup.ts';
-import { describe, test, expect, beforeAll } from 'vitest';
+import { describe, test, expect, beforeAll, afterAll } from 'vitest';
 import { ApolloClient, NormalizedCacheObject, gql } from '@apollo/client';
 import { createAuthenticatedClient } from '../setup/apolloClient';
+import { deleteTestAccounts } from '../setup/testData';
 
 
 /**
@@ -94,6 +95,24 @@ const GET_SEASON = gql`
   }
 `;
 
+const REVOKE_SHARE = gql`
+  mutation RevokeShare($input: RevokeShareInput!) {
+    revokeShare(input: $input)
+  }
+`;
+
+const DELETE_CATALOG = gql`
+  mutation DeleteCatalog($catalogId: ID!) {
+    deleteCatalog(catalogId: $catalogId)
+  }
+`;
+
+const DELETE_SELLER_PROFILE = gql`
+  mutation DeleteSellerProfile($profileId: ID!) {
+    deleteSellerProfile(profileId: $profileId)
+  }
+`;
+
 describe('Season Operations Integration Tests', () => {
   const SUITE_ID = 'season-operations';
   
@@ -105,6 +124,9 @@ describe('Season Operations Integration Tests', () => {
   let testProfileId: string;
   let testCatalogId: string;
   let testSeasonId: string;
+  let ownerAccountId: string;
+  let contributorAccountId: string;
+  let readonlyAccountId: string;
 
   beforeAll(async () => {
     console.log('Creating test profile, catalog, and season...');
@@ -112,12 +134,15 @@ describe('Season Operations Integration Tests', () => {
     // Create authenticated clients
     const ownerResult = await createAuthenticatedClient('owner');
     ownerClient = ownerResult.client;
+    ownerAccountId = ownerResult.accountId;
 
     const contributorResult = await createAuthenticatedClient('contributor');
     contributorClient = contributorResult.client;
+    contributorAccountId = contributorResult.accountId;
 
     const readonlyResult = await createAuthenticatedClient('readonly');
     readonlyClient = readonlyResult.client;
+    readonlyAccountId = readonlyResult.accountId;
 
     // 1. Create test profile
     const { data: profileData } = await ownerClient.mutate({
@@ -176,7 +201,6 @@ describe('Season Operations Integration Tests', () => {
         },
       },
     });
-    const contributorAccountId = (await createAuthenticatedClient('contributor')).accountId;
 
     // 5. Share profile with readonly (READ)
     const { data: readonlyShareData }: any = await ownerClient.mutate({
@@ -189,9 +213,61 @@ describe('Season Operations Integration Tests', () => {
         },
       },
     });
-    const readonlyAccountId = (await createAuthenticatedClient('readonly')).accountId;
 
     console.log(`Test data created: Profile=${testProfileId}, Season=${testSeasonId}, Catalog=${testCatalogId}`);
+  }, 30000);
+
+  afterAll(async () => {
+    console.log('Cleaning up season operations test data...');
+    try {
+      // 1. Revoke shares
+      if (contributorAccountId) {
+        await ownerClient.mutate({
+          mutation: REVOKE_SHARE,
+          variables: { input: { profileId: testProfileId, targetAccountId: contributorAccountId } },
+        });
+      }
+      if (readonlyAccountId) {
+        await ownerClient.mutate({
+          mutation: REVOKE_SHARE,
+          variables: { input: { profileId: testProfileId, targetAccountId: readonlyAccountId } },
+        });
+      }
+      
+      // 2. Delete season (may already be deleted by tests)
+      if (testSeasonId) {
+        try {
+          await ownerClient.mutate({
+            mutation: DELETE_SEASON,
+            variables: { seasonId: testSeasonId },
+          });
+        } catch (e) { /* may already be deleted */ }
+      }
+      
+      // 3. Delete catalog
+      if (testCatalogId) {
+        await ownerClient.mutate({
+          mutation: DELETE_CATALOG,
+          variables: { catalogId: testCatalogId },
+        });
+      }
+      
+      // 4. Delete profile
+      if (testProfileId) {
+        await ownerClient.mutate({
+          mutation: DELETE_SELLER_PROFILE,
+          variables: { profileId: testProfileId },
+        });
+      }
+      
+      // 5. Clean up account records
+      console.log('Cleaning up account records...');
+      // await deleteTestAccounts([ownerAccountId, contributorAccountId, readonlyAccountId]);
+      
+      console.log('Season operations test data cleanup complete.');
+    } catch (error) {
+      console.log('Error in cleanup:', error);
+    }
   }, 30000);
 
 
@@ -370,6 +446,9 @@ describe('Season Operations Integration Tests', () => {
           },
         })
       ).rejects.toThrow(/forbidden|not authorized|unauthorized/i);
+      
+      // Cleanup: Owner deletes the season
+      await ownerClient.mutate({ mutation: DELETE_SEASON, variables: { seasonId } });
     }, 10000);
   });
 
@@ -398,6 +477,9 @@ describe('Season Operations Integration Tests', () => {
           variables: { seasonId },
         })
       ).rejects.toThrow(/forbidden|not authorized|unauthorized/i);
+      
+      // Cleanup: Owner deletes the season
+      await ownerClient.mutate({ mutation: DELETE_SEASON, variables: { seasonId } });
     }, 10000);
   });
 
@@ -439,6 +521,9 @@ describe('Season Operations Integration Tests', () => {
       // Verify dates are updated (they should be different from the original)
       expect(updateData.updateSeason.startDate).toBeDefined();
       expect(updateData.updateSeason.endDate).toBeDefined();
+      
+      // Cleanup
+      await ownerClient.mutate({ mutation: DELETE_SEASON, variables: { seasonId } });
     }, 10000);
   });
 });

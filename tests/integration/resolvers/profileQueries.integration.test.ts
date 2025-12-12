@@ -1,8 +1,8 @@
 import '../setup.ts';
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { ApolloClient, gql, HttpLink, InMemoryCache } from '@apollo/client';
 import { createAuthenticatedClient, AuthenticatedClientResult } from '../setup/apolloClient';
-import { getTestPrefix, waitForGSIConsistency } from '../setup/testData';
+import { getTestPrefix, waitForGSIConsistency, deleteTestAccounts } from '../setup/testData';
 
 
 // GraphQL Mutations (for test setup)
@@ -87,7 +87,12 @@ describe('Profile Query Operations Integration Tests', () => {
   let readonlyClient: ApolloClient<any>;
   let ownerAccountId: string;
   let contributorAccountId: string;
+  let readonlyAccountId: string;
   let contributorEmail: string;
+
+  // Track created resources for cleanup
+  const createdProfileIds: string[] = [];
+  const createdShares: { profileId: string; targetAccountId: string }[] = [];
 
   // Helper to create unauthenticated client
   const createUnauthenticatedClient = () => {
@@ -110,8 +115,41 @@ describe('Profile Query Operations Integration Tests', () => {
     readonlyClient = readonlyAuth.client;
     ownerAccountId = ownerAuth.accountId;
     contributorAccountId = contributorAuth.accountId;
+    readonlyAccountId = readonlyAuth.accountId;
     contributorEmail = contributorAuth.email;
   });
+
+  afterAll(async () => {
+    console.log('Cleaning up profile query test data...');
+    try {
+      // 1. Revoke shares first
+      for (const share of createdShares) {
+        try {
+          await ownerClient.mutate({
+            mutation: REVOKE_SHARE,
+            variables: { input: { profileId: share.profileId, targetAccountId: share.targetAccountId } },
+          });
+        } catch (e) { /* may already be revoked */ }
+      }
+      // 2. Delete profiles
+      for (const profileId of createdProfileIds) {
+        try {
+          await ownerClient.mutate({
+            mutation: DELETE_PROFILE,
+            variables: { profileId },
+          });
+        } catch (e) { /* may already be deleted */ }
+      }
+      
+      // 3. Clean up account records
+      console.log('Cleaning up account records...');
+      // await deleteTestAccounts([ownerAccountId, contributorAccountId, readonlyAccountId]);
+      
+      console.log('Profile query test data cleanup complete.');
+    } catch (error) {
+      console.log('Error in cleanup:', error);
+    }
+  }, 30000);
 
 
   describe('getProfile', () => {
@@ -123,6 +161,7 @@ describe('Profile Query Operations Integration Tests', () => {
         variables: { input: { sellerName: profileName } },
       });
       const profileId = createData.createSellerProfile.profileId;
+      createdProfileIds.push(profileId);
 
       // Act
       const { data } = await ownerClient.query({
@@ -147,6 +186,7 @@ describe('Profile Query Operations Integration Tests', () => {
         variables: { input: { sellerName: profileName } },
       });
       const profileId = createData.createSellerProfile.profileId;
+      createdProfileIds.push(profileId);
 
       // Act
       const { data } = await ownerClient.query({
@@ -173,8 +213,9 @@ describe('Profile Query Operations Integration Tests', () => {
         variables: { input: { sellerName: profileName } },
       });
       const profileId = createData.createSellerProfile.profileId;
+      createdProfileIds.push(profileId);
 
-      const { data: shareData } = await ownerClient.mutate({
+      const { data: shareData }: any = await ownerClient.mutate({
         mutation: SHARE_DIRECT,
         variables: {
           input: {
@@ -184,6 +225,7 @@ describe('Profile Query Operations Integration Tests', () => {
           },
         },
       });
+      createdShares.push({ profileId, targetAccountId: shareData.shareProfileDirect.targetAccountId });
 
       // Act
       const { data } = await contributorClient.query({
@@ -207,8 +249,9 @@ describe('Profile Query Operations Integration Tests', () => {
         variables: { input: { sellerName: profileName } },
       });
       const profileId = createData.createSellerProfile.profileId;
+      createdProfileIds.push(profileId);
 
-      const { data: shareData } = await ownerClient.mutate({
+      const { data: shareData }: any = await ownerClient.mutate({
         mutation: SHARE_DIRECT,
         variables: {
           input: {
@@ -218,6 +261,7 @@ describe('Profile Query Operations Integration Tests', () => {
           },
         },
       });
+      createdShares.push({ profileId, targetAccountId: shareData.shareProfileDirect.targetAccountId });
 
       // Act
       const { data } = await contributorClient.query({
@@ -241,6 +285,7 @@ describe('Profile Query Operations Integration Tests', () => {
         variables: { input: { sellerName: profileName } },
       });
       const profileId = createData.createSellerProfile.profileId;
+      createdProfileIds.push(profileId);
 
       // Act: Contributor (not shared) queries profile
       // TODO: Bug - getProfile doesn't enforce authorization, returns profile with permissions: null
@@ -264,6 +309,7 @@ describe('Profile Query Operations Integration Tests', () => {
         variables: { input: { sellerName: profileName } },
       });
       const profileId = createData.createSellerProfile.profileId;
+      createdProfileIds.push(profileId);
 
       // Act & Assert
       const unauthClient = createUnauthenticatedClient();
@@ -313,12 +359,14 @@ describe('Profile Query Operations Integration Tests', () => {
         variables: { input: { sellerName: profileName1 } },
       });
       const profileId1 = data1.createSellerProfile.profileId;
+      createdProfileIds.push(profileId1);
       
       const { data: data2 } = await ownerClient.mutate({
         mutation: CREATE_PROFILE,
         variables: { input: { sellerName: profileName2 } },
       });
       const profileId2 = data2.createSellerProfile.profileId;
+      createdProfileIds.push(profileId2);
 
       // Wait for GSI eventual consistency with retry logic (Bug #21 - known AWS limitation)
       // Poll listMyProfiles until both profiles appear in results
@@ -368,6 +416,7 @@ describe('Profile Query Operations Integration Tests', () => {
         variables: { input: { sellerName: profileName } },
       });
       const profileId = createData.createSellerProfile.profileId;
+      createdProfileIds.push(profileId);
 
       // Wait for GSI eventual consistency with retry logic (Bug #21 - known AWS limitation)
       // Poll listMyProfiles until the profile appears in results
@@ -406,6 +455,7 @@ describe('Profile Query Operations Integration Tests', () => {
         variables: { input: { sellerName: profileName } },
       });
       const profileId = createData.createSellerProfile.profileId;
+      createdProfileIds.push(profileId);
 
       // Act: Contributor queries their profiles
       const { data } = await contributorClient.query({
@@ -426,8 +476,9 @@ describe('Profile Query Operations Integration Tests', () => {
         variables: { input: { sellerName: profileName } },
       });
       const profileId = createData.createSellerProfile.profileId;
+      createdProfileIds.push(profileId);
 
-      const { data: shareData } = await ownerClient.mutate({
+      const { data: shareData }: any = await ownerClient.mutate({
         mutation: SHARE_DIRECT,
         variables: {
           input: {
@@ -437,6 +488,7 @@ describe('Profile Query Operations Integration Tests', () => {
           },
         },
       });
+      createdShares.push({ profileId, targetAccountId: shareData.shareProfileDirect.targetAccountId });
 
       // Act: Contributor queries their owned profiles
       const { data } = await contributorClient.query({
@@ -484,15 +536,17 @@ describe('Profile Query Operations Integration Tests', () => {
         variables: { input: { sellerName: profileName1 } },
       });
       const profileId1 = data1.createSellerProfile.profileId;
+      createdProfileIds.push(profileId1);
       
       const { data: data2 } = await ownerClient.mutate({
         mutation: CREATE_PROFILE,
         variables: { input: { sellerName: profileName2 } },
       });
       const profileId2 = data2.createSellerProfile.profileId;
+      createdProfileIds.push(profileId2);
 
       // Share both profiles with contributor
-      await ownerClient.mutate({
+      const { data: share1Data }: any = await ownerClient.mutate({
         mutation: SHARE_DIRECT,
         variables: {
           input: {
@@ -502,8 +556,9 @@ describe('Profile Query Operations Integration Tests', () => {
           },
         },
       });
+      createdShares.push({ profileId: profileId1, targetAccountId: share1Data.shareProfileDirect.targetAccountId });
 
-      await ownerClient.mutate({
+      const { data: share2Data }: any = await ownerClient.mutate({
         mutation: SHARE_DIRECT,
         variables: {
           input: {
@@ -513,6 +568,7 @@ describe('Profile Query Operations Integration Tests', () => {
           },
         },
       });
+      createdShares.push({ profileId: profileId2, targetAccountId: share2Data.shareProfileDirect.targetAccountId });
 
       // Act: Contributor queries shared profiles
       const { data } = await contributorClient.query({
@@ -549,8 +605,9 @@ describe('Profile Query Operations Integration Tests', () => {
         variables: { input: { sellerName: profileName } },
       });
       const profileId = createData.createSellerProfile.profileId;
+      createdProfileIds.push(profileId);
 
-      const { data: shareData } = await ownerClient.mutate({
+      const { data: shareData }: any = await ownerClient.mutate({
         mutation: SHARE_DIRECT,
         variables: {
           input: {
@@ -560,6 +617,7 @@ describe('Profile Query Operations Integration Tests', () => {
           },
         },
       });
+      createdShares.push({ profileId, targetAccountId: shareData.shareProfileDirect.targetAccountId });
 
       // Act
       const { data } = await contributorClient.query({
@@ -582,6 +640,7 @@ describe('Profile Query Operations Integration Tests', () => {
         variables: { input: { sellerName: profileName } },
       });
       const profileId = createData.createSellerProfile.profileId;
+      createdProfileIds.push(profileId);
 
       // Act: Owner queries shared profiles
       const { data } = await ownerClient.query({
@@ -602,8 +661,9 @@ describe('Profile Query Operations Integration Tests', () => {
         variables: { input: { sellerName: profileName } },
       });
       const profileId = createData.createSellerProfile.profileId;
+      createdProfileIds.push(profileId);
 
-      const { data: shareData } = await ownerClient.mutate({
+      const { data: shareData }: any = await ownerClient.mutate({
         mutation: SHARE_DIRECT,
         variables: {
           input: {
@@ -613,6 +673,7 @@ describe('Profile Query Operations Integration Tests', () => {
           },
         },
       });
+      createdShares.push({ profileId, targetAccountId: shareData.shareProfileDirect.targetAccountId });
 
       // Act
       const { data } = await contributorClient.query({
@@ -634,8 +695,9 @@ describe('Profile Query Operations Integration Tests', () => {
         variables: { input: { sellerName: profileName } },
       });
       const profileId = createData.createSellerProfile.profileId;
+      createdProfileIds.push(profileId);
 
-      const { data: shareData } = await ownerClient.mutate({
+      const { data: shareData }: any = await ownerClient.mutate({
         mutation: SHARE_DIRECT,
         variables: {
           input: {
@@ -645,6 +707,7 @@ describe('Profile Query Operations Integration Tests', () => {
           },
         },
       });
+      createdShares.push({ profileId, targetAccountId: shareData.shareProfileDirect.targetAccountId });
 
       // Act
       const { data } = await contributorClient.query({

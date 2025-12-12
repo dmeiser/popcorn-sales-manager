@@ -123,6 +123,28 @@ async function deleteItem(pk: string, sk: string): Promise<void> {
 }
 
 /**
+ * Delete test user accounts from DynamoDB.
+ * 
+ * IMPORTANT: Account records are created by the Cognito post-authentication
+ * Lambda trigger when users authenticate. They are NOT created by test code.
+ * We delete them here to satisfy the "empty table after tests" requirement,
+ * but note they will be recreated on the next test run when users authenticate.
+ * 
+ * @param accountIds - Array of account IDs to delete (without ACCOUNT# prefix)
+ */
+export async function deleteTestAccounts(accountIds: string[]): Promise<void> {
+  for (const accountId of accountIds) {
+    const pk = accountId.startsWith('ACCOUNT#') ? accountId : `ACCOUNT#${accountId}`;
+    try {
+      await deleteItem(pk, 'METADATA');
+      console.log(`Deleted account: ${pk}`);
+    } catch (error) {
+      console.warn(`Failed to delete account ${pk}:`, error);
+    }
+  }
+}
+
+/**
  * GraphQL mutation to delete profile (alternative to direct DynamoDB delete).
  */
 export const DELETE_PROFILE = gql`

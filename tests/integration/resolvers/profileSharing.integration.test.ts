@@ -1,8 +1,8 @@
 import '../setup.ts';
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { ApolloClient, gql, HttpLink, InMemoryCache } from '@apollo/client';
 import { createAuthenticatedClient, AuthenticatedClientResult } from '../setup/apolloClient';
-import { getTestPrefix } from '../setup/testData';
+import { getTestPrefix, deleteTestAccounts } from '../setup/testData';
 
 
 // GraphQL Mutations
@@ -88,6 +88,11 @@ describe('Profile Sharing Integration Tests', () => {
   let readonlyAccountId: string;
   let contributorEmail: string;
 
+  // Track created resources for cleanup
+  const createdProfileIds: string[] = [];
+  const createdShares: { profileId: string; targetAccountId: string }[] = [];
+  const createdInviteCodes: string[] = [];
+
   // Helper to create unauthenticated client
   const createUnauthenticatedClient = () => {
     return new ApolloClient({
@@ -113,6 +118,100 @@ describe('Profile Sharing Integration Tests', () => {
     contributorEmail = contributorAuth.email;
   });
 
+  afterAll(async () => {
+    console.log('Cleaning up profile sharing test data...');
+    const { DynamoDBClient, QueryCommand, DeleteItemCommand, ScanCommand } = await import('@aws-sdk/client-dynamodb');
+    const dynamoClient = new DynamoDBClient({ region: 'us-east-1' });
+    const tableName = process.env.TABLE_NAME || 'kernelworx-app-dev';
+    
+    try {
+      // 1. Delete all invites and shares for all created profiles
+      for (const profileId of createdProfileIds) {
+        // Query and delete invites
+        const inviteResult = await dynamoClient.send(new QueryCommand({
+          TableName: tableName,
+          KeyConditionExpression: 'PK = :pk AND begins_with(SK, :sk)',
+          ExpressionAttributeValues: {
+            ':pk': { S: profileId },
+            ':sk': { S: 'INVITE#' },
+          },
+          ProjectionExpression: 'PK, SK',
+        }));
+        
+        for (const item of inviteResult.Items || []) {
+          await dynamoClient.send(new DeleteItemCommand({
+            TableName: tableName,
+            Key: { PK: item.PK, SK: item.SK },
+          }));
+        }
+        
+        // Query and delete shares
+        const shareResult = await dynamoClient.send(new QueryCommand({
+          TableName: tableName,
+          KeyConditionExpression: 'PK = :pk AND begins_with(SK, :sk)',
+          ExpressionAttributeValues: {
+            ':pk': { S: profileId },
+            ':sk': { S: 'SHARE#' },
+          },
+          ProjectionExpression: 'PK, SK',
+        }));
+        
+        for (const item of shareResult.Items || []) {
+          await dynamoClient.send(new DeleteItemCommand({
+            TableName: tableName,
+            Key: { PK: item.PK, SK: item.SK },
+          }));
+        }
+        
+        // Also delete METADATA directly
+        try {
+          await dynamoClient.send(new DeleteItemCommand({
+            TableName: tableName,
+            Key: { 
+              PK: { S: profileId }, 
+              SK: { S: 'METADATA' } 
+            },
+          }));
+        } catch (e) { /* may not exist */ }
+      }
+      
+      // 2. Delete ownership records via GraphQL (this also deletes ACCOUNT#xxx|profileId)
+      for (const profileId of createdProfileIds) {
+        try {
+          await ownerClient.mutate({
+            mutation: DELETE_PROFILE,
+            variables: { profileId },
+          });
+        } catch (e) { /* may already be deleted */ }
+      }
+      
+      // 3. Final sweep: Delete ALL non-account records (catch untracked orphans)
+      const scanResult = await dynamoClient.send(new ScanCommand({
+        TableName: tableName,
+        ProjectionExpression: 'PK, SK',
+      }));
+      
+      for (const item of scanResult.Items || []) {
+        const pk = item.PK?.S || '';
+        // Skip account records (those are created by Cognito and are exempt)
+        if (!pk.startsWith('ACCOUNT#')) {
+          await dynamoClient.send(new DeleteItemCommand({
+            TableName: tableName,
+            Key: { PK: item.PK, SK: item.SK },
+          }));
+        }
+      }
+      
+      // 4. Clean up account records
+      console.log('Cleaning up account records...');
+      // await deleteTestAccounts([ownerAccountId, contributorAccountId, readonlyAccountId]);
+      
+      console.log('Profile sharing test data cleanup complete.');
+    } catch (error) {
+      console.log('Error in cleanup:', error);
+    }
+  }, 60000);
+
 
   describe('createProfileInvite (JavaScript Resolver)', () => {
     it('generates unique invite code with READ permissions', async () => {
@@ -125,6 +224,7 @@ describe('Profile Sharing Integration Tests', () => {
         },
       });
       const testProfileId = profileData.createSellerProfile.profileId;
+      createdProfileIds.push(testProfileId);
 
       // Act: Create invite
       const { data } = await ownerClient.mutate({
@@ -152,6 +252,7 @@ describe('Profile Sharing Integration Tests', () => {
         variables: { input: { sellerName: profileName } },
       });
       const testProfileId = profileData.createSellerProfile.profileId;
+      createdProfileIds.push(testProfileId);
 
       // Act
       const { data } = await ownerClient.mutate({
@@ -175,6 +276,7 @@ describe('Profile Sharing Integration Tests', () => {
         variables: { input: { sellerName: `${getTestPrefix()}-Profile` } },
       });
       const testProfileId = profileData.createSellerProfile.profileId;
+      createdProfileIds.push(testProfileId);
 
       // Act & Assert: Contributor tries to create invite (should fail, no invite to track)
       await expect(
@@ -197,6 +299,7 @@ describe('Profile Sharing Integration Tests', () => {
         variables: { input: { sellerName: `${getTestPrefix()}-InvalidPerm` } },
       });
       const profileId = profileData.createSellerProfile.profileId;
+      createdProfileIds.push(profileId);
 
       // Act & Assert: Try to create invite with invalid permission (should fail, no invite to track)
       await expect(
@@ -220,6 +323,7 @@ describe('Profile Sharing Integration Tests', () => {
         variables: { input: { sellerName: `${getTestPrefix()}-SharedWrite` } },
       });
       const profileId = profileData.createSellerProfile.profileId;
+      createdProfileIds.push(profileId);
 
       const { data: shareData } = await ownerClient.mutate({
         mutation: SHARE_DIRECT,
@@ -268,6 +372,7 @@ describe('Profile Sharing Integration Tests', () => {
         variables: { input: { sellerName: `${getTestPrefix()}-MissingPerms` } },
       });
       const profileId = profileData.createSellerProfile.profileId;
+      createdProfileIds.push(profileId);
 
       // Act & Assert: Try to create invite without permissions (should fail, no invite to track)
       await expect(
@@ -293,6 +398,7 @@ describe('Profile Sharing Integration Tests', () => {
         variables: { input: { sellerName: `${getTestPrefix()}-Unauth` } },
       });
       const profileId = profileData.createSellerProfile.profileId;
+      createdProfileIds.push(profileId);
 
       // Act & Assert: Unauthenticated user tries to create invite (should fail, no invite to track)
       await expect(
@@ -315,6 +421,7 @@ describe('Profile Sharing Integration Tests', () => {
         variables: { input: { sellerName: `${getTestPrefix()}-Timestamps` } },
       });
       const profileId = profileData.createSellerProfile.profileId;
+      createdProfileIds.push(profileId);
 
       const beforeCreate = new Date();
 
@@ -353,6 +460,7 @@ describe('Profile Sharing Integration Tests', () => {
         variables: { input: { sellerName: `${getTestPrefix()}-MultiInvite` } },
       });
       const profileId = profileData.createSellerProfile.profileId;
+      createdProfileIds.push(profileId);
 
       // Act: Create two different invites
       const { data: invite1 } = await ownerClient.mutate({
@@ -390,6 +498,7 @@ describe('Profile Sharing Integration Tests', () => {
         variables: { input: { sellerName: `${getTestPrefix()}-CodeFormat` } },
       });
       const profileId = profileData.createSellerProfile.profileId;
+      createdProfileIds.push(profileId);
 
       // Act: Create invite
       const { data: inviteData } = await ownerClient.mutate({
@@ -419,6 +528,7 @@ describe('Profile Sharing Integration Tests', () => {
         variables: { input: { sellerName: `${getTestPrefix()}-Profile` } },
       });
       const testProfileId = profileData.createSellerProfile.profileId;
+      createdProfileIds.push(testProfileId);
 
       const { data: inviteData } = await ownerClient.mutate({
         mutation: CREATE_INVITE,
@@ -465,6 +575,7 @@ describe('Profile Sharing Integration Tests', () => {
         variables: { input: { sellerName: `${getTestPrefix()}-Profile` } },
       });
       const testProfileId = profileData.createSellerProfile.profileId;
+      createdProfileIds.push(testProfileId);
 
       const { data: inviteData } = await ownerClient.mutate({
         mutation: CREATE_INVITE,
@@ -522,6 +633,7 @@ describe('Profile Sharing Integration Tests', () => {
         variables: { input: { sellerName: `${getTestPrefix()}-Unauth` } },
       });
       const profileId = profileData.createSellerProfile.profileId;
+      createdProfileIds.push(profileId);
 
       const { data: inviteData } = await ownerClient.mutate({
         mutation: CREATE_INVITE,
@@ -550,6 +662,7 @@ describe('Profile Sharing Integration Tests', () => {
         variables: { input: { sellerName: `${getTestPrefix()}-PermCheck` } },
       });
       const profileId = profileData.createSellerProfile.profileId;
+      createdProfileIds.push(profileId);
 
       const { data: inviteData } = await ownerClient.mutate({
         mutation: CREATE_INVITE,
@@ -591,6 +704,7 @@ describe('Profile Sharing Integration Tests', () => {
         variables: { input: { sellerName: `${getTestPrefix()}-Profile` } },
       });
       const testProfileId = profileData.createSellerProfile.profileId;
+      createdProfileIds.push(testProfileId);
 
       // Act
       const { data } = await ownerClient.mutate({
@@ -618,6 +732,7 @@ describe('Profile Sharing Integration Tests', () => {
         variables: { input: { sellerName: `${getTestPrefix()}-Profile` } },
       });
       const testProfileId = profileData.createSellerProfile.profileId;
+      createdProfileIds.push(testProfileId);
 
       // Act & Assert
       await expect(
@@ -641,6 +756,7 @@ describe('Profile Sharing Integration Tests', () => {
         variables: { input: { sellerName: `${getTestPrefix()}-Profile` } },
       });
       const testProfileId = profileData.createSellerProfile.profileId;
+      createdProfileIds.push(testProfileId);
 
       // Act & Assert - contributor tries to share owner's profile with readonly user
       // NOTE: This currently fails because shareProfileDirect has no authorization check
@@ -665,6 +781,7 @@ describe('Profile Sharing Integration Tests', () => {
         variables: { input: { sellerName: `${getTestPrefix()}-UpdateShare` } },
       });
       const profileId = profileData.createSellerProfile.profileId;
+      createdProfileIds.push(profileId);
 
       // First share with READ permission
       const { data: firstShare } = await ownerClient.mutate({
@@ -729,6 +846,7 @@ describe('Profile Sharing Integration Tests', () => {
         variables: { input: { sellerName: `${getTestPrefix()}-MissingEmail` } },
       });
       const profileId = profileData.createSellerProfile.profileId;
+      createdProfileIds.push(profileId);
 
       // Act & Assert: Try to share without email
       await expect(
@@ -752,6 +870,7 @@ describe('Profile Sharing Integration Tests', () => {
         variables: { input: { sellerName: `${getTestPrefix()}-MissingPerms` } },
       });
       const profileId = profileData.createSellerProfile.profileId;
+      createdProfileIds.push(profileId);
 
       // Act & Assert: Try to share without permissions
       await expect(
@@ -778,6 +897,7 @@ describe('Profile Sharing Integration Tests', () => {
         variables: { input: { sellerName: `${getTestPrefix()}-Unauth` } },
       });
       const profileId = profileData.createSellerProfile.profileId;
+      createdProfileIds.push(profileId);
 
       // Act & Assert: Unauthenticated user tries to share
       await expect(
@@ -801,6 +921,7 @@ describe('Profile Sharing Integration Tests', () => {
         variables: { input: { sellerName: `${getTestPrefix()}-Metadata` } },
       });
       const profileId = profileData.createSellerProfile.profileId;
+      createdProfileIds.push(profileId);
 
       // Act: Share profile
       const { data: shareData } = await ownerClient.mutate({
@@ -830,6 +951,7 @@ describe('Profile Sharing Integration Tests', () => {
         variables: { input: { sellerName: `${getTestPrefix()}-InvalidPerm` } },
       });
       const profileId = profileData.createSellerProfile.profileId;
+      createdProfileIds.push(profileId);
 
       // Act & Assert: Try to share with invalid permission
       await expect(
@@ -856,6 +978,7 @@ describe('Profile Sharing Integration Tests', () => {
         variables: { input: { sellerName: `${getTestPrefix()}-Profile` } },
       });
       const testProfileId = profileData.createSellerProfile.profileId;
+      createdProfileIds.push(testProfileId);
 
       const shareResult = await ownerClient.mutate({
         mutation: SHARE_DIRECT,
@@ -894,6 +1017,7 @@ describe('Profile Sharing Integration Tests', () => {
         variables: { input: { sellerName: `${getTestPrefix()}-Profile` } },
       });
       const testProfileId = profileData.createSellerProfile.profileId;
+      createdProfileIds.push(testProfileId);
 
       // Act & Assert
       await expect(
@@ -916,6 +1040,7 @@ describe('Profile Sharing Integration Tests', () => {
         variables: { input: { sellerName: `${getTestPrefix()}-OwnerRevokeTest` } },
       });
       const profileId = profileData.createSellerProfile.profileId;
+      createdProfileIds.push(profileId);
 
       // Owner creates a share
       const { data: shareData } = await ownerClient.mutate({
@@ -955,6 +1080,7 @@ describe('Profile Sharing Integration Tests', () => {
         variables: { input: { sellerName: `${getTestPrefix()}-Profile` } },
       });
       const testProfileId = profileData.createSellerProfile.profileId;
+      createdProfileIds.push(testProfileId);
 
       const shareResult = await ownerClient.mutate({
         mutation: SHARE_DIRECT,
@@ -990,6 +1116,7 @@ describe('Profile Sharing Integration Tests', () => {
         variables: { input: { sellerName: `${getTestPrefix()}-Profile` } },
       });
       const testProfileId = profileData.createSellerProfile.profileId;
+      createdProfileIds.push(testProfileId);
 
       // Act: Try to revoke a share that doesn't exist
       const { data } = await ownerClient.mutate({
@@ -1051,6 +1178,7 @@ describe('Profile Sharing Integration Tests', () => {
         variables: { input: { sellerName: `${getTestPrefix()}-Profile` } },
       });
       const testProfileId = profileData.createSellerProfile.profileId;
+      createdProfileIds.push(testProfileId);
 
       const share1 = await ownerClient.mutate({
         mutation: SHARE_DIRECT,
@@ -1098,6 +1226,7 @@ describe('Profile Sharing Integration Tests', () => {
         variables: { input: { sellerName: `${getTestPrefix()}-DeleteTest` } },
       });
       const profileId = profileData.createSellerProfile.profileId;
+      createdProfileIds.push(profileId);
 
       const shareResult = await ownerClient.mutate({
         mutation: SHARE_DIRECT,
@@ -1161,6 +1290,7 @@ describe('Profile Sharing Integration Tests', () => {
         variables: { input: { sellerName: `${getTestPrefix()}-MissingId` } },
       });
       const profileId = profileData.createSellerProfile.profileId;
+      createdProfileIds.push(profileId);
 
       // Act & Assert: Try to revoke without targetAccountId
       await expect(
@@ -1199,6 +1329,7 @@ describe('Profile Sharing Integration Tests', () => {
         variables: { input: { sellerName: `${getTestPrefix()}-SelfRevoke` } },
       });
       const profileId = profileData.createSellerProfile.profileId;
+      createdProfileIds.push(profileId);
 
       const shareResult = await ownerClient.mutate({
         mutation: SHARE_DIRECT,
@@ -1232,6 +1363,7 @@ describe('Profile Sharing Integration Tests', () => {
         variables: { input: { sellerName: `${getTestPrefix()}-OwnerSelfRevoke` } },
       });
       const profileId = profileData.createSellerProfile.profileId;
+      createdProfileIds.push(profileId);
 
       // Act: Owner tries to "revoke" themselves (there's no share record for the owner)
       const { data } = await ownerClient.mutate({
@@ -1256,6 +1388,7 @@ describe('Profile Sharing Integration Tests', () => {
         variables: { input: { sellerName: `${getTestPrefix()}-ConcurrentRevoke` } },
       });
       const profileId = profileData.createSellerProfile.profileId;
+      createdProfileIds.push(profileId);
 
       const shareResult = await ownerClient.mutate({
         mutation: SHARE_DIRECT,
