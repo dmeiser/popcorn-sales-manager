@@ -18,7 +18,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { ApolloClient, gql } from '@apollo/client';
 import { createAuthenticatedClient, AuthenticatedClientResult } from '../setup/apolloClient';
 import { waitForGSIConsistency } from '../setup/testData';
-import { trackResource, cleanupAllTrackedResources } from '../setup/resourceTracker';
+
 
 // GraphQL Queries
 const GET_CATALOG = gql`
@@ -73,12 +73,19 @@ const LIST_MY_CATALOGS = gql`
       products {
         productId
         productName
+        description
         price
         sortOrder
       }
       createdAt
       updatedAt
     }
+  }
+`;
+
+const DELETE_CATALOG = gql`
+  mutation DeleteCatalog($catalogId: ID!) {
+    deleteCatalog(catalogId: $catalogId)
   }
 `;
 
@@ -129,7 +136,6 @@ describe('Catalog Query Resolvers Integration Tests', () => {
       },
     });
     publicCatalogId = publicCatalog.data.createCatalog.catalogId;
-    trackResource(SUITE_ID, 'catalog', publicCatalogId, undefined, ownerClient);
 
     const privateCatalog = await ownerClient.mutate({
       mutation: CREATE_CATALOG,
@@ -144,7 +150,6 @@ describe('Catalog Query Resolvers Integration Tests', () => {
       },
     });
     privateCatalogId = privateCatalog.data.createCatalog.catalogId;
-    trackResource(SUITE_ID, 'catalog', privateCatalogId, undefined, ownerClient);
 
     // Create contributor catalogs
     const contributorPublic = await contributorClient.mutate({
@@ -160,7 +165,6 @@ describe('Catalog Query Resolvers Integration Tests', () => {
       },
     });
     contributorPublicCatalogId = contributorPublic.data.createCatalog.catalogId;
-    trackResource(SUITE_ID, 'catalog', contributorPublicCatalogId, undefined, contributorClient);
 
     const contributorPrivate = await contributorClient.mutate({
       mutation: CREATE_CATALOG,
@@ -175,7 +179,6 @@ describe('Catalog Query Resolvers Integration Tests', () => {
       },
     });
     contributorPrivateCatalogId = contributorPrivate.data.createCatalog.catalogId;
-    trackResource(SUITE_ID, 'catalog', contributorPrivateCatalogId, undefined, contributorClient);
 
     console.log(`📋 Created catalogs:
       - Public catalog: ${publicCatalogId}
@@ -208,8 +211,21 @@ describe('Catalog Query Resolvers Integration Tests', () => {
   });
 
   afterAll(async () => {
-    await cleanupAllTrackedResources(SUITE_ID);
+    // Clean up all catalogs created during beforeAll
+    if (publicCatalogId) {
+      await ownerClient.mutate({ mutation: DELETE_CATALOG, variables: { catalogId: publicCatalogId } });
+    }
+    if (privateCatalogId) {
+      await ownerClient.mutate({ mutation: DELETE_CATALOG, variables: { catalogId: privateCatalogId } });
+    }
+    if (contributorPublicCatalogId) {
+      await contributorClient.mutate({ mutation: DELETE_CATALOG, variables: { catalogId: contributorPublicCatalogId } });
+    }
+    if (contributorPrivateCatalogId) {
+      await contributorClient.mutate({ mutation: DELETE_CATALOG, variables: { catalogId: contributorPrivateCatalogId } });
+    }
   });
+
 
   describe('getCatalog', () => {
     describe('Happy Path', () => {

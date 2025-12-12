@@ -1,7 +1,8 @@
 import '../setup.ts';
-import { describe, test, expect, beforeAll, afterAll } from 'vitest';
+import { describe, test, expect, beforeAll } from 'vitest';
 import { ApolloClient, gql, NormalizedCacheObject } from '@apollo/client';
 import { createAuthenticatedClient } from '../setup/apolloClient';
+
 
 /**
  * Integration tests for Share Query Operations (listSharesByProfile, listInvitesByProfile)
@@ -90,7 +91,27 @@ const LIST_INVITES_BY_PROFILE = gql`
   }
 `;
 
+const DELETE_PROFILE = gql`
+  mutation DeleteProfile($profileId: ID!) {
+    deleteSellerProfile(profileId: $profileId)
+  }
+`;
+
+const REVOKE_SHARE = gql`
+  mutation RevokeShare($input: RevokeShareInput!) {
+    revokeShare(input: $input)
+  }
+`;
+
+const DELETE_INVITE = gql`
+  mutation DeleteInvite($inviteCode: ID!) {
+    deleteProfileInvite(inviteCode: $inviteCode)
+  }
+`;
+
 describe('Share Query Operations Integration Tests', () => {
+  const SUITE_ID = 'share-queries';
+  
   let ownerClient: ApolloClient<NormalizedCacheObject>;
   let contributorClient: ApolloClient<NormalizedCacheObject>;
   let readonlyClient: ApolloClient<NormalizedCacheObject>;
@@ -163,9 +184,6 @@ describe('Share Query Operations Integration Tests', () => {
     console.log(`Test data created: Profile=${testProfileId}, Share=${testShareId}, Invite=${testInviteCode}`);
   }, 30000);
 
-  afterAll(async () => {
-    console.log('Test completed. Cleanup can be done via DynamoDB TTL or manual scripts.');
-  });
 
   // ========================================
   // 5.13.1: listSharesByProfile

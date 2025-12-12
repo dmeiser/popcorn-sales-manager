@@ -1,7 +1,8 @@
 import '../setup.ts';
-import { describe, test, expect, beforeAll, afterAll } from 'vitest';
+import { describe, test, expect, beforeAll } from 'vitest';
 import { ApolloClient, NormalizedCacheObject, gql } from '@apollo/client';
 import { createAuthenticatedClient } from '../setup/apolloClient';
+
 
 /**
  * Integration tests for Order Operations (createOrder, updateOrder, deleteOrder)
@@ -125,6 +126,8 @@ const DELETE_ORDER = gql`
 `;
 
 describe('Order Operations Integration Tests', () => {
+  const SUITE_ID = 'order-operations';
+  
   let ownerClient: ApolloClient<NormalizedCacheObject>;
   let contributorClient: ApolloClient<NormalizedCacheObject>;
   let readonlyClient: ApolloClient<NormalizedCacheObject>;
@@ -134,8 +137,6 @@ describe('Order Operations Integration Tests', () => {
   let testSeasonId: string;
   let testCatalogId: string;
   let testProductId: string;
-
-  let createdOrderIds: string[] = [];
 
   beforeAll(async () => {
     // Authenticate all test users
@@ -217,7 +218,7 @@ describe('Order Operations Integration Tests', () => {
     }
 
     // 4. Share profile with contributor (WRITE)
-    await ownerClient.mutate({
+    const { data: share1Data } = await ownerClient.mutate({
       mutation: SHARE_PROFILE_DIRECT,
       variables: {
         input: {
@@ -229,7 +230,7 @@ describe('Order Operations Integration Tests', () => {
     });
 
     // 5. Share profile with readonly (READ)
-    await ownerClient.mutate({
+    const { data: share2Data } = await ownerClient.mutate({
       mutation: SHARE_PROFILE_DIRECT,
       variables: {
         input: {
@@ -243,20 +244,6 @@ describe('Order Operations Integration Tests', () => {
     console.log(`Test data created: Profile=${testProfileId}, Season=${testSeasonId}, Product=${testProductId}`);
   }, 30000);
 
-  afterAll(async () => {
-    // Cleanup: Delete all test orders
-    for (const orderId of createdOrderIds) {
-      try {
-        await ownerClient.mutate({
-          mutation: DELETE_ORDER,
-          variables: { orderId },
-        });
-      } catch (error) {
-        console.error(`Failed to delete order ${orderId}:`, error);
-      }
-    }
-    console.log(`Cleaned up ${createdOrderIds.length} test orders`);
-  });
 
   describe('createOrder', () => {
     test('creates order with valid line items', async () => {
@@ -291,8 +278,7 @@ describe('Order Operations Integration Tests', () => {
       expect(data.createOrder.lineItems[0].pricePerUnit).toBe(10.00);
       expect(data.createOrder.totalAmount).toBe(20.00);
 
-      // Save for cleanup
-      createdOrderIds.push(data.createOrder.orderId);
+      // Track for cleanup
     }, 10000);
 
     test('contributor with WRITE access can create order', async () => {
@@ -318,8 +304,7 @@ describe('Order Operations Integration Tests', () => {
       expect(data.createOrder).toBeDefined();
       expect(data.createOrder.customerName).toBe('Jane Smith');
 
-      // Save for cleanup
-      createdOrderIds.push(data.createOrder.orderId);
+      // Track for cleanup
     }, 10000);
 
     test('rejects order with non-existent product', async () => {
@@ -392,9 +377,8 @@ describe('Order Operations Integration Tests', () => {
       });
 
       const orderId = createData.createOrder.orderId;
-      createdOrderIds.push(orderId);
 
-      // Now update it
+      // Now delete it
       const updateInput = {
         orderId,
         customerName: 'Updated Name',
@@ -431,9 +415,8 @@ describe('Order Operations Integration Tests', () => {
       });
 
       const orderId = createData.createOrder.orderId;
-      createdOrderIds.push(orderId);
 
-      // Contributor updates it
+      // Contributor deletes it
       const updateInput = {
         orderId,
         customerName: 'Updated by Contributor',
@@ -592,7 +575,6 @@ describe('Order Operations Integration Tests', () => {
       });
 
       const orderId = createData.createOrder.orderId;
-      createdOrderIds.push(orderId);
 
       // Readonly tries to update
       await expect(
@@ -632,7 +614,6 @@ describe('Order Operations Integration Tests', () => {
       });
 
       const orderId = createData.createOrder.orderId;
-      createdOrderIds.push(orderId);
 
       // Readonly tries to delete
       await expect(
@@ -746,7 +727,6 @@ describe('Order Operations Integration Tests', () => {
       });
 
       const orderId = createData.createOrder.orderId;
-      createdOrderIds.push(orderId);
 
       // Update with increased quantity
       const updateInput = {
@@ -790,7 +770,6 @@ describe('Order Operations Integration Tests', () => {
       });
 
       const orderId = createData.createOrder.orderId;
-      createdOrderIds.push(orderId);
 
       // Update payment method
       const updateInput = {

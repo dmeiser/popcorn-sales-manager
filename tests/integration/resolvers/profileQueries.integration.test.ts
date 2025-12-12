@@ -1,9 +1,9 @@
 import '../setup.ts';
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll } from 'vitest';
 import { ApolloClient, gql, HttpLink, InMemoryCache } from '@apollo/client';
 import { createAuthenticatedClient, AuthenticatedClientResult } from '../setup/apolloClient';
 import { getTestPrefix, waitForGSIConsistency } from '../setup/testData';
-import { trackResource, cleanupAllTrackedResources } from '../setup/resourceTracker';
+
 
 // GraphQL Mutations (for test setup)
 const CREATE_PROFILE = gql`
@@ -48,11 +48,22 @@ const LIST_MY_PROFILES = gql`
       profileId
       sellerName
       ownerAccountId
+      isOwner
       createdAt
       updatedAt
-      isOwner
-      permissions
     }
+  }
+`;
+
+const DELETE_PROFILE = gql`
+  mutation DeleteProfile($profileId: ID!) {
+    deleteSellerProfile(profileId: $profileId)
+  }
+`;
+
+const REVOKE_SHARE = gql`
+  mutation RevokeShare($input: RevokeShareInput!) {
+    revokeShare(input: $input)
   }
 `;
 
@@ -102,9 +113,6 @@ describe('Profile Query Operations Integration Tests', () => {
     contributorEmail = contributorAuth.email;
   });
 
-  afterAll(async () => {
-    await cleanupAllTrackedResources(SUITE_ID);
-  });
 
   describe('getProfile', () => {
     it('returns profile by profileId for owner', async () => {
@@ -114,18 +122,18 @@ describe('Profile Query Operations Integration Tests', () => {
         mutation: CREATE_PROFILE,
         variables: { input: { sellerName: profileName } },
       });
-      testProfileId = createData.createSellerProfile.profileId;
+      const profileId = createData.createSellerProfile.profileId;
 
       // Act
       const { data } = await ownerClient.query({
         query: GET_PROFILE,
-        variables: { profileId: testProfileId },
+        variables: { profileId },
         fetchPolicy: 'network-only',
       });
 
       // Assert
       expect(data.getProfile).toBeDefined();
-      expect(data.getProfile.profileId).toBe(testProfileId);
+      expect(data.getProfile.profileId).toBe(profileId);
       expect(data.getProfile.sellerName).toBe(profileName);
       expect(data.getProfile.ownerAccountId).toBe(ownerAccountId);
       expect(data.getProfile.isOwner).toBe(true);
@@ -138,12 +146,12 @@ describe('Profile Query Operations Integration Tests', () => {
         mutation: CREATE_PROFILE,
         variables: { input: { sellerName: profileName } },
       });
-      testProfileId = createData.createSellerProfile.profileId;
+      const profileId = createData.createSellerProfile.profileId;
 
       // Act
       const { data } = await ownerClient.query({
         query: GET_PROFILE,
-        variables: { profileId: testProfileId },
+        variables: { profileId },
         fetchPolicy: 'network-only',
       });
 
@@ -164,13 +172,13 @@ describe('Profile Query Operations Integration Tests', () => {
         mutation: CREATE_PROFILE,
         variables: { input: { sellerName: profileName } },
       });
-      testProfileId = createData.createSellerProfile.profileId;
+      const profileId = createData.createSellerProfile.profileId;
 
-      await ownerClient.mutate({
+      const { data: shareData } = await ownerClient.mutate({
         mutation: SHARE_DIRECT,
         variables: {
           input: {
-            profileId: testProfileId,
+            profileId,
             targetAccountEmail: contributorEmail,
             permissions: ['READ'],
           },
@@ -180,12 +188,12 @@ describe('Profile Query Operations Integration Tests', () => {
       // Act
       const { data } = await contributorClient.query({
         query: GET_PROFILE,
-        variables: { profileId: testProfileId },
+        variables: { profileId },
         fetchPolicy: 'network-only',
       });
 
       // Assert
-      expect(data.getProfile.profileId).toBe(testProfileId);
+      expect(data.getProfile.profileId).toBe(profileId);
       expect(data.getProfile.isOwner).toBe(false);
       // TODO: Bug - permissions field is null, needs field resolver implementation
       expect(data.getProfile.permissions).toBeNull();
@@ -198,13 +206,13 @@ describe('Profile Query Operations Integration Tests', () => {
         mutation: CREATE_PROFILE,
         variables: { input: { sellerName: profileName } },
       });
-      testProfileId = createData.createSellerProfile.profileId;
+      const profileId = createData.createSellerProfile.profileId;
 
-      await ownerClient.mutate({
+      const { data: shareData } = await ownerClient.mutate({
         mutation: SHARE_DIRECT,
         variables: {
           input: {
-            profileId: testProfileId,
+            profileId,
             targetAccountEmail: contributorEmail,
             permissions: ['WRITE'],
           },
@@ -214,12 +222,12 @@ describe('Profile Query Operations Integration Tests', () => {
       // Act
       const { data } = await contributorClient.query({
         query: GET_PROFILE,
-        variables: { profileId: testProfileId },
+        variables: { profileId },
         fetchPolicy: 'network-only',
       });
 
       // Assert
-      expect(data.getProfile.profileId).toBe(testProfileId);
+      expect(data.getProfile.profileId).toBe(profileId);
       expect(data.getProfile.isOwner).toBe(false);
       // TODO: Bug - permissions field is null, needs field resolver implementation
       expect(data.getProfile.permissions).toBeNull();
@@ -232,18 +240,18 @@ describe('Profile Query Operations Integration Tests', () => {
         mutation: CREATE_PROFILE,
         variables: { input: { sellerName: profileName } },
       });
-      testProfileId = createData.createSellerProfile.profileId;
+      const profileId = createData.createSellerProfile.profileId;
 
       // Act: Contributor (not shared) queries profile
       // TODO: Bug - getProfile doesn't enforce authorization, returns profile with permissions: null
       const { data } = await contributorClient.query({
         query: GET_PROFILE,
-        variables: { profileId: testProfileId },
+        variables: { profileId },
         fetchPolicy: 'network-only',
       });
 
       // Assert: Currently returns profile (should reject!)
-      expect(data.getProfile.profileId).toBe(testProfileId);
+      expect(data.getProfile.profileId).toBe(profileId);
       expect(data.getProfile.isOwner).toBe(false);
       expect(data.getProfile.permissions).toBeNull();
     });
@@ -255,14 +263,14 @@ describe('Profile Query Operations Integration Tests', () => {
         mutation: CREATE_PROFILE,
         variables: { input: { sellerName: profileName } },
       });
-      testProfileId = createData.createSellerProfile.profileId;
+      const profileId = createData.createSellerProfile.profileId;
 
       // Act & Assert
       const unauthClient = createUnauthenticatedClient();
       await expect(
         unauthClient.query({
           query: GET_PROFILE,
-          variables: { profileId: testProfileId },
+          variables: { profileId },
           fetchPolicy: 'network-only',
         })
       ).rejects.toThrow();
@@ -336,10 +344,6 @@ describe('Profile Query Operations Integration Tests', () => {
       const profileIds = profiles.map((p: any) => p.profileId);
       expect(profileIds).toContain(profileId1);
       expect(profileIds).toContain(profileId2);
-
-      // Cleanup
-      await cleanupTestData({ profileId: profileId1 });
-      await cleanupTestData({ profileId: profileId2 });
     });
 
     it('returns empty array if no profiles', async () => {
@@ -363,7 +367,7 @@ describe('Profile Query Operations Integration Tests', () => {
         mutation: CREATE_PROFILE,
         variables: { input: { sellerName: profileName } },
       });
-      testProfileId = createData.createSellerProfile.profileId;
+      const profileId = createData.createSellerProfile.profileId;
 
       // Wait for GSI eventual consistency with retry logic (Bug #21 - known AWS limitation)
       // Poll listMyProfiles until the profile appears in results
@@ -377,13 +381,13 @@ describe('Profile Query Operations Integration Tests', () => {
           });
           return data.listMyProfiles;
         },
-        (items: any[]) => items.some((p: any) => p.profileId === testProfileId),
+        (items: any[]) => items.some((p: any) => p.profileId === profileId),
         120, // maxAttempts (2 minutes of polling)
         1000 // delayMs
       );
 
       // Assert
-      const profile = profiles.find((p: any) => p.profileId === testProfileId);
+      const profile = profiles.find((p: any) => p.profileId === profileId);
       expect(profile).toBeDefined();
       expect(profile).toHaveProperty('profileId');
       expect(profile).toHaveProperty('sellerName');
@@ -401,7 +405,7 @@ describe('Profile Query Operations Integration Tests', () => {
         mutation: CREATE_PROFILE,
         variables: { input: { sellerName: profileName } },
       });
-      testProfileId = createData.createSellerProfile.profileId;
+      const profileId = createData.createSellerProfile.profileId;
 
       // Act: Contributor queries their profiles
       const { data } = await contributorClient.query({
@@ -411,7 +415,7 @@ describe('Profile Query Operations Integration Tests', () => {
 
       // Assert: Owner's profile should not appear
       const profileIds = data.listMyProfiles.map((p: any) => p.profileId);
-      expect(profileIds).not.toContain(testProfileId);
+      expect(profileIds).not.toContain(profileId);
     });
 
     it('does not return shared profiles (those are in listSharedProfiles)', async () => {
@@ -421,13 +425,13 @@ describe('Profile Query Operations Integration Tests', () => {
         mutation: CREATE_PROFILE,
         variables: { input: { sellerName: profileName } },
       });
-      testProfileId = createData.createSellerProfile.profileId;
+      const profileId = createData.createSellerProfile.profileId;
 
-      await ownerClient.mutate({
+      const { data: shareData } = await ownerClient.mutate({
         mutation: SHARE_DIRECT,
         variables: {
           input: {
-            profileId: testProfileId,
+            profileId,
             targetAccountEmail: contributorEmail,
             permissions: ['READ'],
           },
@@ -442,7 +446,7 @@ describe('Profile Query Operations Integration Tests', () => {
 
       // Assert: Shared profile should not appear in listMyProfiles
       const profileIds = data.listMyProfiles.map((p: any) => p.profileId);
-      expect(profileIds).not.toContain(testProfileId);
+      expect(profileIds).not.toContain(profileId);
     });
 
     it('authenticated user can list their profiles', async () => {
@@ -523,10 +527,6 @@ describe('Profile Query Operations Integration Tests', () => {
       const profileIds = data.listSharedProfiles.map((p: any) => p.profileId);
       expect(profileIds).toContain(profileId1);
       expect(profileIds).toContain(profileId2);
-
-      // Cleanup
-      await cleanupTestData({ profileId: profileId1, shareAccountId: contributorAccountId });
-      await cleanupTestData({ profileId: profileId2, shareAccountId: contributorAccountId });
     });
 
     it('returns empty array if no shared profiles', async () => {
@@ -548,13 +548,13 @@ describe('Profile Query Operations Integration Tests', () => {
         mutation: CREATE_PROFILE,
         variables: { input: { sellerName: profileName } },
       });
-      testProfileId = createData.createSellerProfile.profileId;
+      const profileId = createData.createSellerProfile.profileId;
 
-      await ownerClient.mutate({
+      const { data: shareData } = await ownerClient.mutate({
         mutation: SHARE_DIRECT,
         variables: {
           input: {
-            profileId: testProfileId,
+            profileId,
             targetAccountEmail: contributorEmail,
             permissions: ['READ', 'WRITE'],
           },
@@ -568,14 +568,10 @@ describe('Profile Query Operations Integration Tests', () => {
       });
 
       // Assert: Share items have permissions
-      const profile = data.listSharedProfiles.find((p: any) => p.profileId === testProfileId);
+      const profile = data.listSharedProfiles.find((p: any) => p.profileId === profileId);
       expect(profile).toBeDefined();
       expect(profile.permissions).toContain('READ');
       expect(profile.permissions).toContain('WRITE');
-
-      // Cleanup
-      await cleanupTestData({ profileId: testProfileId, shareAccountId: contributorAccountId });
-      testProfileId = '';
     });
 
     it('does not return owned profiles (those are in listMyProfiles)', async () => {
@@ -585,7 +581,7 @@ describe('Profile Query Operations Integration Tests', () => {
         mutation: CREATE_PROFILE,
         variables: { input: { sellerName: profileName } },
       });
-      testProfileId = createData.createSellerProfile.profileId;
+      const profileId = createData.createSellerProfile.profileId;
 
       // Act: Owner queries shared profiles
       const { data } = await ownerClient.query({
@@ -595,7 +591,7 @@ describe('Profile Query Operations Integration Tests', () => {
 
       // Assert: Owned profile should not appear in listSharedProfiles
       const profileIds = data.listSharedProfiles.map((p: any) => p.profileId);
-      expect(profileIds).not.toContain(testProfileId);
+      expect(profileIds).not.toContain(profileId);
     });
 
     it('includes READ permissions correctly', async () => {
@@ -605,13 +601,13 @@ describe('Profile Query Operations Integration Tests', () => {
         mutation: CREATE_PROFILE,
         variables: { input: { sellerName: profileName } },
       });
-      testProfileId = createData.createSellerProfile.profileId;
+      const profileId = createData.createSellerProfile.profileId;
 
-      await ownerClient.mutate({
+      const { data: shareData } = await ownerClient.mutate({
         mutation: SHARE_DIRECT,
         variables: {
           input: {
-            profileId: testProfileId,
+            profileId,
             targetAccountEmail: contributorEmail,
             permissions: ['READ'],
           },
@@ -625,13 +621,9 @@ describe('Profile Query Operations Integration Tests', () => {
       });
 
       // Assert
-      const profile = data.listSharedProfiles.find((p: any) => p.profileId === testProfileId);
+      const profile = data.listSharedProfiles.find((p: any) => p.profileId === profileId);
       expect(profile).toBeDefined();
       expect(profile.permissions).toEqual(['READ']);
-
-      // Cleanup
-      await cleanupTestData({ profileId: testProfileId, shareAccountId: contributorAccountId });
-      testProfileId = '';
     });
 
     it('includes WRITE permissions correctly', async () => {
@@ -641,13 +633,13 @@ describe('Profile Query Operations Integration Tests', () => {
         mutation: CREATE_PROFILE,
         variables: { input: { sellerName: profileName } },
       });
-      testProfileId = createData.createSellerProfile.profileId;
+      const profileId = createData.createSellerProfile.profileId;
 
-      await ownerClient.mutate({
+      const { data: shareData } = await ownerClient.mutate({
         mutation: SHARE_DIRECT,
         variables: {
           input: {
-            profileId: testProfileId,
+            profileId,
             targetAccountEmail: contributorEmail,
             permissions: ['WRITE'],
           },
@@ -661,13 +653,9 @@ describe('Profile Query Operations Integration Tests', () => {
       });
 
       // Assert
-      const profile = data.listSharedProfiles.find((p: any) => p.profileId === testProfileId);
+      const profile = data.listSharedProfiles.find((p: any) => p.profileId === profileId);
       expect(profile).toBeDefined();
       expect(profile.permissions).toEqual(['WRITE']);
-
-      // Cleanup
-      await cleanupTestData({ profileId: testProfileId, shareAccountId: contributorAccountId });
-      testProfileId = '';
     });
 
     it('authenticated user can list shared profiles', async () => {

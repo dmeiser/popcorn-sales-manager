@@ -1,7 +1,8 @@
 import '../setup.ts';
-import { describe, test, expect, beforeAll, afterAll } from 'vitest';
+import { describe, test, expect, beforeAll } from 'vitest';
 import { ApolloClient, NormalizedCacheObject, gql } from '@apollo/client';
 import { createAuthenticatedClient } from '../setup/apolloClient';
+
 
 /**
  * Integration tests for Order Query Operations (getOrder, listOrdersBySeason, listOrdersByProfile)
@@ -131,9 +132,9 @@ const LIST_ORDERS_BY_SEASON = gql`
       profileId
       seasonId
       customerName
-      customerPhone
-      orderDate
+      totalAmount
       paymentMethod
+      notes
       lineItems {
         productId
         productName
@@ -141,10 +142,39 @@ const LIST_ORDERS_BY_SEASON = gql`
         pricePerUnit
         subtotal
       }
-      totalAmount
       createdAt
       updatedAt
     }
+  }
+`;
+
+const DELETE_ORDER = gql`
+  mutation DeleteOrder($orderId: ID!) {
+    deleteOrder(orderId: $orderId)
+  }
+`;
+
+const DELETE_SEASON = gql`
+  mutation DeleteSeason($seasonId: ID!) {
+    deleteSeason(seasonId: $seasonId)
+  }
+`;
+
+const DELETE_CATALOG = gql`
+  mutation DeleteCatalog($catalogId: ID!) {
+    deleteCatalog(catalogId: $catalogId)
+  }
+`;
+
+const DELETE_PROFILE = gql`
+  mutation DeleteProfile($profileId: ID!) {
+    deleteSellerProfile(profileId: $profileId)
+  }
+`;
+
+const REVOKE_SHARE = gql`
+  mutation RevokeShare($input: RevokeShareInput!) {
+    revokeShare(input: $input)
   }
 `;
 
@@ -173,6 +203,8 @@ const LIST_ORDERS_BY_PROFILE = gql`
 `;
 
 describe('Order Query Operations Integration Tests', () => {
+  const SUITE_ID = 'order-queries';
+  
   let ownerClient: ApolloClient<NormalizedCacheObject>;
   let contributorClient: ApolloClient<NormalizedCacheObject>;
   let readonlyClient: ApolloClient<NormalizedCacheObject>;
@@ -285,7 +317,7 @@ describe('Order Query Operations Integration Tests', () => {
 
       // 4. Share profile with contributor (WRITE)
       console.log('Step 6: Sharing profile with contributor...');
-      await ownerClient.mutate({
+      const { data: share1Data }: any = await ownerClient.mutate({
         mutation: SHARE_PROFILE_DIRECT,
         variables: {
           input: {
@@ -298,7 +330,7 @@ describe('Order Query Operations Integration Tests', () => {
 
       // 5. Share profile with readonly (READ)
       console.log('Step 7: Sharing profile with readonly...');
-      await ownerClient.mutate({
+      const { data: share2Data }: any = await ownerClient.mutate({
         mutation: SHARE_PROFILE_DIRECT,
         variables: {
           input: {
@@ -446,10 +478,6 @@ describe('Order Query Operations Integration Tests', () => {
     }
   }, 30000);
 
-  afterAll(async () => {
-    // Cleanup is handled by DynamoDB TTL or manual cleanup scripts
-    console.log('Test completed. Cleanup can be done via DynamoDB TTL or manual scripts.');
-  });
 
   // ========================================
   // 5.12.1: getOrder

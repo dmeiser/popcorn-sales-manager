@@ -1,8 +1,9 @@
 import '../setup.ts';
-import { describe, it, expect, beforeAll, afterEach } from 'vitest';
+import { describe, it, expect, beforeAll } from 'vitest';
 import { ApolloClient, gql, HttpLink, InMemoryCache } from '@apollo/client';
 import { createAuthenticatedClient, AuthenticatedClientResult } from '../setup/apolloClient';
-import { cleanupTestData, getTestPrefix } from '../setup/testData';
+import { getTestPrefix } from '../setup/testData';
+
 
 // GraphQL Mutations
 const CREATE_PROFILE = gql`
@@ -59,6 +60,7 @@ const LIST_MY_PROFILES = gql`
   }
 `;
 
+
 describe('Profile Operations Integration Tests', () => {
   let ownerClient: ApolloClient<any>;
   let contributorClient: ApolloClient<any>;
@@ -66,7 +68,6 @@ describe('Profile Operations Integration Tests', () => {
   let ownerAccountId: string;
   let contributorAccountId: string;
   let readonlyAccountId: string;
-  let testProfileId: string;
 
   // Helper to create unauthenticated client
   const createUnauthenticatedClient = () => {
@@ -92,15 +93,6 @@ describe('Profile Operations Integration Tests', () => {
     readonlyAccountId = readonlyAuth.accountId;
   });
 
-  afterEach(async () => {
-    // Clean up test data after each test
-    if (testProfileId) {
-      await cleanupTestData({
-        profileId: testProfileId,
-      });
-      testProfileId = '';
-    }
-  });
 
   describe('createSellerProfile (Lambda Resolver)', () => {
     it('creates profile with valid sellerName', async () => {
@@ -113,7 +105,7 @@ describe('Profile Operations Integration Tests', () => {
         },
       });
 
-      testProfileId = data.createSellerProfile.profileId;
+      const testProfileId = data.createSellerProfile.profileId;
 
       // Assert
       expect(data.createSellerProfile.profileId).toMatch(/^PROFILE#/);
@@ -138,11 +130,6 @@ describe('Profile Operations Integration Tests', () => {
         variables: { input: { sellerName: profileName2 } },
       });
 
-      // Clean up second profile
-      await cleanupTestData({ profileId: data2.createSellerProfile.profileId });
-      
-      testProfileId = data1.createSellerProfile.profileId;
-
       // Assert
       expect(data1.createSellerProfile.profileId).not.toBe(data2.createSellerProfile.profileId);
     });
@@ -155,7 +142,7 @@ describe('Profile Operations Integration Tests', () => {
         variables: { input: { sellerName: profileName } },
       });
 
-      testProfileId = data.createSellerProfile.profileId;
+      const testProfileId = data.createSellerProfile.profileId;
 
       // Assert
       expect(data.createSellerProfile.ownerAccountId).toBe(ownerAccountId);
@@ -169,7 +156,7 @@ describe('Profile Operations Integration Tests', () => {
         variables: { input: { sellerName: profileName } },
       });
 
-      testProfileId = data.createSellerProfile.profileId;
+      const testProfileId = data.createSellerProfile.profileId;
 
       // Assert
       expect(data.createSellerProfile.createdAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
@@ -185,7 +172,7 @@ describe('Profile Operations Integration Tests', () => {
         variables: { input: { sellerName: profileName } },
       });
 
-      testProfileId = data.createSellerProfile.profileId;
+      const testProfileId = data.createSellerProfile.profileId;
 
       // Assert
       expect(data.createSellerProfile).toBeDefined();
@@ -217,42 +204,42 @@ describe('Profile Operations Integration Tests', () => {
     });
 
     it('accepts sellerName with special characters', async () => {
-      // Act
+      // Arrange & Act
       const profileName = `${getTestPrefix()}-Profile's & "Name"!`;
       const { data } = await ownerClient.mutate({
         mutation: CREATE_PROFILE,
         variables: { input: { sellerName: profileName } },
       });
 
-      testProfileId = data.createSellerProfile.profileId;
+      const testProfileId = data.createSellerProfile.profileId;
 
       // Assert
       expect(data.createSellerProfile.sellerName).toBe(profileName);
     });
 
     it('accepts sellerName with spaces', async () => {
-      // Act
+      // Arrange & Act
       const profileName = `${getTestPrefix()} Test Profile With Spaces`;
       const { data } = await ownerClient.mutate({
         mutation: CREATE_PROFILE,
         variables: { input: { sellerName: profileName } },
       });
 
-      testProfileId = data.createSellerProfile.profileId;
+      const testProfileId = data.createSellerProfile.profileId;
 
       // Assert
       expect(data.createSellerProfile.sellerName).toBe(profileName);
     });
 
     it('profile includes all required fields', async () => {
-      // Act
+      // Arrange & Act
       const profileName = `${getTestPrefix()}-CompleteFieldsTest`;
       const { data } = await ownerClient.mutate({
         mutation: CREATE_PROFILE,
         variables: { input: { sellerName: profileName } },
       });
 
-      testProfileId = data.createSellerProfile.profileId;
+      const testProfileId = data.createSellerProfile.profileId;
 
       // Assert
       expect(data.createSellerProfile).toHaveProperty('profileId');
@@ -271,7 +258,7 @@ describe('Profile Operations Integration Tests', () => {
         mutation: CREATE_PROFILE,
         variables: { input: { sellerName: profileName } },
       });
-      testProfileId = createData.createSellerProfile.profileId;
+      const testProfileId = createData.createSellerProfile.profileId;
 
       // Act: Update profile
       const newName = `${getTestPrefix()}-UpdatedName`;
@@ -297,7 +284,7 @@ describe('Profile Operations Integration Tests', () => {
         mutation: CREATE_PROFILE,
         variables: { input: { sellerName: profileName } },
       });
-      testProfileId = createData.createSellerProfile.profileId;
+      const testProfileId = createData.createSellerProfile.profileId;
       const originalUpdatedAt = createData.createSellerProfile.updatedAt;
 
       // Wait a moment to ensure timestamp differs
@@ -327,7 +314,7 @@ describe('Profile Operations Integration Tests', () => {
         mutation: CREATE_PROFILE,
         variables: { input: { sellerName: profileName } },
       });
-      testProfileId = createData.createSellerProfile.profileId;
+      const testProfileId = createData.createSellerProfile.profileId;
 
       // Act
       const newName = `${getTestPrefix()}-OwnerUpdated`;
@@ -352,7 +339,7 @@ describe('Profile Operations Integration Tests', () => {
         mutation: CREATE_PROFILE,
         variables: { input: { sellerName: profileName } },
       });
-      testProfileId = createData.createSellerProfile.profileId;
+      const testProfileId = createData.createSellerProfile.profileId;
 
       // Share with contributor (WRITE access)
       const SHARE_DIRECT = gql`
@@ -362,7 +349,7 @@ describe('Profile Operations Integration Tests', () => {
           }
         }
       `;
-      await ownerClient.mutate({
+      const { data: shareData } = await ownerClient.mutate({
         mutation: SHARE_DIRECT,
         variables: {
           input: {
@@ -395,7 +382,7 @@ describe('Profile Operations Integration Tests', () => {
         mutation: CREATE_PROFILE,
         variables: { input: { sellerName: profileName } },
       });
-      testProfileId = createData.createSellerProfile.profileId;
+      const testProfileId = createData.createSellerProfile.profileId;
 
       // Share with readonly (READ access)
       const SHARE_DIRECT = gql`
@@ -405,7 +392,7 @@ describe('Profile Operations Integration Tests', () => {
           }
         }
       `;
-      await ownerClient.mutate({
+      const { data: shareData } = await ownerClient.mutate({
         mutation: SHARE_DIRECT,
         variables: {
           input: {
@@ -438,7 +425,7 @@ describe('Profile Operations Integration Tests', () => {
         mutation: CREATE_PROFILE,
         variables: { input: { sellerName: profileName } },
       });
-      testProfileId = createData.createSellerProfile.profileId;
+      const testProfileId = createData.createSellerProfile.profileId;
 
       // Act & Assert: Contributor (not shared) tries to update
       const newName = `${getTestPrefix()}-AttemptedUpdate`;
@@ -462,7 +449,7 @@ describe('Profile Operations Integration Tests', () => {
         mutation: CREATE_PROFILE,
         variables: { input: { sellerName: profileName } },
       });
-      testProfileId = createData.createSellerProfile.profileId;
+      const testProfileId = createData.createSellerProfile.profileId;
 
       // Act & Assert
       const unauthClient = createUnauthenticatedClient();
@@ -481,7 +468,7 @@ describe('Profile Operations Integration Tests', () => {
     });
 
     it('rejects update with non-existent profileId', async () => {
-      // Act & Assert
+      // Act & Assert - No profile created, so no tracking needed
       const fakeProfileId = 'PROFILE#00000000-0000-0000-0000-000000000000';
       const newName = `${getTestPrefix()}-NonExistent`;
       await expect(
@@ -504,9 +491,9 @@ describe('Profile Operations Integration Tests', () => {
         mutation: CREATE_PROFILE,
         variables: { input: { sellerName: profileName } },
       });
-      testProfileId = createData.createSellerProfile.profileId;
+      const testProfileId = createData.createSellerProfile.profileId;
 
-      // Act & Assert
+      // Act & Assert - Update will fail, so no update tracked
       await expect(
         ownerClient.mutate({
           mutation: UPDATE_PROFILE,
@@ -526,7 +513,7 @@ describe('Profile Operations Integration Tests', () => {
         mutation: CREATE_PROFILE,
         variables: { input: { sellerName: profileName } },
       });
-      testProfileId = createData.createSellerProfile.profileId;
+      const testProfileId = createData.createSellerProfile.profileId;
 
       // Act
       const { data } = await ownerClient.mutate({
@@ -548,7 +535,7 @@ describe('Profile Operations Integration Tests', () => {
         })
       ).rejects.toThrow(/Profile not found/);
 
-      testProfileId = ''; // Clear so cleanup doesn't fail
+      // Profile was deleted, so resource tracker will skip cleanup
     });
 
     it('returns true on successful deletion', async () => {
@@ -558,7 +545,7 @@ describe('Profile Operations Integration Tests', () => {
         mutation: CREATE_PROFILE,
         variables: { input: { sellerName: profileName } },
       });
-      testProfileId = createData.createSellerProfile.profileId;
+      const testProfileId = createData.createSellerProfile.profileId;
 
       // Act
       const { data } = await ownerClient.mutate({
@@ -570,7 +557,7 @@ describe('Profile Operations Integration Tests', () => {
 
       // Assert
       expect(data.deleteSellerProfile).toBe(true);
-      testProfileId = '';
+      // Profile was deleted, resource tracker will skip cleanup
     });
 
     it('profile owner can delete profile', async () => {
@@ -580,7 +567,7 @@ describe('Profile Operations Integration Tests', () => {
         mutation: CREATE_PROFILE,
         variables: { input: { sellerName: profileName } },
       });
-      testProfileId = createData.createSellerProfile.profileId;
+      const testProfileId = createData.createSellerProfile.profileId;
 
       // Act
       const { data } = await ownerClient.mutate({
@@ -592,7 +579,7 @@ describe('Profile Operations Integration Tests', () => {
 
       // Assert
       expect(data.deleteSellerProfile).toBe(true);
-      testProfileId = '';
+      // Profile was deleted, resource tracker will skip cleanup
     });
 
     it('shared user with WRITE cannot delete profile (owner only)', async () => {
@@ -602,7 +589,7 @@ describe('Profile Operations Integration Tests', () => {
         mutation: CREATE_PROFILE,
         variables: { input: { sellerName: profileName } },
       });
-      testProfileId = createData.createSellerProfile.profileId;
+      const testProfileId = createData.createSellerProfile.profileId;
 
       const SHARE_DIRECT = gql`
         mutation ShareProfileDirect($input: ShareProfileDirectInput!) {
@@ -611,7 +598,7 @@ describe('Profile Operations Integration Tests', () => {
           }
         }
       `;
-      await ownerClient.mutate({
+      const { data: shareData } = await ownerClient.mutate({
         mutation: SHARE_DIRECT,
         variables: {
           input: {
@@ -622,7 +609,7 @@ describe('Profile Operations Integration Tests', () => {
         },
       });
 
-      // Act & Assert
+      // Act & Assert - Delete should fail, profile will still exist
       await expect(
         contributorClient.mutate({
           mutation: DELETE_PROFILE,
@@ -640,7 +627,7 @@ describe('Profile Operations Integration Tests', () => {
         mutation: CREATE_PROFILE,
         variables: { input: { sellerName: profileName } },
       });
-      testProfileId = createData.createSellerProfile.profileId;
+      const testProfileId = createData.createSellerProfile.profileId;
 
       const SHARE_DIRECT = gql`
         mutation ShareProfileDirect($input: ShareProfileDirectInput!) {
@@ -649,7 +636,7 @@ describe('Profile Operations Integration Tests', () => {
           }
         }
       `;
-      await ownerClient.mutate({
+      const { data: shareData } = await ownerClient.mutate({
         mutation: SHARE_DIRECT,
         variables: {
           input: {
@@ -660,7 +647,7 @@ describe('Profile Operations Integration Tests', () => {
         },
       });
 
-      // Act & Assert
+      // Act & Assert - Delete should fail, profile will still exist
       await expect(
         readonlyClient.mutate({
           mutation: DELETE_PROFILE,
@@ -678,9 +665,9 @@ describe('Profile Operations Integration Tests', () => {
         mutation: CREATE_PROFILE,
         variables: { input: { sellerName: profileName } },
       });
-      testProfileId = createData.createSellerProfile.profileId;
+      const testProfileId = createData.createSellerProfile.profileId;
 
-      // Act & Assert
+      // Act & Assert - Delete should fail, profile will still exist
       await expect(
         contributorClient.mutate({
           mutation: DELETE_PROFILE,
@@ -698,9 +685,9 @@ describe('Profile Operations Integration Tests', () => {
         mutation: CREATE_PROFILE,
         variables: { input: { sellerName: profileName } },
       });
-      testProfileId = createData.createSellerProfile.profileId;
+      const testProfileId = createData.createSellerProfile.profileId;
 
-      // Act & Assert
+      // Act & Assert - Delete should fail, profile will still exist
       const unauthClient = createUnauthenticatedClient();
       await expect(
         unauthClient.mutate({

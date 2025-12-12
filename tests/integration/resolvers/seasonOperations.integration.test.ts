@@ -1,8 +1,8 @@
 import '../setup.ts';
-import { describe, test, expect, beforeAll, afterAll } from 'vitest';
+import { describe, test, expect, beforeAll } from 'vitest';
 import { ApolloClient, NormalizedCacheObject, gql } from '@apollo/client';
 import { createAuthenticatedClient } from '../setup/apolloClient';
-import { trackResource, cleanupAllTrackedResources } from '../setup/resourceTracker';
+
 
 /**
  * Integration tests for Season Operations (updateSeason, deleteSeason)
@@ -129,7 +129,6 @@ describe('Season Operations Integration Tests', () => {
       },
     });
     testProfileId = profileData.createSellerProfile.profileId;
-    trackResource(SUITE_ID, 'profile', testProfileId, undefined, ownerClient);
 
     // 2. Create catalog
     const { data: catalogData } = await ownerClient.mutate({
@@ -150,7 +149,6 @@ describe('Season Operations Integration Tests', () => {
       },
     });
     testCatalogId = catalogData.createCatalog.catalogId;
-    trackResource(SUITE_ID, 'catalog', testCatalogId, undefined, ownerClient);
 
     // 3. Create initial season
     const { data: seasonData } = await ownerClient.mutate({
@@ -166,10 +164,9 @@ describe('Season Operations Integration Tests', () => {
       },
     });
     testSeasonId = seasonData.createSeason.seasonId;
-    trackResource(SUITE_ID, 'season', testSeasonId, testProfileId, ownerClient);
 
     // 4. Share profile with contributor (WRITE)
-    await ownerClient.mutate({
+    const { data: contributorShareData }: any = await ownerClient.mutate({
       mutation: SHARE_PROFILE_DIRECT,
       variables: {
         input: {
@@ -180,10 +177,9 @@ describe('Season Operations Integration Tests', () => {
       },
     });
     const contributorAccountId = (await createAuthenticatedClient('contributor')).accountId;
-    trackResource(SUITE_ID, 'share', contributorAccountId, testProfileId, ownerClient);
 
     // 5. Share profile with readonly (READ)
-    await ownerClient.mutate({
+    const { data: readonlyShareData }: any = await ownerClient.mutate({
       mutation: SHARE_PROFILE_DIRECT,
       variables: {
         input: {
@@ -194,14 +190,10 @@ describe('Season Operations Integration Tests', () => {
       },
     });
     const readonlyAccountId = (await createAuthenticatedClient('readonly')).accountId;
-    trackResource(SUITE_ID, 'share', readonlyAccountId, testProfileId, ownerClient);
 
     console.log(`Test data created: Profile=${testProfileId}, Season=${testSeasonId}, Catalog=${testCatalogId}`);
   }, 30000);
 
-  afterAll(async () => {
-    await cleanupAllTrackedResources(SUITE_ID);
-  });
 
   describe('updateSeason', () => {
     test('updates season name', async () => {
@@ -365,7 +357,6 @@ describe('Season Operations Integration Tests', () => {
       });
 
       const seasonId = createData.createSeason.seasonId;
-      trackResource(SUITE_ID, 'season', seasonId, testProfileId, ownerClient);
 
       // Readonly tries to update
       await expect(
@@ -399,7 +390,6 @@ describe('Season Operations Integration Tests', () => {
       });
 
       const seasonId = createData.createSeason.seasonId;
-      trackResource(SUITE_ID, 'season', seasonId, testProfileId, ownerClient);
 
       // Readonly tries to delete
       await expect(
@@ -428,7 +418,6 @@ describe('Season Operations Integration Tests', () => {
       });
 
       const seasonId = createData.createSeason.seasonId;
-      trackResource(SUITE_ID, 'season', seasonId, testProfileId, ownerClient);
 
       const newStartDate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
       const newEndDate = new Date(Date.now() + 60 * 24 * 60 * 60 * 1000).toISOString();

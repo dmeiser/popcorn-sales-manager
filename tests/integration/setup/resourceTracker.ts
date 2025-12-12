@@ -16,9 +16,10 @@ import { cleanupTestData } from './testData';
 
 interface TrackedResource {
   type: 'profile' | 'season' | 'order' | 'catalog' | 'share' | 'invite';
-  id: string;
-  parentId?: string; // profileId for seasons/orders/shares, null for profiles/catalogs
+  id: string; // shareId for shares, targetAccountId stored separately
+  parentId?: string; // profileId for seasons/orders/shares/invites, null for profiles/catalogs
   client?: ApolloClient; // Client with permissions to delete this resource
+  targetAccountId?: string; // Only for shares - needed for revokeShare mutation
 }
 
 // Global registry of tracked resources (per test file)
@@ -36,17 +37,23 @@ function getResourceList(suiteId: string): TrackedResource[] {
 
 /**
  * Track a newly created resource
+ * 
+ * For shares: id should be shareId, targetAccountId should be provided as 5th param
  */
 export function trackResource(
   suiteId: string,
   type: TrackedResource['type'],
   id: string,
   parentId?: string,
-  client?: ApolloClient
+  client?: ApolloClient,
+  targetAccountId?: string
 ): void {
   const resources = getResourceList(suiteId);
-  resources.push({ type, id, parentId, client });
-  console.log(`📝 Tracked ${type}: ${id}${parentId ? ` (parent: ${parentId})` : ''}`);
+  resources.push({ type, id, parentId, client, targetAccountId });
+  const details = type === 'share' && targetAccountId 
+    ? ` (targetAccount: ${targetAccountId})` 
+    : parentId ? ` (parent: ${parentId})` : '';
+  console.log(`📝 Tracked ${type}: ${id}${details}`);
 }
 
 /**
@@ -93,7 +100,7 @@ export async function cleanupAllTrackedResources(suiteId: string): Promise<void>
   // Delete catalogs (no children)
   for (const catalogId of catalogs) {
     try {
-      await deleteCatalog(catalogId);
+      await deleteCatalog(catalogId, suiteId);
       console.log(`✅ Deleted catalog: ${catalogId}`);
     } catch (error) {
       console.warn(`⚠️  Failed to delete catalog ${catalogId}:`, error);
@@ -103,7 +110,7 @@ export async function cleanupAllTrackedResources(suiteId: string): Promise<void>
   // Delete profiles last (after all their children are gone)
   for (const profileId of profiles) {
     try {
-      await deleteProfile(profileId);
+      await deleteProfile(profileId, suiteId);
       console.log(`✅ Deleted profile: ${profileId}`);
     } catch (error) {
       console.warn(`⚠️  Failed to delete profile ${profileId}:`, error);
@@ -126,13 +133,6 @@ async function deleteResource(resource: TrackedResource): Promise<void> {
   const client = resource.client;
 
   switch (resource.type) {
-    case 'season':
-      await client.mutate({
-        mutation: DELETE_SEASON,
-        variables: { seasonId: resource.id },
-      });
-      break;
-
     case 'order':
       await client.mutate({
         mutation: DELETE_ORDER,
@@ -140,26 +140,47 @@ async function deleteResource(resource: TrackedResource): Promise<void> {
       });
       break;
 
+    case 'season':
+      await client.mutate({
+        mutation: DELETE_SEASON,
+        variables: { seasonId: resource.id },
+      });
+      break;
+
     case 'share':
       if (!resource.parentId) {
         throw new Error('Share requires parentId (profileId)');
       }
-      // Shares need both profileId and targetAccountId (stored in id)
+      if (!resource.targetAccountId) {
+        throw new Error('Share requires targetAccountId for deletion');
+      }
       await client.mutate({
         mutation: REVOKE_SHARE,
         variables: {
           input: {
             profileId: resource.parentId,
-            accountId: resource.id,
+            targetAccountId: resource.targetAccountId,
           },
         },
       });
       break;
 
     case 'invite':
-      // Invites auto-expire, but we can delete them explicitly if needed
-      // For now, just skip (they'll expire)
       console.log(`⏭️  Skipping invite deletion (auto-expires): ${resource.id}`);
+      break;
+
+    case 'catalog':
+      await client.mutate({
+        mutation: DELETE_CATALOG,
+        variables: { catalogId: resource.id },
+      });
+      break;
+
+    case 'profile':
+      await client.mutate({
+        mutation: DELETE_PROFILE,
+        variables: { profileId: resource.id },
+      });
       break;
 
     default:
@@ -170,40 +191,31 @@ async function deleteResource(resource: TrackedResource): Promise<void> {
 /**
  * Delete a profile using GraphQL
  */
-async function deleteProfile(profileId: string): Promise<void> {
-  // Find the client that created this profile (should have delete permissions)
-  const resources = Array.from(resourceRegistry.values()).flat();
+async function deleteProfile(profileId: string, suiteId: string): Promise<void> {
+  const resources = getResourceList(suiteId);
   const profileResource = resources.find(r => r.type === 'profile' && r.id === profileId);
   
   if (!profileResource?.client) {
-    console.warn(`⚠️  No client found for profile ${profileId}, using cleanupTestData`);
-    await cleanupTestData({ profileId });
+    console.warn(`⚠️  No client found for profile ${profileId}, skipping`);
     return;
   }
 
-  await profileResource.client.mutate({
-    mutation: DELETE_PROFILE,
-    variables: { profileId },
-  });
+  await deleteResource(profileResource);
 }
 
 /**
  * Delete a catalog using GraphQL
  */
-async function deleteCatalog(catalogId: string): Promise<void> {
-  const resources = Array.from(resourceRegistry.values()).flat();
+async function deleteCatalog(catalogId: string, suiteId: string): Promise<void> {
+  const resources = getResourceList(suiteId);
   const catalogResource = resources.find(r => r.type === 'catalog' && r.id === catalogId);
   
   if (!catalogResource?.client) {
-    console.warn(`⚠️  No client found for catalog ${catalogId}, using cleanupTestData`);
-    await cleanupTestData({ catalogIds: [catalogId] });
+    console.warn(`⚠️  No client found for catalog ${catalogId}, skipping`);
     return;
   }
 
-  await catalogResource.client.mutate({
-    mutation: DELETE_CATALOG,
-    variables: { catalogId },
-  });
+  await deleteResource(catalogResource);
 }
 
 // GraphQL Mutations for cleanup
@@ -233,9 +245,7 @@ const DELETE_CATALOG = gql`
 
 const REVOKE_SHARE = gql`
   mutation RevokeShare($input: RevokeShareInput!) {
-    revokeShare(input: $input) {
-      success
-    }
+    revokeShare(input: $input)
   }
 `;
 

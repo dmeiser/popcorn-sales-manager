@@ -14,10 +14,9 @@
  */
 
 import '../setup.ts'; // Load environment variables and setup
-import { describe, it, expect, beforeAll, afterEach } from 'vitest';
+import { describe, it, expect, beforeAll } from 'vitest';
 import { ApolloClient, gql } from '@apollo/client';
 import { createAuthenticatedClient, AuthenticatedClientResult } from '../setup/apolloClient';
-import { cleanupTestData } from '../setup/testData';
 
 // GraphQL Mutations
 const CREATE_CATALOG = gql`
@@ -69,7 +68,6 @@ describe('Catalog CRUD Integration Tests', () => {
   let ownerClient: ApolloClient;
   let contributorClient: ApolloClient;
   let readonlyClient: ApolloClient;
-  let testCatalogId: string | null = null;
 
   beforeAll(async () => {
     const ownerResult: AuthenticatedClientResult = await createAuthenticatedClient('owner');
@@ -79,14 +77,6 @@ describe('Catalog CRUD Integration Tests', () => {
     ownerClient = ownerResult.client;
     contributorClient = contributorResult.client;
     readonlyClient = readonlyResult.client;
-  });
-
-  // Cleanup after each test
-  afterEach(async () => {
-    await cleanupTestData({
-      catalogIds: testCatalogId ? [testCatalogId] : [],
-    });
-    testCatalogId = null;
   });
 
   describe('createCatalog', () => {
@@ -118,7 +108,7 @@ describe('Catalog CRUD Integration Tests', () => {
         });
 
         // Assert
-        testCatalogId = data.createCatalog.catalogId;
+        const catalogId = data.createCatalog.catalogId;
         expect(data.createCatalog).toBeDefined();
         expect(data.createCatalog.catalogId).toMatch(/^CATALOG#/);
         expect(data.createCatalog.catalogName).toBe('Test Catalog');
@@ -128,6 +118,12 @@ describe('Catalog CRUD Integration Tests', () => {
         expect(data.createCatalog.products).toHaveLength(2);
         expect(data.createCatalog.createdAt).toBeDefined();
         expect(data.createCatalog.updatedAt).toBeDefined();
+        
+        // Cleanup
+        await ownerClient.mutate({
+          mutation: DELETE_CATALOG,
+          variables: { catalogId },
+        });
       });
 
       it('should auto-generate unique catalogId', async () => {
@@ -144,22 +140,19 @@ describe('Catalog CRUD Integration Tests', () => {
           variables: { input },
         });
         const catalogId1 = data1.createCatalog.catalogId;
+        await ownerClient.mutate({ mutation: DELETE_CATALOG, variables: { catalogId: catalogId1 } });
 
         const { data: data2 } = await ownerClient.mutate({
           mutation: CREATE_CATALOG,
           variables: { input: { ...input, catalogName: 'Catalog 2' } },
         });
         const catalogId2 = data2.createCatalog.catalogId;
+        await ownerClient.mutate({ mutation: DELETE_CATALOG, variables: { catalogId: catalogId2 } });
 
         // Assert
         expect(catalogId1).not.toBe(catalogId2);
         expect(catalogId1).toMatch(/^CATALOG#/);
         expect(catalogId2).toMatch(/^CATALOG#/);
-
-        // Cleanup both
-        await cleanupTestData({
-          catalogIds: [catalogId1, catalogId2],
-        });
       });
 
       it('should auto-generate productId for each product', async () => {
@@ -181,7 +174,8 @@ describe('Catalog CRUD Integration Tests', () => {
         });
 
         // Assert
-        testCatalogId = data.createCatalog.catalogId;
+        const catalogId = data.createCatalog.catalogId;
+        await ownerClient.mutate({ mutation: DELETE_CATALOG, variables: { catalogId } });
         const products = data.createCatalog.products;
         expect(products).toHaveLength(3);
         
@@ -208,7 +202,8 @@ describe('Catalog CRUD Integration Tests', () => {
         });
 
         // Assert
-        testCatalogId = data.createCatalog.catalogId;
+        const catalogId = data.createCatalog.catalogId;
+        await ownerClient.mutate({ mutation: DELETE_CATALOG, variables: { catalogId } });
         expect(data.createCatalog.catalogType).toBe('USER_CREATED');
       });
 
@@ -227,7 +222,8 @@ describe('Catalog CRUD Integration Tests', () => {
         });
 
         // Assert
-        testCatalogId = data.createCatalog.catalogId;
+        const catalogId = data.createCatalog.catalogId;
+        await ownerClient.mutate({ mutation: DELETE_CATALOG, variables: { catalogId } });
         expect(data.createCatalog.ownerAccountId).toBeDefined();
         expect(typeof data.createCatalog.ownerAccountId).toBe('string');
       });
@@ -247,7 +243,8 @@ describe('Catalog CRUD Integration Tests', () => {
         });
 
         // Assert
-        testCatalogId = data.createCatalog.catalogId;
+        const catalogId = data.createCatalog.catalogId;
+        await ownerClient.mutate({ mutation: DELETE_CATALOG, variables: { catalogId } });
         expect(data.createCatalog.isPublic).toBe(true);
       });
 
@@ -266,7 +263,8 @@ describe('Catalog CRUD Integration Tests', () => {
         });
 
         // Assert
-        testCatalogId = data.createCatalog.catalogId;
+        const catalogId = data.createCatalog.catalogId;
+        await ownerClient.mutate({ mutation: DELETE_CATALOG, variables: { catalogId } });
         expect(data.createCatalog.isPublic).toBe(false);
       });
 
@@ -297,7 +295,8 @@ describe('Catalog CRUD Integration Tests', () => {
         });
 
         // Assert
-        testCatalogId = data.createCatalog.catalogId;
+        const catalogId = data.createCatalog.catalogId;
+        await ownerClient.mutate({ mutation: DELETE_CATALOG, variables: { catalogId } });
         const products = data.createCatalog.products;
         expect(products[0].description).toBe('This is a detailed description');
         expect(products[1].description).toBeNull(); // GraphQL returns null for omitted optional fields
@@ -320,7 +319,8 @@ describe('Catalog CRUD Integration Tests', () => {
         });
 
         // Assert
-        testCatalogId = data.createCatalog.catalogId;
+        const catalogId = data.createCatalog.catalogId;
+        await ownerClient.mutate({ mutation: DELETE_CATALOG, variables: { catalogId } });
         expect(data.createCatalog).toBeDefined();
       });
 
@@ -339,9 +339,12 @@ describe('Catalog CRUD Integration Tests', () => {
         });
 
         // Assert
-        testCatalogId = data.createCatalog.catalogId;
+        const catalogId = data.createCatalog.catalogId;
         expect(data.createCatalog).toBeDefined();
         expect(data.createCatalog.ownerAccountId).toBeDefined();
+        
+        // Cleanup - contributor must delete their own catalog
+        await contributorClient.mutate({ mutation: DELETE_CATALOG, variables: { catalogId } });
       });
     });
 
@@ -380,7 +383,8 @@ describe('Catalog CRUD Integration Tests', () => {
         });
 
         // Assert
-        testCatalogId = data.createCatalog.catalogId;
+        const catalogId = data.createCatalog.catalogId;
+        await ownerClient.mutate({ mutation: DELETE_CATALOG, variables: { catalogId } });
         expect(data.createCatalog.createdAt).toBeDefined();
         expect(data.createCatalog.updatedAt).toBeDefined();
         
@@ -415,7 +419,8 @@ describe('Catalog CRUD Integration Tests', () => {
         });
 
         // Assert
-        testCatalogId = data.createCatalog.catalogId;
+        const catalogId = data.createCatalog.catalogId;
+        await ownerClient.mutate({ mutation: DELETE_CATALOG, variables: { catalogId } });
         const product = data.createCatalog.products[0];
         expect(product.productId).toBeDefined();
         expect(product.productName).toBe('Complete Product');
@@ -439,7 +444,7 @@ describe('Catalog CRUD Integration Tests', () => {
           mutation: CREATE_CATALOG,
           variables: { input: createInput },
         });
-        testCatalogId = createData.createCatalog.catalogId;
+        const catalogId = createData.createCatalog.catalogId;
 
         // Act: Update name
         const updateInput = {
@@ -449,11 +454,14 @@ describe('Catalog CRUD Integration Tests', () => {
         };
         const { data } = await ownerClient.mutate({
           mutation: UPDATE_CATALOG,
-          variables: { catalogId: testCatalogId, input: updateInput },
+          variables: { catalogId: catalogId, input: updateInput },
         });
 
         // Assert
         expect(data.updateCatalog.catalogName).toBe('Updated Name');
+        
+        // Cleanup
+        await ownerClient.mutate({ mutation: DELETE_CATALOG, variables: { catalogId } });
       });
 
       it('should update catalog products', async () => {
@@ -470,7 +478,7 @@ describe('Catalog CRUD Integration Tests', () => {
           mutation: CREATE_CATALOG,
           variables: { input: createInput },
         });
-        testCatalogId = createData.createCatalog.catalogId;
+        const catalogId = createData.createCatalog.catalogId;
 
         // Act: Update products
         const updateInput = {
@@ -484,13 +492,16 @@ describe('Catalog CRUD Integration Tests', () => {
         };
         const { data } = await ownerClient.mutate({
           mutation: UPDATE_CATALOG,
-          variables: { catalogId: testCatalogId, input: updateInput },
+          variables: { catalogId: catalogId, input: updateInput },
         });
 
         // Assert
         expect(data.updateCatalog.products).toHaveLength(3);
         expect(data.updateCatalog.products[0].productName).toBe('New Product 1');
         expect(data.updateCatalog.products[2].productName).toBe('New Product 3');
+        
+        // Cleanup
+        await ownerClient.mutate({ mutation: DELETE_CATALOG, variables: { catalogId } });
       });
 
       it('should update isPublic flag', async () => {
@@ -504,7 +515,7 @@ describe('Catalog CRUD Integration Tests', () => {
           mutation: CREATE_CATALOG,
           variables: { input: createInput },
         });
-        testCatalogId = createData.createCatalog.catalogId;
+        const catalogId = createData.createCatalog.catalogId;
 
         // Act: Make public
         const updateInput = {
@@ -514,11 +525,14 @@ describe('Catalog CRUD Integration Tests', () => {
         };
         const { data } = await ownerClient.mutate({
           mutation: UPDATE_CATALOG,
-          variables: { catalogId: testCatalogId, input: updateInput },
+          variables: { catalogId: catalogId, input: updateInput },
         });
 
         // Assert
         expect(data.updateCatalog.isPublic).toBe(true);
+        
+        // Cleanup
+        await ownerClient.mutate({ mutation: DELETE_CATALOG, variables: { catalogId } });
       });
 
       it('should update timestamp (updatedAt)', async () => {
@@ -532,7 +546,7 @@ describe('Catalog CRUD Integration Tests', () => {
           mutation: CREATE_CATALOG,
           variables: { input: createInput },
         });
-        testCatalogId = createData.createCatalog.catalogId;
+        const catalogId = createData.createCatalog.catalogId;
         const originalUpdatedAt = createData.createCatalog.updatedAt;
 
         // Wait a moment to ensure timestamp difference
@@ -546,7 +560,7 @@ describe('Catalog CRUD Integration Tests', () => {
         };
         const { data } = await ownerClient.mutate({
           mutation: UPDATE_CATALOG,
-          variables: { catalogId: testCatalogId, input: updateInput },
+          variables: { catalogId: catalogId, input: updateInput },
         });
 
         // Assert
@@ -554,6 +568,9 @@ describe('Catalog CRUD Integration Tests', () => {
         expect(new Date(data.updateCatalog.updatedAt).getTime()).toBeGreaterThan(
           new Date(originalUpdatedAt).getTime()
         );
+        
+        // Cleanup
+        await ownerClient.mutate({ mutation: DELETE_CATALOG, variables: { catalogId } });
       });
     });
 
@@ -569,7 +586,7 @@ describe('Catalog CRUD Integration Tests', () => {
           mutation: CREATE_CATALOG,
           variables: { input: createInput },
         });
-        testCatalogId = createData.createCatalog.catalogId;
+        const catalogId = createData.createCatalog.catalogId;
 
         // Act: Update as owner
         const updateInput = {
@@ -579,11 +596,14 @@ describe('Catalog CRUD Integration Tests', () => {
         };
         const { data } = await ownerClient.mutate({
           mutation: UPDATE_CATALOG,
-          variables: { catalogId: testCatalogId, input: updateInput },
+          variables: { catalogId: catalogId, input: updateInput },
         });
 
         // Assert
         expect(data.updateCatalog.catalogName).toBe('Updated by Owner');
+        
+        // Cleanup
+        await ownerClient.mutate({ mutation: DELETE_CATALOG, variables: { catalogId } });
       });
 
       it('should reject non-owner updating catalog', async () => {
@@ -597,7 +617,7 @@ describe('Catalog CRUD Integration Tests', () => {
           mutation: CREATE_CATALOG,
           variables: { input: createInput },
         });
-        testCatalogId = createData.createCatalog.catalogId;
+        const catalogId = createData.createCatalog.catalogId;
 
         // Act & Assert: Contributor tries to update
         const updateInput = {
@@ -608,9 +628,12 @@ describe('Catalog CRUD Integration Tests', () => {
         await expect(
           contributorClient.mutate({
             mutation: UPDATE_CATALOG,
-            variables: { catalogId: testCatalogId, input: updateInput },
+            variables: { catalogId: catalogId, input: updateInput },
           })
         ).rejects.toThrow(/conditional request failed/i);  // VTL returns raw DynamoDB error
+        
+        // Cleanup: Owner deletes
+        await ownerClient.mutate({ mutation: DELETE_CATALOG, variables: { catalogId } });
       });
     });
 
@@ -647,17 +670,16 @@ describe('Catalog CRUD Integration Tests', () => {
           mutation: CREATE_CATALOG,
           variables: { input: createInput },
         });
-        testCatalogId = createData.createCatalog.catalogId;
+        const catalogId = createData.createCatalog.catalogId;
 
         // Act: Delete catalog
         const { data } = await ownerClient.mutate({
           mutation: DELETE_CATALOG,
-          variables: { catalogId: testCatalogId },
+          variables: { catalogId: catalogId },
         });
 
         // Assert
         expect(data.deleteCatalog).toBe(true);
-        testCatalogId = null; // Prevent cleanup double-delete
       });
 
       it('should return true on successful deletion', async () => {
@@ -671,16 +693,15 @@ describe('Catalog CRUD Integration Tests', () => {
           mutation: CREATE_CATALOG,
           variables: { input: createInput },
         });
-        testCatalogId = createData.createCatalog.catalogId;
+        const catalogId = createData.createCatalog.catalogId;
 
         // Act & Assert
         const { data } = await ownerClient.mutate({
           mutation: DELETE_CATALOG,
-          variables: { catalogId: testCatalogId },
+          variables: { catalogId: catalogId },
         });
         
         expect(data.deleteCatalog).toBe(true);
-        testCatalogId = null;
       });
     });
 
@@ -696,17 +717,16 @@ describe('Catalog CRUD Integration Tests', () => {
           mutation: CREATE_CATALOG,
           variables: { input: createInput },
         });
-        testCatalogId = createData.createCatalog.catalogId;
+        const catalogId = createData.createCatalog.catalogId;
 
         // Act: Delete as owner
         const { data } = await ownerClient.mutate({
           mutation: DELETE_CATALOG,
-          variables: { catalogId: testCatalogId },
+          variables: { catalogId: catalogId },
         });
 
         // Assert
         expect(data.deleteCatalog).toBe(true);
-        testCatalogId = null;
       });
 
       it('should reject non-owner deleting catalog', async () => {
@@ -720,15 +740,18 @@ describe('Catalog CRUD Integration Tests', () => {
           mutation: CREATE_CATALOG,
           variables: { input: createInput },
         });
-        testCatalogId = createData.createCatalog.catalogId;
+        const catalogId = createData.createCatalog.catalogId;
 
         // Act & Assert: Contributor tries to delete
         await expect(
           contributorClient.mutate({
             mutation: DELETE_CATALOG,
-            variables: { catalogId: testCatalogId },
+            variables: { catalogId: catalogId },
           })
         ).rejects.toThrow(/conditional request failed/i);  // VTL returns raw DynamoDB error
+        
+        // Cleanup: Owner deletes
+        await ownerClient.mutate({ mutation: DELETE_CATALOG, variables: { catalogId } });
       });
     });
 

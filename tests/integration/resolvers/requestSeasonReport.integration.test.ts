@@ -1,7 +1,8 @@
 import '../setup.ts';
-import { describe, test, expect, beforeAll, afterAll } from 'vitest';
+import { describe, test, expect, beforeAll } from 'vitest';
 import { gql } from '@apollo/client';
 import { createAuthenticatedClient, AuthenticatedClientResult } from '../setup/apolloClient';
+
 
 /**
  * Integration tests for requestSeasonReport mutation (Lambda resolver)
@@ -143,6 +144,8 @@ const REVOKE_SHARE = gql`
 `;
 
 describe('requestSeasonReport Integration Tests', () => {
+  const SUITE_ID = 'request-season-report';
+  
   let ownerClient: any;
   let contributorClient: any;
   let readonlyClient: any;
@@ -295,51 +298,6 @@ describe('requestSeasonReport Integration Tests', () => {
     readonlyShareId = readonlyShareResponse.data.shareProfileDirect.shareId;
   });
 
-  afterAll(async () => {
-    // Cleanup in reverse order of creation
-    if (testOrderId1) {
-      await ownerClient.mutate({
-        mutation: DELETE_ORDER,
-        variables: { input: { orderId: testOrderId1 } },
-      }).catch(() => {});
-    }
-    if (testOrderId2) {
-      await ownerClient.mutate({
-        mutation: DELETE_ORDER,
-        variables: { input: { orderId: testOrderId2 } },
-      }).catch(() => {});
-    }
-    if (contributorShareId) {
-      await ownerClient.mutate({
-        mutation: REVOKE_SHARE,
-        variables: { input: { shareId: contributorShareId } },
-      }).catch(() => {});
-    }
-    if (readonlyShareId) {
-      await ownerClient.mutate({
-        mutation: REVOKE_SHARE,
-        variables: { input: { shareId: readonlyShareId } },
-      }).catch(() => {});
-    }
-    if (testSeasonId) {
-      await ownerClient.mutate({
-        mutation: DELETE_SEASON,
-        variables: { input: { seasonId: testSeasonId } },
-      }).catch(() => {});
-    }
-    if (testCatalogId) {
-      await ownerClient.mutate({
-        mutation: DELETE_CATALOG,
-        variables: { input: { catalogId: testCatalogId } },
-      }).catch(() => {});
-    }
-    if (testProfileId) {
-      await ownerClient.mutate({
-        mutation: DELETE_SELLER_PROFILE,
-        variables: { input: { profileId: testProfileId } },
-      }).catch(() => {});
-    }
-  });
 
   describe('Owner Authorization', () => {
     test('should allow owner to request season report with default format (xlsx)', async () => {

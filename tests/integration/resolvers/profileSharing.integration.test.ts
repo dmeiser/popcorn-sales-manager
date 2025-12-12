@@ -1,8 +1,9 @@
 import '../setup.ts';
-import { describe, it, expect, beforeAll, afterEach } from 'vitest';
+import { describe, it, expect, beforeAll } from 'vitest';
 import { ApolloClient, gql, HttpLink, InMemoryCache } from '@apollo/client';
 import { createAuthenticatedClient, AuthenticatedClientResult } from '../setup/apolloClient';
-import { cleanupTestData, getTestPrefix } from '../setup/testData';
+import { getTestPrefix } from '../setup/testData';
+
 
 // GraphQL Mutations
 const CREATE_PROFILE = gql`
@@ -65,6 +66,19 @@ const LIST_SHARES = gql`
   }
 `;
 
+const DELETE_PROFILE = gql`
+  mutation DeleteProfile($profileId: ID!) {
+    deleteSellerProfile(profileId: $profileId)
+  }
+`;
+
+const DELETE_INVITE = gql`
+  mutation DeleteInvite($inviteCode: ID!) {
+    deleteProfileInvite(inviteCode: $inviteCode)
+  }
+`;
+
+
 describe('Profile Sharing Integration Tests', () => {
   let ownerClient: ApolloClient<any>;
   let contributorClient: ApolloClient<any>;
@@ -73,7 +87,6 @@ describe('Profile Sharing Integration Tests', () => {
   let contributorAccountId: string;
   let readonlyAccountId: string;
   let contributorEmail: string;
-  let testProfileId: string;
 
   // Helper to create unauthenticated client
   const createUnauthenticatedClient = () => {
@@ -100,16 +113,6 @@ describe('Profile Sharing Integration Tests', () => {
     contributorEmail = contributorAuth.email;
   });
 
-  afterEach(async () => {
-    // Clean up test data after each test
-    if (testProfileId) {
-      await cleanupTestData({
-        profileId: testProfileId,
-        shareAccountId: contributorAccountId,
-      });
-      testProfileId = '';
-    }
-  });
 
   describe('createProfileInvite (JavaScript Resolver)', () => {
     it('generates unique invite code with READ permissions', async () => {
@@ -121,7 +124,7 @@ describe('Profile Sharing Integration Tests', () => {
           input: { sellerName: profileName },
         },
       });
-      testProfileId = profileData.createSellerProfile.profileId;
+      const testProfileId = profileData.createSellerProfile.profileId;
 
       // Act: Create invite
       const { data } = await ownerClient.mutate({
@@ -148,7 +151,7 @@ describe('Profile Sharing Integration Tests', () => {
         mutation: CREATE_PROFILE,
         variables: { input: { sellerName: profileName } },
       });
-      testProfileId = profileData.createSellerProfile.profileId;
+      const testProfileId = profileData.createSellerProfile.profileId;
 
       // Act
       const { data } = await ownerClient.mutate({
@@ -171,9 +174,9 @@ describe('Profile Sharing Integration Tests', () => {
         mutation: CREATE_PROFILE,
         variables: { input: { sellerName: `${getTestPrefix()}-Profile` } },
       });
-      testProfileId = profileData.createSellerProfile.profileId;
+      const testProfileId = profileData.createSellerProfile.profileId;
 
-      // Act & Assert: Contributor tries to create invite
+      // Act & Assert: Contributor tries to create invite (should fail, no invite to track)
       await expect(
         contributorClient.mutate({
           mutation: CREATE_INVITE,
@@ -195,7 +198,7 @@ describe('Profile Sharing Integration Tests', () => {
       });
       const profileId = profileData.createSellerProfile.profileId;
 
-      // Act & Assert: Try to create invite with invalid permission
+      // Act & Assert: Try to create invite with invalid permission (should fail, no invite to track)
       await expect(
         ownerClient.mutate({
           mutation: CREATE_INVITE,
@@ -208,9 +211,6 @@ describe('Profile Sharing Integration Tests', () => {
           },
         })
       ).rejects.toThrow();
-
-      // Cleanup
-      await cleanupTestData({ profileId });
     });
 
     it('shared user with WRITE cannot create invites', async () => {
@@ -221,7 +221,7 @@ describe('Profile Sharing Integration Tests', () => {
       });
       const profileId = profileData.createSellerProfile.profileId;
 
-      await ownerClient.mutate({
+      const { data: shareData } = await ownerClient.mutate({
         mutation: SHARE_DIRECT,
         variables: {
           input: {
@@ -232,7 +232,7 @@ describe('Profile Sharing Integration Tests', () => {
         },
       });
 
-      // Act & Assert: Contributor tries to create invite (should fail - only owner can)
+      // Act & Assert: Contributor tries to create invite (should fail - only owner can, no invite to track)
       await expect(
         contributorClient.mutate({
           mutation: CREATE_INVITE,
@@ -244,16 +244,10 @@ describe('Profile Sharing Integration Tests', () => {
           },
         })
       ).rejects.toThrow(/forbidden|not authorized/i);
-
-      // Cleanup
-      await cleanupTestData({
-        profileId,
-        shareAccountId: contributorAccountId,
-      });
     });
 
     it('rejects missing profileId', async () => {
-      // Act & Assert: Try to create invite without profileId
+      // Act & Assert: Try to create invite without profileId (no profile to track)
       await expect(
         ownerClient.mutate({
           mutation: CREATE_INVITE,
@@ -275,7 +269,7 @@ describe('Profile Sharing Integration Tests', () => {
       });
       const profileId = profileData.createSellerProfile.profileId;
 
-      // Act & Assert: Try to create invite without permissions
+      // Act & Assert: Try to create invite without permissions (should fail, no invite to track)
       await expect(
         ownerClient.mutate({
           mutation: CREATE_INVITE,
@@ -287,9 +281,6 @@ describe('Profile Sharing Integration Tests', () => {
           },
         })
       ).rejects.toThrow();
-
-      // Cleanup
-      await cleanupTestData({ profileId });
     });
 
     it('unauthenticated user cannot create invites', async () => {
@@ -303,7 +294,7 @@ describe('Profile Sharing Integration Tests', () => {
       });
       const profileId = profileData.createSellerProfile.profileId;
 
-      // Act & Assert: Unauthenticated user tries to create invite
+      // Act & Assert: Unauthenticated user tries to create invite (should fail, no invite to track)
       await expect(
         unauthClient.mutate({
           mutation: CREATE_INVITE,
@@ -315,9 +306,6 @@ describe('Profile Sharing Integration Tests', () => {
           },
         })
       ).rejects.toThrow();
-
-      // Cleanup
-      await cleanupTestData({ profileId });
     });
 
     it('invite includes proper timestamps and metadata', async () => {
@@ -356,9 +344,6 @@ describe('Profile Sharing Integration Tests', () => {
       const expectedExpiry = new Date(beforeCreate.getTime() + 14 * 24 * 60 * 60 * 1000);
       const timeDiff = Math.abs(expiresAt.getTime() - expectedExpiry.getTime());
       expect(timeDiff).toBeLessThan(10000); // Within 10 seconds
-
-      // Cleanup
-      await cleanupTestData({ profileId });
     });
 
     it('can create multiple invites for same profile', async () => {
@@ -396,9 +381,6 @@ describe('Profile Sharing Integration Tests', () => {
       expect(invite1.createProfileInvite.inviteCode).not.toBe(invite2.createProfileInvite.inviteCode);
       expect(invite1.createProfileInvite.permissions).toEqual(['READ']);
       expect(invite2.createProfileInvite.permissions).toEqual(['READ', 'WRITE']);
-
-      // Cleanup
-      await cleanupTestData({ profileId });
     });
 
     it('invite code is exactly 10 alphanumeric characters', async () => {
@@ -426,9 +408,6 @@ describe('Profile Sharing Integration Tests', () => {
       expect(inviteCode).toMatch(/^[A-Z0-9-]{10}$/);
       expect(inviteCode.length).toBe(10);
       expect(inviteCode).toBe(inviteCode.toUpperCase()); // All uppercase
-
-      // Cleanup
-      await cleanupTestData({ profileId });
     });
   });
 
@@ -439,7 +418,7 @@ describe('Profile Sharing Integration Tests', () => {
         mutation: CREATE_PROFILE,
         variables: { input: { sellerName: `${getTestPrefix()}-Profile` } },
       });
-      testProfileId = profileData.createSellerProfile.profileId;
+      const testProfileId = profileData.createSellerProfile.profileId;
 
       const { data: inviteData } = await ownerClient.mutate({
         mutation: CREATE_INVITE,
@@ -459,10 +438,16 @@ describe('Profile Sharing Integration Tests', () => {
       });
 
       // Assert
-      // Assert\n      expect(data.redeemProfileInvite).toBeDefined();\n      expect(data.redeemProfileInvite.profileId).toBe(testProfileId);\n      expect(data.redeemProfileInvite.targetAccountId).toBe(contributorAccountId);\n      expect(data.redeemProfileInvite.permissions).toEqual(['READ']);
+      // Assert\n      expect(data.redeemProfileInvite).toBeDefined();
+      expect(data.redeemProfileInvite.profileId).toBe(testProfileId);
+      expect(data.redeemProfileInvite.targetAccountId).toBe(contributorAccountId);
+      expect(data.redeemProfileInvite.permissions).toEqual(['READ']);
+      const shareId = data.redeemProfileInvite.shareId;
+      const targetAccountId = data.redeemProfileInvite.targetAccountId;
     });
 
     it('rejects expired invite', async () => {
+      // Act & Assert: Try with invalid code (no resources created)
       // TODO: Create expired invite (requires mocking time or waiting 14 days)
       // For now, test with invalid code
       await expect(
@@ -479,7 +464,7 @@ describe('Profile Sharing Integration Tests', () => {
         mutation: CREATE_PROFILE,
         variables: { input: { sellerName: `${getTestPrefix()}-Profile` } },
       });
-      testProfileId = profileData.createSellerProfile.profileId;
+      const testProfileId = profileData.createSellerProfile.profileId;
 
       const { data: inviteData } = await ownerClient.mutate({
         mutation: CREATE_INVITE,
@@ -487,10 +472,11 @@ describe('Profile Sharing Integration Tests', () => {
       });
       const inviteCode = inviteData.createProfileInvite.inviteCode;
 
-      await contributorClient.mutate({
+      const redeemResult = await contributorClient.mutate({
         mutation: REDEEM_INVITE,
         variables: { input: { inviteCode } },
       });
+      const shareId = redeemResult.data.redeemProfileInvite.shareId;
 
       // Act & Assert: Try to redeem same invite again
       await expect(
@@ -555,9 +541,6 @@ describe('Profile Sharing Integration Tests', () => {
           variables: { input: { inviteCode } },
         })
       ).rejects.toThrow();
-
-      // Cleanup
-      await cleanupTestData({ profileId });
     });
 
     it('creates share with correct permissions from invite', async () => {
@@ -584,6 +567,7 @@ describe('Profile Sharing Integration Tests', () => {
         mutation: REDEEM_INVITE,
         variables: { input: { inviteCode } },
       });
+      const shareId = redeemData.redeemProfileInvite.shareId;
 
       // Assert: Share has same permissions as invite
       expect(redeemData.redeemProfileInvite.permissions).toEqual(['READ', 'WRITE']);
@@ -596,12 +580,6 @@ describe('Profile Sharing Integration Tests', () => {
       });
       expect(shares.listSharesByProfile).toHaveLength(1);
       expect(shares.listSharesByProfile[0].permissions).toEqual(['READ', 'WRITE']);
-
-      // Cleanup
-      await cleanupTestData({
-        profileId,
-        shareAccountId: contributorAccountId,
-      });
     });
   });
 
@@ -612,7 +590,7 @@ describe('Profile Sharing Integration Tests', () => {
         mutation: CREATE_PROFILE,
         variables: { input: { sellerName: `${getTestPrefix()}-Profile` } },
       });
-      testProfileId = profileData.createSellerProfile.profileId;
+      const testProfileId = profileData.createSellerProfile.profileId;
 
       // Act
       const { data } = await ownerClient.mutate({
@@ -630,6 +608,7 @@ describe('Profile Sharing Integration Tests', () => {
       expect(data.shareProfileDirect).toBeDefined();
       expect(data.shareProfileDirect.profileId).toBe(testProfileId);
       expect(data.shareProfileDirect.permissions).toEqual(['READ', 'WRITE']);
+      const shareId = data.shareProfileDirect.shareId;
     });
 
     it('rejects sharing with non-existent email', async () => {
@@ -638,7 +617,7 @@ describe('Profile Sharing Integration Tests', () => {
         mutation: CREATE_PROFILE,
         variables: { input: { sellerName: `${getTestPrefix()}-Profile` } },
       });
-      testProfileId = profileData.createSellerProfile.profileId;
+      const testProfileId = profileData.createSellerProfile.profileId;
 
       // Act & Assert
       await expect(
@@ -661,7 +640,7 @@ describe('Profile Sharing Integration Tests', () => {
         mutation: CREATE_PROFILE,
         variables: { input: { sellerName: `${getTestPrefix()}-Profile` } },
       });
-      testProfileId = profileData.createSellerProfile.profileId;
+      const testProfileId = profileData.createSellerProfile.profileId;
 
       // Act & Assert - contributor tries to share owner's profile with readonly user
       // NOTE: This currently fails because shareProfileDirect has no authorization check
@@ -725,12 +704,6 @@ describe('Profile Sharing Integration Tests', () => {
       });
       expect(shares.listSharesByProfile).toHaveLength(1);
       expect(shares.listSharesByProfile[0].permissions).toEqual(['READ', 'WRITE']);
-
-      // Cleanup
-      await cleanupTestData({
-        profileId,
-        shareAccountId: contributorAccountId,
-      });
     });
 
     it('rejects missing profileId', async () => {
@@ -770,9 +743,6 @@ describe('Profile Sharing Integration Tests', () => {
           },
         })
       ).rejects.toThrow();
-
-      // Cleanup
-      await cleanupTestData({ profileId });
     });
 
     it('rejects missing permissions', async () => {
@@ -796,9 +766,6 @@ describe('Profile Sharing Integration Tests', () => {
           },
         })
       ).rejects.toThrow();
-
-      // Cleanup
-      await cleanupTestData({ profileId });
     });
 
     it('unauthenticated user cannot share profile', async () => {
@@ -825,9 +792,6 @@ describe('Profile Sharing Integration Tests', () => {
           },
         })
       ).rejects.toThrow();
-
-      // Cleanup
-      await cleanupTestData({ profileId });
     });
 
     it('share includes shareId and correct metadata', async () => {
@@ -856,12 +820,7 @@ describe('Profile Sharing Integration Tests', () => {
       expect(shareData.shareProfileDirect.profileId).toBe(profileId);
       expect(shareData.shareProfileDirect.targetAccountId).toBe(contributorAccountId);
       expect(shareData.shareProfileDirect.permissions).toEqual(['READ', 'WRITE']);
-
-      // Cleanup
-      await cleanupTestData({
-        profileId,
-        shareAccountId: contributorAccountId,
-      });
+      const shareId = shareData.shareProfileDirect.shareId;
     });
 
     it('rejects invalid permission values', async () => {
@@ -886,9 +845,6 @@ describe('Profile Sharing Integration Tests', () => {
           },
         })
       ).rejects.toThrow();
-
-      // Cleanup
-      await cleanupTestData({ profileId });
     });
   });
 
@@ -899,9 +855,9 @@ describe('Profile Sharing Integration Tests', () => {
         mutation: CREATE_PROFILE,
         variables: { input: { sellerName: `${getTestPrefix()}-Profile` } },
       });
-      testProfileId = profileData.createSellerProfile.profileId;
+      const testProfileId = profileData.createSellerProfile.profileId;
 
-      await ownerClient.mutate({
+      const shareResult = await ownerClient.mutate({
         mutation: SHARE_DIRECT,
         variables: {
           input: {
@@ -911,6 +867,7 @@ describe('Profile Sharing Integration Tests', () => {
           },
         },
       });
+      const shareId = shareResult.data.shareProfileDirect.shareId;
 
       // Act: Revoke the share
       const { data } = await ownerClient.mutate({
@@ -936,7 +893,7 @@ describe('Profile Sharing Integration Tests', () => {
         mutation: CREATE_PROFILE,
         variables: { input: { sellerName: `${getTestPrefix()}-Profile` } },
       });
-      testProfileId = profileData.createSellerProfile.profileId;
+      const testProfileId = profileData.createSellerProfile.profileId;
 
       // Act & Assert
       await expect(
@@ -974,6 +931,7 @@ describe('Profile Sharing Integration Tests', () => {
 
       expect(shareData.shareProfileDirect).toBeDefined();
       expect(shareData.shareProfileDirect.targetAccountId).toBe(contributorAccountId);
+      const shareId = shareData.shareProfileDirect.shareId;
 
       // Act: Owner revokes their own share
       const { data } = await ownerClient.mutate({
@@ -988,12 +946,6 @@ describe('Profile Sharing Integration Tests', () => {
 
       // Assert
       expect(data.revokeShare).toBe(true);
-
-      // Cleanup
-      await cleanupTestData({
-        profileId,
-        shareAccountId: contributorAccountId,
-      });
     });
 
     it('returns success: true on successful revocation', async () => {
@@ -1002,9 +954,9 @@ describe('Profile Sharing Integration Tests', () => {
         mutation: CREATE_PROFILE,
         variables: { input: { sellerName: `${getTestPrefix()}-Profile` } },
       });
-      testProfileId = profileData.createSellerProfile.profileId;
+      const testProfileId = profileData.createSellerProfile.profileId;
 
-      await ownerClient.mutate({
+      const shareResult = await ownerClient.mutate({
         mutation: SHARE_DIRECT,
         variables: {
           input: {
@@ -1037,7 +989,7 @@ describe('Profile Sharing Integration Tests', () => {
         mutation: CREATE_PROFILE,
         variables: { input: { sellerName: `${getTestPrefix()}-Profile` } },
       });
-      testProfileId = profileData.createSellerProfile.profileId;
+      const testProfileId = profileData.createSellerProfile.profileId;
 
       // Act: Try to revoke a share that doesn't exist
       const { data } = await ownerClient.mutate({
@@ -1065,7 +1017,7 @@ describe('Profile Sharing Integration Tests', () => {
       });
       const profileId = createResult.data?.createSellerProfile?.profileId;
 
-      await ownerClient.mutate({
+      const shareResult = await ownerClient.mutate({
         mutation: SHARE_DIRECT,
         variables: {
           input: {
@@ -1090,12 +1042,6 @@ describe('Profile Sharing Integration Tests', () => {
           },
         })
       ).rejects.toThrow();
-
-      // Cleanup
-      await cleanupTestData({
-        profileId,
-        shareAccountId: contributorAccountId,
-      });
     });
 
     it('shared user with WRITE cannot revoke shares', async () => {
@@ -1104,9 +1050,9 @@ describe('Profile Sharing Integration Tests', () => {
         mutation: CREATE_PROFILE,
         variables: { input: { sellerName: `${getTestPrefix()}-Profile` } },
       });
-      testProfileId = profileData.createSellerProfile.profileId;
+      const testProfileId = profileData.createSellerProfile.profileId;
 
-      await ownerClient.mutate({
+      const share1 = await ownerClient.mutate({
         mutation: SHARE_DIRECT,
         variables: {
           input: {
@@ -1116,9 +1062,10 @@ describe('Profile Sharing Integration Tests', () => {
           },
         },
       });
+      const shareId1 = share1.data.shareProfileDirect.shareId;
 
       // Now share with readonly user
-      await ownerClient.mutate({
+      const share2 = await ownerClient.mutate({
         mutation: SHARE_DIRECT,
         variables: {
           input: {
@@ -1128,6 +1075,7 @@ describe('Profile Sharing Integration Tests', () => {
           },
         },
       });
+      const shareId2 = share2.data.shareProfileDirect.shareId;
 
       // Act & Assert: Contributor tries to revoke readonly's share
       await expect(
@@ -1151,7 +1099,7 @@ describe('Profile Sharing Integration Tests', () => {
       });
       const profileId = profileData.createSellerProfile.profileId;
 
-      await ownerClient.mutate({
+      const shareResult = await ownerClient.mutate({
         mutation: SHARE_DIRECT,
         variables: {
           input: {
@@ -1189,12 +1137,6 @@ describe('Profile Sharing Integration Tests', () => {
         fetchPolicy: 'network-only',
       });
       expect(afterRevoke.data.listSharesByProfile).toHaveLength(0);
-
-      // Cleanup
-      await cleanupTestData({
-        profileId,
-        shareAccountId: contributorAccountId,
-      });
     });
 
     it('rejects missing profileId', async () => {
@@ -1232,9 +1174,6 @@ describe('Profile Sharing Integration Tests', () => {
           },
         })
       ).rejects.toThrow();
-
-      // Cleanup
-      await cleanupTestData({ profileId });
     });
 
     it('rejects null values', async () => {
@@ -1261,7 +1200,7 @@ describe('Profile Sharing Integration Tests', () => {
       });
       const profileId = profileData.createSellerProfile.profileId;
 
-      await ownerClient.mutate({
+      const shareResult = await ownerClient.mutate({
         mutation: SHARE_DIRECT,
         variables: {
           input: {
@@ -1284,12 +1223,6 @@ describe('Profile Sharing Integration Tests', () => {
           },
         })
       ).rejects.toThrow(/forbidden|not authorized/i);
-
-      // Cleanup
-      await cleanupTestData({
-        profileId,
-        shareAccountId: contributorAccountId,
-      });
     });
 
     it('revoking owner\'s own "share" returns success (ownership cannot be revoked)', async () => {
@@ -1314,9 +1247,6 @@ describe('Profile Sharing Integration Tests', () => {
       // Assert: Should return success (idempotent - no share exists for owner)
       // Ownership is stored in the profile metadata, not as a share
       expect(data.revokeShare).toBe(true);
-
-      // Cleanup
-      await cleanupTestData({ profileId });
     });
 
     it('concurrent revocations of same share are idempotent', async () => {
@@ -1327,7 +1257,7 @@ describe('Profile Sharing Integration Tests', () => {
       });
       const profileId = profileData.createSellerProfile.profileId;
 
-      await ownerClient.mutate({
+      const shareResult = await ownerClient.mutate({
         mutation: SHARE_DIRECT,
         variables: {
           input: {
@@ -1365,12 +1295,6 @@ describe('Profile Sharing Integration Tests', () => {
       // Assert: Both should succeed (idempotent behavior)
       expect(result1.data.revokeShare).toBe(true);
       expect(result2.data.revokeShare).toBe(true);
-
-      // Cleanup
-      await cleanupTestData({
-        profileId,
-        shareAccountId: contributorAccountId,
-      });
     });
   });
 });

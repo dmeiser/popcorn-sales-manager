@@ -4,10 +4,11 @@ import '../setup.ts';
  * Tests: getSeason, listSeasonsByProfile
  */
 
-import { describe, it, expect, beforeAll, afterEach } from 'vitest';
+import { describe, it, expect, beforeAll } from 'vitest';
 import { ApolloClient, gql } from '@apollo/client';
 import { createAuthenticatedClient, AuthenticatedClientResult } from '../setup/apolloClient';
-import { cleanupTestData } from '../setup/testData';
+
+
 
 // Helper to generate unique test prefix
 const getTestPrefix = () => `TEST-${Date.now()}`;
@@ -56,6 +57,30 @@ const SHARE_DIRECT = gql`
   }
 `;
 
+const DELETE_PROFILE = gql`
+  mutation DeleteProfile($profileId: ID!) {
+    deleteSellerProfile(profileId: $profileId)
+  }
+`;
+
+const DELETE_CATALOG = gql`
+  mutation DeleteCatalog($catalogId: ID!) {
+    deleteCatalog(catalogId: $catalogId)
+  }
+`;
+
+const DELETE_SEASON = gql`
+  mutation DeleteSeason($seasonId: ID!) {
+    deleteSeason(seasonId: $seasonId)
+  }
+`;
+
+const REVOKE_SHARE = gql`
+  mutation RevokeShare($input: RevokeShareInput!) {
+    revokeShare(input: $input)
+  }
+`;
+
 // GraphQL Queries to test
 const GET_SEASON = gql`
   query GetSeason($seasonId: ID!) {
@@ -95,10 +120,6 @@ describe('Season Query Resolvers Integration Tests', () => {
   let readonlyAccountId: string;
   let readonlyEmail: string;
 
-  let testProfileId: string;
-  let testCatalogId: string;
-  let testSeasonId: string;
-
   beforeAll(async () => {
     const ownerResult: AuthenticatedClientResult = await createAuthenticatedClient('owner');
     const contributorResult: AuthenticatedClientResult = await createAuthenticatedClient('contributor');
@@ -112,14 +133,6 @@ describe('Season Query Resolvers Integration Tests', () => {
     readonlyEmail = process.env.TEST_READONLY_EMAIL!;
   });
 
-  afterEach(async () => {
-    if (testProfileId) {
-      await cleanupTestData({ profileId: testProfileId, seasonId: testSeasonId });
-      testProfileId = '';
-      testCatalogId = '';
-      testSeasonId = '';
-    }
-  });
 
   describe('getSeason', () => {
     describe('Happy Path', () => {
@@ -129,7 +142,7 @@ describe('Season Query Resolvers Integration Tests', () => {
           mutation: CREATE_PROFILE,
           variables: { input: { sellerName: `${getTestPrefix()}-Profile` } },
         });
-        testProfileId = profileData.createSellerProfile.profileId;
+        const profileId = profileData.createSellerProfile.profileId;
 
         const { data: catalogData } = await ownerClient.mutate({
           mutation: CREATE_CATALOG,
@@ -141,44 +154,45 @@ describe('Season Query Resolvers Integration Tests', () => {
             },
           },
         });
-        testCatalogId = catalogData.createCatalog.catalogId;
+        const catalogId = catalogData.createCatalog.catalogId;
 
         const { data: seasonData } = await ownerClient.mutate({
           mutation: CREATE_SEASON,
           variables: {
             input: {
-              profileId: testProfileId,
+              profileId: profileId,
               seasonName: `${getTestPrefix()}-Season`,
               startDate: '2025-01-01T00:00:00Z',
               endDate: '2025-12-31T23:59:59Z',
-              catalogId: testCatalogId,
+              catalogId: catalogId,
             },
           },
         });
-        testSeasonId = seasonData.createSeason.seasonId;
-
-        // Wait for GSI7 eventual consistency (Bug #21 - known issue)
-        // GSI indexes can take 5-7 seconds to become consistent
-        await new Promise(resolve => setTimeout(resolve, 7000));
+        const seasonId = seasonData.createSeason.seasonId;
 
         // Act: Query season
         const { data } = await ownerClient.query({
           query: GET_SEASON,
-          variables: { seasonId: testSeasonId },
+          variables: { seasonId: seasonId },
           fetchPolicy: 'network-only',
         });
 
         // Assert
         expect(data.getSeason).toBeDefined();
-        expect(data.getSeason.seasonId).toBe(testSeasonId);
-        expect(data.getSeason.profileId).toBe(testProfileId);
+        expect(data.getSeason.seasonId).toBe(seasonId);
+        expect(data.getSeason.profileId).toBe(profileId);
         expect(data.getSeason.seasonName).toContain('Season');
         expect(data.getSeason.startDate).toBe('2025-01-01T00:00:00Z');
         expect(data.getSeason.endDate).toBe('2025-12-31T23:59:59Z');
-        expect(data.getSeason.catalogId).toBe(testCatalogId);
+        expect(data.getSeason.catalogId).toBe(catalogId);
         expect(data.getSeason.createdAt).toBeDefined();
         expect(data.getSeason.updatedAt).toBeDefined();
-      });
+        
+        // Cleanup
+        await ownerClient.mutate({ mutation: DELETE_SEASON, variables: { seasonId } });
+        await ownerClient.mutate({ mutation: DELETE_CATALOG, variables: { catalogId } });
+        await ownerClient.mutate({ mutation: DELETE_PROFILE, variables: { profileId } });
+      }, 15000); // Extended timeout for GSI consistency
 
       it('should return null for non-existent seasonId', async () => {
         // Act: Query non-existent season
@@ -200,7 +214,8 @@ describe('Season Query Resolvers Integration Tests', () => {
           mutation: CREATE_PROFILE,
           variables: { input: { sellerName: `${getTestPrefix()}-Profile` } },
         });
-        testProfileId = profileData.createSellerProfile.profileId;
+        const profileId = profileData.createSellerProfile.profileId;
+        await ownerClient.mutate({ mutation: DELETE_PROFILE, variables: { profileId: profileId } });
 
         const { data: catalogData } = await ownerClient.mutate({
           mutation: CREATE_CATALOG,
@@ -212,31 +227,32 @@ describe('Season Query Resolvers Integration Tests', () => {
             },
           },
         });
-        testCatalogId = catalogData.createCatalog.catalogId;
+        const catalogId = catalogData.createCatalog.catalogId;
+        await ownerClient.mutate({ mutation: DELETE_CATALOG, variables: { catalogId: catalogId } });
 
         const { data: seasonData } = await ownerClient.mutate({
           mutation: CREATE_SEASON,
           variables: {
             input: {
-              profileId: testProfileId,
+              profileId: profileId,
               seasonName: `${getTestPrefix()}-Season`,
               startDate: '2025-01-01T00:00:00Z',
-              catalogId: testCatalogId,
+              catalogId: catalogId,
             },
           },
         });
-        testSeasonId = seasonData.createSeason.seasonId;
+        const seasonId = seasonData.createSeason.seasonId;
 
         // Act
         const { data } = await ownerClient.query({
           query: GET_SEASON,
-          variables: { seasonId: testSeasonId },
+          variables: { seasonId: seasonId },
           fetchPolicy: 'network-only',
         });
 
         // Assert
         expect(data.getSeason).toBeDefined();
-        expect(data.getSeason.seasonId).toBe(testSeasonId);
+        expect(data.getSeason.seasonId).toBe(seasonId);
       });
 
       it('should allow shared user (READ) to get season', async () => {
@@ -245,7 +261,8 @@ describe('Season Query Resolvers Integration Tests', () => {
           mutation: CREATE_PROFILE,
           variables: { input: { sellerName: `${getTestPrefix()}-Profile` } },
         });
-        testProfileId = profileData.createSellerProfile.profileId;
+        const profileId = profileData.createSellerProfile.profileId;
+        await ownerClient.mutate({ mutation: DELETE_PROFILE, variables: { profileId: profileId } });
 
         const { data: catalogData } = await ownerClient.mutate({
           mutation: CREATE_CATALOG,
@@ -257,27 +274,28 @@ describe('Season Query Resolvers Integration Tests', () => {
             },
           },
         });
-        testCatalogId = catalogData.createCatalog.catalogId;
+        const catalogId = catalogData.createCatalog.catalogId;
+        await ownerClient.mutate({ mutation: DELETE_CATALOG, variables: { catalogId: catalogId } });
 
         const { data: seasonData } = await ownerClient.mutate({
           mutation: CREATE_SEASON,
           variables: {
             input: {
-              profileId: testProfileId,
+              profileId: profileId,
               seasonName: `${getTestPrefix()}-Season`,
               startDate: '2025-01-01T00:00:00Z',
-              catalogId: testCatalogId,
+              catalogId: catalogId,
             },
           },
         });
-        testSeasonId = seasonData.createSeason.seasonId;
+        const seasonId = seasonData.createSeason.seasonId;
 
         // Share profile with readonly user (READ permission)
-        await ownerClient.mutate({
+        const { data: shareData }: any = await ownerClient.mutate({
           mutation: SHARE_DIRECT,
           variables: {
             input: {
-              profileId: testProfileId,
+              profileId: profileId,
               targetAccountEmail: readonlyEmail,
               permissions: ['READ'],
             },
@@ -287,13 +305,13 @@ describe('Season Query Resolvers Integration Tests', () => {
         // Act: Readonly user queries season
         const { data } = await readonlyClient.query({
           query: GET_SEASON,
-          variables: { seasonId: testSeasonId },
+          variables: { seasonId: seasonId },
           fetchPolicy: 'network-only',
         });
 
         // Assert
         expect(data.getSeason).toBeDefined();
-        expect(data.getSeason.seasonId).toBe(testSeasonId);
+        expect(data.getSeason.seasonId).toBe(seasonId);
       });
 
       it('should NOT allow non-shared user to get season', async () => {
@@ -302,7 +320,8 @@ describe('Season Query Resolvers Integration Tests', () => {
           mutation: CREATE_PROFILE,
           variables: { input: { sellerName: `${getTestPrefix()}-Profile` } },
         });
-        testProfileId = profileData.createSellerProfile.profileId;
+        const profileId = profileData.createSellerProfile.profileId;
+        await ownerClient.mutate({ mutation: DELETE_PROFILE, variables: { profileId: profileId } });
 
         const { data: catalogData } = await ownerClient.mutate({
           mutation: CREATE_CATALOG,
@@ -314,25 +333,26 @@ describe('Season Query Resolvers Integration Tests', () => {
             },
           },
         });
-        testCatalogId = catalogData.createCatalog.catalogId;
+        const catalogId = catalogData.createCatalog.catalogId;
+        await ownerClient.mutate({ mutation: DELETE_CATALOG, variables: { catalogId: catalogId } });
 
         const { data: seasonData } = await ownerClient.mutate({
           mutation: CREATE_SEASON,
           variables: {
             input: {
-              profileId: testProfileId,
+              profileId: profileId,
               seasonName: `${getTestPrefix()}-Season`,
               startDate: '2025-01-01T00:00:00Z',
-              catalogId: testCatalogId,
+              catalogId: catalogId,
             },
           },
         });
-        testSeasonId = seasonData.createSeason.seasonId;
+        const seasonId = seasonData.createSeason.seasonId;
 
         // Act: Contributor (not shared) queries season
         const { data } = await contributorClient.query({
           query: GET_SEASON,
-          variables: { seasonId: testSeasonId },
+          variables: { seasonId: seasonId },
           fetchPolicy: 'network-only',
         });
 
@@ -350,7 +370,8 @@ describe('Season Query Resolvers Integration Tests', () => {
           mutation: CREATE_PROFILE,
           variables: { input: { sellerName: `${getTestPrefix()}-Profile` } },
         });
-        testProfileId = profileData.createSellerProfile.profileId;
+        const profileId = profileData.createSellerProfile.profileId;
+        await ownerClient.mutate({ mutation: DELETE_PROFILE, variables: { profileId: profileId } });
 
         const { data: catalogData } = await ownerClient.mutate({
           mutation: CREATE_CATALOG,
@@ -362,29 +383,30 @@ describe('Season Query Resolvers Integration Tests', () => {
             },
           },
         });
-        testCatalogId = catalogData.createCatalog.catalogId;
+        const catalogId = catalogData.createCatalog.catalogId;
+        await ownerClient.mutate({ mutation: DELETE_CATALOG, variables: { catalogId: catalogId } });
 
         // Create multiple seasons
-        await ownerClient.mutate({
+        const { data: season1Data } = await ownerClient.mutate({
           mutation: CREATE_SEASON,
           variables: {
             input: {
-              profileId: testProfileId,
+              profileId: profileId,
               seasonName: `${getTestPrefix()}-Season1`,
               startDate: '2025-01-01T00:00:00Z',
-              catalogId: testCatalogId,
+              catalogId: catalogId,
             },
           },
         });
 
-        await ownerClient.mutate({
+        const { data: season2Data } = await ownerClient.mutate({
           mutation: CREATE_SEASON,
           variables: {
             input: {
-              profileId: testProfileId,
+              profileId: profileId,
               seasonName: `${getTestPrefix()}-Season2`,
               startDate: '2025-06-01T00:00:00Z',
-              catalogId: testCatalogId,
+              catalogId: catalogId,
             },
           },
         });
@@ -392,7 +414,7 @@ describe('Season Query Resolvers Integration Tests', () => {
         // Act: List seasons
         const { data } = await ownerClient.query({
           query: LIST_SEASONS_BY_PROFILE,
-          variables: { profileId: testProfileId },
+          variables: { profileId: profileId },
           fetchPolicy: 'network-only',
         });
 
@@ -410,12 +432,13 @@ describe('Season Query Resolvers Integration Tests', () => {
           mutation: CREATE_PROFILE,
           variables: { input: { sellerName: `${getTestPrefix()}-Profile` } },
         });
-        testProfileId = profileData.createSellerProfile.profileId;
+        const profileId = profileData.createSellerProfile.profileId;
+        await ownerClient.mutate({ mutation: DELETE_PROFILE, variables: { profileId: profileId } });
 
         // Act
         const { data } = await ownerClient.query({
           query: LIST_SEASONS_BY_PROFILE,
-          variables: { profileId: testProfileId },
+          variables: { profileId: profileId },
           fetchPolicy: 'network-only',
         });
 
@@ -445,7 +468,8 @@ describe('Season Query Resolvers Integration Tests', () => {
           mutation: CREATE_PROFILE,
           variables: { input: { sellerName: `${getTestPrefix()}-Profile` } },
         });
-        testProfileId = profileData.createSellerProfile.profileId;
+        const profileId = profileData.createSellerProfile.profileId;
+        await ownerClient.mutate({ mutation: DELETE_PROFILE, variables: { profileId: profileId } });
 
         const { data: catalogData } = await ownerClient.mutate({
           mutation: CREATE_CATALOG,
@@ -457,16 +481,17 @@ describe('Season Query Resolvers Integration Tests', () => {
             },
           },
         });
-        testCatalogId = catalogData.createCatalog.catalogId;
+        const catalogId = catalogData.createCatalog.catalogId;
+        await ownerClient.mutate({ mutation: DELETE_CATALOG, variables: { catalogId: catalogId } });
 
-        await ownerClient.mutate({
+        const { data: seasonData } = await ownerClient.mutate({
           mutation: CREATE_SEASON,
           variables: {
             input: {
-              profileId: testProfileId,
+              profileId: profileId,
               seasonName: `${getTestPrefix()}-Season`,
               startDate: '2025-01-01T00:00:00Z',
-              catalogId: testCatalogId,
+              catalogId: catalogId,
             },
           },
         });
@@ -474,7 +499,7 @@ describe('Season Query Resolvers Integration Tests', () => {
         // Act
         const { data } = await ownerClient.query({
           query: LIST_SEASONS_BY_PROFILE,
-          variables: { profileId: testProfileId },
+          variables: { profileId: profileId },
           fetchPolicy: 'network-only',
         });
 
@@ -489,7 +514,8 @@ describe('Season Query Resolvers Integration Tests', () => {
           mutation: CREATE_PROFILE,
           variables: { input: { sellerName: `${getTestPrefix()}-Profile` } },
         });
-        testProfileId = profileData.createSellerProfile.profileId;
+        const profileId = profileData.createSellerProfile.profileId;
+        await ownerClient.mutate({ mutation: DELETE_PROFILE, variables: { profileId: profileId } });
 
         const { data: catalogData } = await ownerClient.mutate({
           mutation: CREATE_CATALOG,
@@ -501,26 +527,27 @@ describe('Season Query Resolvers Integration Tests', () => {
             },
           },
         });
-        testCatalogId = catalogData.createCatalog.catalogId;
+        const catalogId = catalogData.createCatalog.catalogId;
+        await ownerClient.mutate({ mutation: DELETE_CATALOG, variables: { catalogId: catalogId } });
 
-        await ownerClient.mutate({
+        const { data: seasonData } = await ownerClient.mutate({
           mutation: CREATE_SEASON,
           variables: {
             input: {
-              profileId: testProfileId,
+              profileId: profileId,
               seasonName: `${getTestPrefix()}-Season`,
               startDate: '2025-01-01T00:00:00Z',
-              catalogId: testCatalogId,
+              catalogId: catalogId,
             },
           },
         });
 
         // Share profile with readonly user
-        await ownerClient.mutate({
+        const { data: shareData }: any = await ownerClient.mutate({
           mutation: SHARE_DIRECT,
           variables: {
             input: {
-              profileId: testProfileId,
+              profileId: profileId,
               targetAccountEmail: readonlyEmail,
               permissions: ['READ'],
             },
@@ -530,7 +557,7 @@ describe('Season Query Resolvers Integration Tests', () => {
         // Act: Readonly user lists seasons
         const { data } = await readonlyClient.query({
           query: LIST_SEASONS_BY_PROFILE,
-          variables: { profileId: testProfileId },
+          variables: { profileId: profileId },
           fetchPolicy: 'network-only',
         });
 
@@ -545,7 +572,8 @@ describe('Season Query Resolvers Integration Tests', () => {
           mutation: CREATE_PROFILE,
           variables: { input: { sellerName: `${getTestPrefix()}-Profile` } },
         });
-        testProfileId = profileData.createSellerProfile.profileId;
+        const profileId = profileData.createSellerProfile.profileId;
+        await ownerClient.mutate({ mutation: DELETE_PROFILE, variables: { profileId: profileId } });
 
         const { data: catalogData } = await ownerClient.mutate({
           mutation: CREATE_CATALOG,
@@ -557,16 +585,17 @@ describe('Season Query Resolvers Integration Tests', () => {
             },
           },
         });
-        testCatalogId = catalogData.createCatalog.catalogId;
+        const catalogId = catalogData.createCatalog.catalogId;
+        await ownerClient.mutate({ mutation: DELETE_CATALOG, variables: { catalogId: catalogId } });
 
-        await ownerClient.mutate({
+        const { data: seasonData } = await ownerClient.mutate({
           mutation: CREATE_SEASON,
           variables: {
             input: {
-              profileId: testProfileId,
+              profileId: profileId,
               seasonName: `${getTestPrefix()}-Season`,
               startDate: '2025-01-01T00:00:00Z',
-              catalogId: testCatalogId,
+              catalogId: catalogId,
             },
           },
         });
@@ -574,7 +603,7 @@ describe('Season Query Resolvers Integration Tests', () => {
         // Act: Contributor (not shared) lists seasons
         const { data } = await contributorClient.query({
           query: LIST_SEASONS_BY_PROFILE,
-          variables: { profileId: testProfileId },
+          variables: { profileId: profileId },
           fetchPolicy: 'network-only',
         });
 

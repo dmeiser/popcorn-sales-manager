@@ -3833,40 +3833,105 @@ $util.toJson($ctx.result)
             )
 
             # deleteSellerProfile - Delete a seller profile (owner only)
-            self.dynamodb_datasource.create_resolver(
+            # Pipeline resolver to delete both ownership and metadata records
+            
+            # Step 1: Verify ownership and delete the ownership record (ACCOUNT#{userId}|PROFILE#{profileId})
+            delete_profile_ownership_fn = appsync.AppsyncFunction(
+                self,
+                "DeleteProfileOwnershipFn",
+                name=f"DeleteProfileOwnershipFn_{env_name}",
+                api=self.api,
+                data_source=self.dynamodb_datasource,
+                runtime=appsync.FunctionRuntime.JS_1_0_0,
+                code=appsync.Code.from_inline(
+                    """
+import { util } from '@aws-appsync/utils';
+
+export function request(ctx) {
+    const profileId = ctx.args.profileId;
+    const ownerId = ctx.identity.sub;
+    
+    return {
+        operation: 'DeleteItem',
+        key: util.dynamodb.toMapValues({ 
+            PK: 'ACCOUNT#' + ownerId, 
+            SK: profileId 
+        }),
+        condition: {
+            expression: 'attribute_exists(PK) AND ownerAccountId = :ownerId',
+            expressionValues: util.dynamodb.toMapValues({
+                ':ownerId': ownerId
+            })
+        }
+    };
+}
+
+export function response(ctx) {
+    if (ctx.error) {
+        if (ctx.error.type === 'DynamoDB:ConditionalCheckFailedException') {
+            util.error('Profile not found or access denied', 'Forbidden');
+        }
+        util.error(ctx.error.message, ctx.error.type);
+    }
+    // Store profileId in stash for next function
+    ctx.stash.profileId = ctx.args.profileId;
+    return true;
+}
+        """
+                ),
+            )
+
+            # Step 2: Delete the metadata record (PROFILE#{profileId}|METADATA)
+            delete_profile_metadata_fn = appsync.AppsyncFunction(
+                self,
+                "DeleteProfileMetadataFn",
+                name=f"DeleteProfileMetadataFn_{env_name}",
+                api=self.api,
+                data_source=self.dynamodb_datasource,
+                runtime=appsync.FunctionRuntime.JS_1_0_0,
+                code=appsync.Code.from_inline(
+                    """
+import { util } from '@aws-appsync/utils';
+
+export function request(ctx) {
+    const profileId = ctx.stash.profileId;
+    
+    return {
+        operation: 'DeleteItem',
+        key: util.dynamodb.toMapValues({ 
+            PK: profileId, 
+            SK: 'METADATA' 
+        })
+    };
+}
+
+export function response(ctx) {
+    if (ctx.error) {
+        // Log but don't fail - ownership record was already deleted
+        console.log('Warning: Failed to delete profile metadata', ctx.error);
+    }
+    return true;
+}
+        """
+                ),
+            )
+
+            self.api.create_resolver(
                 "DeleteSellerProfileResolver",
                 type_name="Mutation",
                 field_name="deleteSellerProfile",
-                request_mapping_template=appsync.MappingTemplate.from_string(
+                runtime=appsync.FunctionRuntime.JS_1_0_0,
+                pipeline_config=[delete_profile_ownership_fn, delete_profile_metadata_fn],
+                code=appsync.Code.from_inline(
                     """
-{
-    "version": "2017-02-28",
-    "operation": "DeleteItem",
-    "key": {
-        "PK": $util.dynamodb.toDynamoDBJson("ACCOUNT#$ctx.identity.sub"),
-        "SK": $util.dynamodb.toDynamoDBJson($ctx.args.profileId)
-    },
-    "condition": {
-        "expression": "attribute_exists(PK) AND ownerAccountId = :ownerId",
-        "expressionValues": {
-            ":ownerId": $util.dynamodb.toDynamoDBJson($ctx.identity.sub)
-        }
-    }
+export function request(ctx) {
+    return {};
 }
-                """
-                ),
-                response_mapping_template=appsync.MappingTemplate.from_string(
-                    """
-#if($ctx.error)
-    #if($ctx.error.type == "DynamoDB:ConditionalCheckFailedException")
-        $util.error("Profile not found or access denied", "Forbidden")
-    #else
-        $util.error($ctx.error.message, $ctx.error.type)
-    #end
-#end
-## Return true if successfully deleted
-$util.toJson(true)
-                """
+
+export function response(ctx) {
+    return ctx.prev.result;
+}
+        """
                 ),
             )
 
