@@ -105,7 +105,18 @@ def test_create_profile():
     # Test your function
     result = create_profile(...)
     assert result['profileId'] is not None
+    # moto automatically cleans up all DynamoDB/S3 data after @mock_* decorator exits
 ```
+
+**Test Cleanup Requirements**:
+- **CRITICAL**: All automated tests (unit, integration, and any other) MUST clean up after themselves
+- Each test must delete any DynamoDB records it created
+- Each test must delete any S3 objects it created
+- Before marking a test as "complete", verification is REQUIRED:
+  1. The test must run and pass
+  2. DynamoDB/S3 must be checked to confirm all test data has been deleted
+- Use `@mock_dynamodb`, `@mock_s3`, etc. from `moto` - they automatically clean up when the test ends
+- **Important**: Tests with leftover data (orphaned records) are INCOMPLETE and MUST be fixed before merge
 
 ## 4. TypeScript/React Code Standards (Frontend)
 

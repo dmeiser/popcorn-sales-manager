@@ -96,6 +96,16 @@ open htmlcov/index.html
 - Ensure every file shows 100%
 - **All tests must pass** - zero failures, zero errors
 
+**Test Cleanup Requirements**:
+- **CRITICAL**: All automated tests (unit, integration, and any other) must clean up after themselves
+- Each test must delete any DynamoDB records created during testing
+- Each test must delete any S3 objects created during testing
+- Before marking a test as "complete", verify cleanup by:
+  1. Running the test successfully
+  2. Checking DynamoDB/S3 to confirm all test data has been deleted
+- Use `@mock_dynamodb` and `@mock_s3` decorators from `moto` to ensure proper cleanup
+- Tests that leave orphaned data are considered INCOMPLETE and must be fixed before merge
+
 **Mocking Strategy**:
 - Use `moto` for mocking AWS services (DynamoDB, S3, SNS/SES, EventBridge)
 - Use `pytest` fixtures for common test data
