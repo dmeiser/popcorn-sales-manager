@@ -2,7 +2,7 @@
  * GraphQL queries and mutations for the app
  */
 
-import { gql } from '@apollo/client';
+import { gql } from "@apollo/client";
 
 // ============================================================================
 // Fragments
@@ -207,7 +207,7 @@ export const GET_CATALOG = gql`
 export const CREATE_SELLER_PROFILE = gql`
   ${SELLER_PROFILE_FRAGMENT}
   mutation CreateSellerProfile($sellerName: String!) {
-    createSellerProfile(sellerName: $sellerName) {
+    createSellerProfile(input: { sellerName: $sellerName }) {
       ...SellerProfileFields
     }
   }
@@ -216,7 +216,9 @@ export const CREATE_SELLER_PROFILE = gql`
 export const UPDATE_SELLER_PROFILE = gql`
   ${SELLER_PROFILE_FRAGMENT}
   mutation UpdateSellerProfile($profileId: ID!, $sellerName: String!) {
-    updateSellerProfile(profileId: $profileId, sellerName: $sellerName) {
+    updateSellerProfile(
+      input: { profileId: $profileId, sellerName: $sellerName }
+    ) {
       ...SellerProfileFields
     }
   }
@@ -232,8 +234,8 @@ export const DELETE_SELLER_PROFILE = gql`
 
 export const CREATE_SEASON = gql`
   ${SEASON_FRAGMENT}
-  mutation CreateSeason($profileId: ID!, $seasonName: String!, $startDate: AWSDateTime!, $endDate: AWSDateTime, $catalogId: ID!) {
-    createSeason(profileId: $profileId, seasonName: $seasonName, startDate: $startDate, endDate: $endDate, catalogId: $catalogId) {
+  mutation CreateSeason($input: CreateSeasonInput!) {
+    createSeason(input: $input) {
       ...SeasonFields
     }
   }
@@ -241,8 +243,8 @@ export const CREATE_SEASON = gql`
 
 export const UPDATE_SEASON = gql`
   ${SEASON_FRAGMENT}
-  mutation UpdateSeason($seasonId: ID!, $seasonName: String, $startDate: AWSDateTime, $endDate: AWSDateTime, $catalogId: ID) {
-    updateSeason(seasonId: $seasonId, seasonName: $seasonName, startDate: $startDate, endDate: $endDate, catalogId: $catalogId) {
+  mutation UpdateSeason($input: UpdateSeasonInput!) {
+    updateSeason(input: $input) {
       ...SeasonFields
     }
   }
@@ -276,9 +278,7 @@ export const UPDATE_ORDER = gql`
 
 export const DELETE_ORDER = gql`
   mutation DeleteOrder($orderId: ID!) {
-    deleteOrder(orderId: $orderId) {
-      orderId
-    }
+    deleteOrder(orderId: $orderId)
   }
 `;
 
@@ -297,7 +297,10 @@ export const REQUEST_SEASON_REPORT = gql`
 `;
 
 export const CREATE_PROFILE_INVITE = gql`
-  mutation CreateProfileInvite($profileId: ID!, $permissions: [PermissionType!]!) {
+  mutation CreateProfileInvite(
+    $profileId: ID!
+    $permissions: [PermissionType!]!
+  ) {
     createProfileInvite(profileId: $profileId, permissions: $permissions) {
       inviteCode
       profileId
@@ -323,8 +326,16 @@ export const REDEEM_PROFILE_INVITE = gql`
 `;
 
 export const SHARE_PROFILE_DIRECT = gql`
-  mutation ShareProfileDirect($profileId: ID!, $targetAccountId: ID!, $permissions: [PermissionType!]!) {
-    shareProfileDirect(profileId: $profileId, targetAccountId: $targetAccountId, permissions: $permissions) {
+  mutation ShareProfileDirect(
+    $profileId: ID!
+    $targetAccountId: ID!
+    $permissions: [PermissionType!]!
+  ) {
+    shareProfileDirect(
+      profileId: $profileId
+      targetAccountId: $targetAccountId
+      permissions: $permissions
+    ) {
       shareId
       profileId
       targetAccountId

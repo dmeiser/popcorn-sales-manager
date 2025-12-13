@@ -11,7 +11,7 @@
 ### User Pool Details
 
 - **User Pool ID**: `us-east-1_m861e2MtM`
-- **User Pool Name**: `popcorn-sales-manager-dev`
+- **User Pool Name**: `kernelworx-users-dev`
 - **API Endpoint**: `https://twafinvov5dujcdoyhhlql56ea.appsync-api.us-east-1.amazonaws.com/graphql`
 - **Auth Type**: `AMAZON_COGNITO_USER_POOLS`
 
@@ -184,7 +184,7 @@ Integration tests against LocalStack or AWS dev environment will be added in fut
 You can also test queries directly in the AWS AppSync console:
 
 1. Navigate to: https://console.aws.amazon.com/appsync/home?region=us-east-1
-2. Select: `popcorn-sales-manager-api-dev`
+2. Select: `kernelworx-api-dev`
 3. Click "Queries" in the left sidebar
 4. Click "Login with User Pools"
 5. Enter credentials and run queries interactively

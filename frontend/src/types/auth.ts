@@ -14,22 +14,22 @@ export interface Account {
 export interface AuthContextValue {
   /** Current authenticated user account, or null if not authenticated */
   account: Account | null;
-  
+
   /** Whether authentication state is currently loading */
   loading: boolean;
-  
+
   /** Whether user is authenticated */
   isAuthenticated: boolean;
-  
+
   /** Whether user has admin privileges */
   isAdmin: boolean;
-  
+
   /** Initiate login flow via Cognito Hosted UI */
   login: () => Promise<void>;
-  
+
   /** Sign out current user and clear session */
   logout: () => Promise<void>;
-  
+
   /** Refresh current session and account data */
   refreshSession: () => Promise<void>;
 }

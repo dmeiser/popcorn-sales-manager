@@ -53,10 +53,10 @@ def sample_orders(
             "createdAt": "2025-09-20T14:30:00+00:00",
         },
     ]
-    
+
     for order in orders:
         dynamodb_table.put_item(Item=order)
-    
+
     return orders
 
 
@@ -79,7 +79,7 @@ class TestRequestSeasonReport:
         # Arrange
         event = {
             **appsync_event,
-            "arguments": {"seasonId": sample_season_id, "format": "xlsx"},
+            "arguments": {"input": {"seasonId": sample_season_id, "format": "xlsx"}},
         }
 
         # Act
@@ -99,22 +99,22 @@ class TestRequestSeasonReport:
         assert objects["Contents"][0]["Key"].endswith(".xlsx")
 
         # Verify Excel content
-        obj = s3_bucket.get_object(
-            Bucket=bucket_name, Key=objects["Contents"][0]["Key"]
-        )
+        obj = s3_bucket.get_object(Bucket=bucket_name, Key=objects["Contents"][0]["Key"])
         wb = openpyxl.load_workbook(BytesIO(obj["Body"].read()))
         ws = wb.active
 
         # Check title
         assert "Fall 2025" in str(ws["A1"].value)
+        assert "Start Date" in str(ws["A2"].value)
+        assert "End Date" in str(ws["A3"].value)
 
-        # Check headers
-        assert ws["A3"].value == "Customer Name"
-        assert ws["B3"].value == "Contact"
+        # Check headers (row 5)
+        assert ws.cell(row=5, column=2).value == "Customer Name"
+        assert ws.cell(row=5, column=3).value == "Customer Phone"
 
-        # Check data rows
-        assert ws["A4"].value == "John Doe"
-        assert ws["A5"].value == "Jane Smith"
+        # Check data rows (starting at row 6)
+        assert ws.cell(row=6, column=2).value == "John Doe"
+        assert ws.cell(row=7, column=2).value == "Jane Smith"
 
     def test_owner_can_generate_csv_report(
         self,
@@ -131,7 +131,7 @@ class TestRequestSeasonReport:
         # Arrange
         event = {
             **appsync_event,
-            "arguments": {"seasonId": sample_season_id, "format": "csv"},
+            "arguments": {"input": {"seasonId": sample_season_id, "format": "csv"}},
         }
 
         # Act
@@ -148,9 +148,7 @@ class TestRequestSeasonReport:
         assert objects["Contents"][0]["Key"].endswith(".csv")
 
         # Verify CSV content
-        obj = s3_bucket.get_object(
-            Bucket=bucket_name, Key=objects["Contents"][0]["Key"]
-        )
+        obj = s3_bucket.get_object(Bucket=bucket_name, Key=objects["Contents"][0]["Key"])
         csv_content = obj["Body"].read().decode("utf-8")
 
         assert "Customer Name" in csv_content
@@ -177,15 +175,19 @@ class TestRequestSeasonReport:
             Item={
                 "PK": sample_profile_id,
                 "SK": f"SHARE#{another_account_id}",
+                "accountId": another_account_id,
+                "profileId": sample_profile_id,
                 "permissions": ["READ"],
                 "grantedAt": datetime.now(timezone.utc).isoformat(),
+                "GSI1PK": f"ACCOUNT#{another_account_id}",
+                "GSI1SK": f"PROFILE#{sample_profile_id}",
             }
         )
 
         event = {
             **appsync_event,
             "identity": {"sub": another_account_id},
-            "arguments": {"seasonId": sample_season_id, "format": "xlsx"},
+            "arguments": {"input": {"seasonId": sample_season_id, "format": "xlsx"}},
         }
 
         # Act
@@ -209,7 +211,7 @@ class TestRequestSeasonReport:
         event = {
             **appsync_event,
             "identity": {"sub": another_account_id},
-            "arguments": {"seasonId": sample_season_id, "format": "xlsx"},
+            "arguments": {"input": {"seasonId": sample_season_id, "format": "xlsx"}},
         }
 
         # Act
@@ -229,7 +231,7 @@ class TestRequestSeasonReport:
         """Test that requesting report for non-existent season returns error."""
         event = {
             **appsync_event,
-            "arguments": {"seasonId": "SEASON#nonexistent", "format": "xlsx"},
+            "arguments": {"input": {"seasonId": "SEASON#nonexistent", "format": "xlsx"}},
         }
 
         # Act
@@ -253,7 +255,7 @@ class TestRequestSeasonReport:
         """Test that default format is xlsx when not specified."""
         event = {
             **appsync_event,
-            "arguments": {"seasonId": sample_season_id},  # No format specified
+            "arguments": {"input": {"seasonId": sample_season_id}},  # No format specified
         }
 
         # Act
@@ -280,7 +282,7 @@ class TestRequestSeasonReport:
         """Test that empty season (no orders) generates valid report."""
         event = {
             **appsync_event,
-            "arguments": {"seasonId": sample_season_id, "format": "csv"},
+            "arguments": {"input": {"seasonId": sample_season_id, "format": "csv"}},
         }
 
         # Act
@@ -292,9 +294,7 @@ class TestRequestSeasonReport:
         # Verify CSV content shows 0 orders
         bucket_name = os.environ.get("EXPORTS_BUCKET", "test-exports-bucket")
         objects = s3_bucket.list_objects_v2(Bucket=bucket_name)
-        obj = s3_bucket.get_object(
-            Bucket=bucket_name, Key=objects["Contents"][0]["Key"]
-        )
+        obj = s3_bucket.get_object(Bucket=bucket_name, Key=objects["Contents"][0]["Key"])
         csv_content = obj["Body"].read().decode("utf-8")
 
         assert "Total Orders,0" in csv_content
@@ -313,7 +313,7 @@ class TestRequestSeasonReport:
         """Test that pre-signed URL expires in 7 days."""
         event = {
             **appsync_event,
-            "arguments": {"seasonId": sample_season_id, "format": "xlsx"},
+            "arguments": {"input": {"seasonId": sample_season_id, "format": "xlsx"}},
         }
 
         # Act

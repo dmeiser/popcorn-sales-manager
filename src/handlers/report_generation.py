@@ -14,16 +14,22 @@ import boto3
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill
 
-from ..utils.auth import check_profile_access
-from ..utils.errors import AppError, ErrorCode, handle_error
-from ..utils.logging import get_logger
+# Handle both Lambda (absolute) and unit test (relative) imports
+try:
+    from utils.auth import check_profile_access
+    from utils.errors import AppError, ErrorCode, handle_error
+    from utils.logging import get_logger
+except ModuleNotFoundError:
+    from ..utils.auth import check_profile_access  # type: ignore
+    from ..utils.errors import AppError, ErrorCode, handle_error  # type: ignore
+    from ..utils.logging import get_logger  # type: ignore
 
 # Initialize AWS clients
 dynamodb = boto3.resource("dynamodb", endpoint_url=os.getenv("DYNAMODB_ENDPOINT"))
 s3_client = boto3.client("s3", endpoint_url=os.getenv("S3_ENDPOINT"))
 
 
-def get_table():
+def get_table() -> Any:
     """Get DynamoDB table instance."""
     table_name = os.getenv("TABLE_NAME", "PsmApp")
     return dynamodb.Table(table_name)
@@ -65,7 +71,7 @@ def request_season_report(event: Dict[str, Any], context: Any) -> Dict[str, Any]
         # Get season and verify authorization
         table = get_table()
         season = _get_season(table, season_id)
-        
+
         if not season:
             raise AppError(ErrorCode.NOT_FOUND, f"Season {season_id} not found")
 
@@ -76,7 +82,7 @@ def request_season_report(event: Dict[str, Any], context: Any) -> Dict[str, Any]
             raise AppError(ErrorCode.FORBIDDEN, "You don't have access to this season")
 
         # Get all orders for the season
-        orders = _get_season_orders(table, season_id)
+        orders = _get_season_orders(table, profile_id, season_id)
 
         # Generate report
         if report_format.lower() == "csv":
@@ -90,7 +96,7 @@ def request_season_report(event: Dict[str, Any], context: Any) -> Dict[str, Any]
 
         # Upload to S3
         report_id = f"REPORT#{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}"
-        exports_bucket = os.getenv("EXPORTS_BUCKET", "popcorn-sales-manager-dev-exports")
+        exports_bucket = os.getenv("EXPORTS_BUCKET", "kernelworx-exports-dev")
         s3_key = f"reports/{profile_id}/{season_id}/{report_id}.{file_extension}"
 
         s3_client.put_object(
@@ -131,27 +137,41 @@ def request_season_report(event: Dict[str, Any], context: Any) -> Dict[str, Any]
         raise AppError(ErrorCode.INTERNAL_ERROR, f"Failed to generate report: {str(e)}")
 
 
-def _get_season(table, season_id: str) -> Dict[str, Any] | None:
-    """Get season by ID using GSI5."""
+def _get_season(table: Any, season_id: str) -> Dict[str, Any] | None:
+    """Get season by ID using GSI5 (seasonId index)."""
+    # Season ID format: SEASON#uuid
+    # Seasons are stored with PK=profileId, SK=seasonId
+    # They also have a seasonId attribute for GSI5 queries
+    # Note: GSI5 may return both the season AND orders for that season,
+    # so we filter by SK to get only the season row
     response = table.query(
         IndexName="GSI5",
-        KeyConditionExpression="seasonId = :seasonId",
-        ExpressionAttributeValues={":seasonId": season_id},
-        Limit=1,
+        KeyConditionExpression="seasonId = :season_id",
+        FilterExpression="begins_with(SK, :sk_prefix)",
+        ExpressionAttributeValues={
+            ":season_id": season_id,
+            ":sk_prefix": "SEASON#",
+        },
     )
 
     items = response.get("Items", [])
     return items[0] if items else None
 
 
-def _get_season_orders(table, season_id: str) -> list[Dict[str, Any]]:
-    """Get all orders for a season."""
+def _get_season_orders(table: Any, profile_id: str, season_id: str) -> list[Dict[str, Any]]:
+    """Get all orders for a season by querying profile and filtering by seasonId."""
     response = table.query(
         KeyConditionExpression="PK = :pk AND begins_with(SK, :sk)",
-        ExpressionAttributeValues={":pk": season_id, ":sk": "ORDER#"},
+        FilterExpression="seasonId = :season_id",
+        ExpressionAttributeValues={
+            ":pk": profile_id,
+            ":sk": "ORDER#",
+            ":season_id": season_id,
+        },
     )
 
-    return response.get("Items", [])
+    items = response.get("Items", [])
+    return list(items) if items else []
 
 
 def _generate_csv_report(season: Dict[str, Any], orders: list[Dict[str, Any]]) -> bytes:
@@ -163,31 +183,35 @@ def _generate_csv_report(season: Dict[str, Any], orders: list[Dict[str, Any]]) -
     writer = csv.writer(output)
 
     # Header
-    writer.writerow([f"Season Report: {season['seasonName']}"])
+    writer.writerow([f"Season Report: {season.get('name', season.get('seasonName', 'Unknown'))}"])
     writer.writerow([f"Start Date: {season['startDate']}"])
     writer.writerow([f"End Date: {season.get('endDate', 'Ongoing')}"])
     writer.writerow([])
 
     # Orders header
-    writer.writerow([
-        "Order Date",
-        "Customer Name",
-        "Customer Phone",
-        "Payment Method",
-        "Total Amount",
-        "Notes",
-    ])
+    writer.writerow(
+        [
+            "Order Date",
+            "Customer Name",
+            "Customer Phone",
+            "Payment Method",
+            "Total Amount",
+            "Notes",
+        ]
+    )
 
     # Orders
     for order in orders:
-        writer.writerow([
-            order.get("orderDate", ""),
-            order.get("customerName", ""),
-            order.get("customerPhone", ""),
-            order.get("paymentMethod", ""),
-            order.get("totalAmount", 0),
-            order.get("notes", ""),
-        ])
+        writer.writerow(
+            [
+                order.get("orderDate", ""),
+                order.get("customerName", ""),
+                order.get("customerPhone", ""),
+                order.get("paymentMethod", ""),
+                order.get("totalAmount", 0),
+                order.get("notes", ""),
+            ]
+        )
 
     # Summary
     total_orders = len(orders)
@@ -200,12 +224,11 @@ def _generate_csv_report(season: Dict[str, Any], orders: list[Dict[str, Any]]) -
     return output.getvalue().encode("utf-8")
 
 
-def _generate_excel_report(
-    season: Dict[str, Any], orders: list[Dict[str, Any]]
-) -> bytes:
+def _generate_excel_report(season: Dict[str, Any], orders: list[Dict[str, Any]]) -> bytes:
     """Generate Excel report."""
     wb = Workbook()
     ws = wb.active
+    assert ws is not None, "Workbook must have an active worksheet"
     ws.title = "Season Report"
 
     # Header styling
@@ -213,7 +236,7 @@ def _generate_excel_report(
     header_font = Font(bold=True, color="FFFFFF")
 
     # Title
-    ws["A1"] = f"Season Report: {season['seasonName']}"
+    ws["A1"] = f"Season Report: {season.get('name', season.get('seasonName', 'Unknown'))}"
     ws["A1"].font = Font(bold=True, size=14)
     ws["A2"] = f"Start Date: {season['startDate']}"
     ws["A3"] = f"End Date: {season.get('endDate', 'Ongoing')}"
@@ -254,12 +277,16 @@ def _generate_excel_report(
     # Auto-size columns
     for column in ws.columns:
         max_length = 0
-        column_letter = column[0].column_letter
-        for cell in column:
+        first_cell = column[0]
+        # Get column letter safely (MergedCell doesn't have column_letter)
+        column_letter = getattr(first_cell, "column_letter", None)
+        if column_letter is None:
+            continue
+        for cell in column:  # type: ignore[assignment]
             try:
                 if len(str(cell.value)) > max_length:
                     max_length = len(str(cell.value))
-            except:
+            except Exception:
                 pass
         adjusted_width = min(max_length + 2, 50)
         ws.column_dimensions[column_letter].width = adjusted_width
