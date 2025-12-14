@@ -857,7 +857,7 @@ export function response(ctx) {
         profileId: ctx.result.profileId,
         permissions: ctx.result.permissions,
         expiresAt: ctx.result.expiresAt,
-        createdBy: ctx.result.createdBy,
+        createdByAccountId: ctx.result.createdBy,
         createdAt: ctx.result.createdAt
     };
 }

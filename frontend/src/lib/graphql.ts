@@ -297,11 +297,8 @@ export const REQUEST_SEASON_REPORT = gql`
 `;
 
 export const CREATE_PROFILE_INVITE = gql`
-  mutation CreateProfileInvite(
-    $profileId: ID!
-    $permissions: [PermissionType!]!
-  ) {
-    createProfileInvite(profileId: $profileId, permissions: $permissions) {
+  mutation CreateProfileInvite($input: CreateProfileInviteInput!) {
+    createProfileInvite(input: $input) {
       inviteCode
       profileId
       permissions

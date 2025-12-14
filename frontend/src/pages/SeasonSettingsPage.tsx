@@ -131,8 +131,10 @@ export const SeasonSettingsPage: React.FC = () => {
     if (!profileId) return;
     await createInvite({
       variables: {
-        profileId,
-        permissions: ["READ", "WRITE"],
+        input: {
+          profileId,
+          permissions: ["READ", "WRITE"],
+        },
       },
     });
   };
