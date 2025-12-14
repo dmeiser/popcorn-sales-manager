@@ -13,8 +13,10 @@ import { LandingPage } from "./pages/LandingPage";
 import { LoginPage } from "./pages/LoginPage";
 import { ProfilesPage } from "./pages/ProfilesPage";
 import { ProfileSeasonsPage } from "./pages/ProfileSeasonsPage";
+import { SellerProfileManagementPage } from "./pages/SellerProfileManagementPage";
 import { SeasonLayout } from "./pages/SeasonLayout";
 import { SettingsPage } from "./pages/SettingsPage";
+import { AcceptInvitePage } from "./pages/AcceptInvitePage";
 import { AdminPage } from "./pages/AdminPage";
 import { CatalogsPage } from "./pages/CatalogsPage";
 import { apolloClient } from "./lib/apollo";
@@ -32,6 +34,16 @@ function App() {
               {/* Public routes */}
               <Route path="/" element={<LandingPage />} />
               <Route path="/login" element={<LoginPage />} />
+              <Route
+                path="/accept-invite"
+                element={
+                  <ProtectedRoute>
+                    <AppLayout>
+                      <AcceptInvitePage />
+                    </AppLayout>
+                  </ProtectedRoute>
+                }
+              />
 
               {/* Protected routes */}
               <Route
@@ -51,6 +63,17 @@ function App() {
                   <ProtectedRoute>
                     <AppLayout>
                       <ProfileSeasonsPage />
+                    </AppLayout>
+                  </ProtectedRoute>
+                }
+              />
+
+              <Route
+                path="/profiles/:profileId/manage"
+                element={
+                  <ProtectedRoute>
+                    <AppLayout>
+                      <SellerProfileManagementPage />
                     </AppLayout>
                   </ProtectedRoute>
                 }

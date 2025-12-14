@@ -28,6 +28,7 @@ import {
   Delete as DeleteIcon,
 } from "@mui/icons-material";
 import { OrderEditorDialog } from "../components/OrderEditorDialog";
+import { SeasonSummaryTiles } from "../components/SeasonSummaryTiles";
 import {
   LIST_ORDERS_BY_SEASON,
   DELETE_ORDER,
@@ -174,6 +175,9 @@ export const OrdersPage: React.FC = () => {
 
   return (
     <Box>
+      {/* Summary Tiles */}
+      <SeasonSummaryTiles seasonId={seasonId} />
+
       {/* Header */}
       <Stack
         direction="row"

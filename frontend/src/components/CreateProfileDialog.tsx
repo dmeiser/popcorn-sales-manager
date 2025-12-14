@@ -80,7 +80,7 @@ export const CreateProfileDialog: React.FC<CreateProfileDialogProps> = ({
           variant="contained"
           disabled={!sellerName.trim() || loading}
         >
-          {loading ? "Creating..." : "Create Profile"}
+          {loading ? "Creating..." : "Create Seller"}
         </Button>
       </DialogActions>
     </Dialog>

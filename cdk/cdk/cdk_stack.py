@@ -977,6 +977,107 @@ export function response(ctx) {
                 ),
             )
 
+            # deleteProfileInvite - Simple resolver (delete invite code)
+            delete_profile_invite_fn = appsync.AppsyncFunction(
+                self,
+                "DeleteProfileInviteFn",
+                name=f"DeleteProfileInviteFn_{env_name}",
+                api=self.api,
+                data_source=self.dynamodb_datasource,
+                runtime=appsync.FunctionRuntime.JS_1_0_0,
+                code=appsync.Code.from_inline(
+                    """
+import { util } from '@aws-appsync/utils';
+
+export function request(ctx) {
+    const profileId = ctx.args.profileId;
+    const inviteCode = ctx.args.inviteCode;
+    
+    // Verify caller is the profile owner
+    return {
+        operation: 'GetItem',
+        key: util.dynamodb.toMapValues({ PK: profileId, SK: 'METADATA' })
+    };
+}
+
+export function response(ctx) {
+    if (ctx.error) {
+        util.error(ctx.error.message, ctx.error.type);
+    }
+    
+    const profile = ctx.result;
+    const callerAccountId = ctx.identity.sub;
+    
+    // Check if caller is the owner
+    if (!profile || profile.ownerAccountId !== callerAccountId) {
+        util.error('Forbidden: Only profile owner can delete invites', 'Unauthorized');
+    }
+    
+    // Store profile info for next function
+    ctx.stash.profileId = ctx.args.profileId;
+    ctx.stash.inviteCode = ctx.args.inviteCode;
+    ctx.stash.authorized = true;
+    
+    return true;
+}
+                """
+                ),
+            )
+
+            # Second function to perform the actual deletion
+            delete_invite_item_fn = appsync.AppsyncFunction(
+                self,
+                "DeleteInviteItemFn",
+                name=f"DeleteInviteItemFn_{env_name}",
+                api=self.api,
+                data_source=self.dynamodb_datasource,
+                runtime=appsync.FunctionRuntime.JS_1_0_0,
+                code=appsync.Code.from_inline(
+                    """
+import { util } from '@aws-appsync/utils';
+
+export function request(ctx) {
+    const profileId = ctx.stash.profileId;
+    const inviteCode = ctx.stash.inviteCode;
+    
+    return {
+        operation: 'DeleteItem',
+        key: util.dynamodb.toMapValues({ 
+            PK: profileId, 
+            SK: 'INVITE#' + inviteCode
+        })
+    };
+}
+
+export function response(ctx) {
+    if (ctx.error) {
+        util.error(ctx.error.message, ctx.error.type);
+    }
+    return true;
+}
+                """
+                ),
+            )
+
+            self.api.create_resolver(
+                "DeleteProfileInvitePipelineResolver",
+                type_name="Mutation",
+                field_name="deleteProfileInvite",
+                runtime=appsync.FunctionRuntime.JS_1_0_0,
+                pipeline_config=[delete_profile_invite_fn, delete_invite_item_fn],
+                code=appsync.Code.from_inline(
+                    """
+export function request(ctx) {
+    return {};
+}
+
+export function response(ctx) {
+    return ctx.prev.result;
+}
+        """
+                ),
+            )
+
             # ================================================================
             # SHARED AUTHORIZATION FUNCTION
             # ================================================================
@@ -3972,7 +4073,15 @@ export function response(ctx) {
         return true;
     });
     
-    return activeInvites;
+    // Map DynamoDB field names to GraphQL schema names
+    return activeInvites.map(invite => ({
+        inviteCode: invite.inviteCode,
+        profileId: invite.profileId,
+        permissions: invite.permissions,
+        expiresAt: invite.expiresAt,
+        createdAt: invite.createdAt,
+        createdByAccountId: invite.createdBy
+    }));
 }
                     """
                 ),

@@ -291,8 +291,10 @@ export const OrderEditorDialog: React.FC<OrderEditorDialogProps> = ({
         // Update existing order
         await updateOrder({
           variables: {
-            orderId: order.orderId,
-            input,
+            input: {
+              ...input,
+              orderId: order.orderId,
+            },
           },
         });
       } else {

@@ -1,5 +1,8 @@
 /**
- * SeasonSettingsPage - Season metadata and sharing settings
+ * SeasonSettingsPage - Season-specific settings only
+ *
+ * Note: Profile-level settings (invites, shares, profile deletion) have been moved
+ * to ProfileManagementPage to clarify that invites belong to profiles, not seasons.
  */
 
 import React, { useState } from "react";
@@ -12,24 +15,17 @@ import {
   Stack,
   TextField,
   Button,
-  Alert,
-  IconButton,
   Dialog,
   DialogTitle,
   DialogContent,
   DialogActions,
   CircularProgress,
 } from "@mui/material";
-import {
-  Delete as DeleteIcon,
-  ContentCopy as CopyIcon,
-  Share as ShareIcon,
-} from "@mui/icons-material";
+import { Delete as DeleteIcon } from "@mui/icons-material";
 import {
   GET_SEASON,
   UPDATE_SEASON,
   DELETE_SEASON,
-  CREATE_PROFILE_INVITE,
 } from "../lib/graphql";
 
 interface Season {
@@ -55,7 +51,6 @@ export const SeasonSettingsPage: React.FC = () => {
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
-  const [inviteCode, setInviteCode] = useState<string | null>(null);
 
   // Fetch season
   const {
@@ -90,15 +85,6 @@ export const SeasonSettingsPage: React.FC = () => {
     },
   });
 
-  // Create profile invite
-  const [createInvite, { loading: creatingInvite }] = useMutation<{
-    createProfileInvite: { inviteCode: string };
-  }>(CREATE_PROFILE_INVITE, {
-    onCompleted: (data) => {
-      setInviteCode(data.createProfileInvite.inviteCode);
-    },
-  });
-
   const season = seasonData?.getSeason;
 
   const handleSaveChanges = async () => {
@@ -127,24 +113,6 @@ export const SeasonSettingsPage: React.FC = () => {
     await deleteSeason({ variables: { seasonId } });
   };
 
-  const handleCreateInvite = async () => {
-    if (!profileId) return;
-    await createInvite({
-      variables: {
-        input: {
-          profileId,
-          permissions: ["READ", "WRITE"],
-        },
-      },
-    });
-  };
-
-  const handleCopyInviteCode = () => {
-    if (inviteCode) {
-      navigator.clipboard.writeText(inviteCode);
-    }
-  };
-
   if (loading) {
     return (
       <Box
@@ -168,9 +136,18 @@ export const SeasonSettingsPage: React.FC = () => {
 
   return (
     <Box>
-      <Typography variant="h5" gutterBottom>
-        Season Settings
-      </Typography>
+      <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 3 }}>
+        <Typography variant="h5">
+          Season Settings
+        </Typography>
+        <Button
+          variant="text"
+          color="primary"
+          onClick={() => navigate(`/profiles/${encodeURIComponent(profileId)}/manage`)}
+        >
+          Manage Seller Profile
+        </Button>
+      </Stack>
 
       {/* Basic Settings */}
       <Paper sx={{ p: 3, mb: 3 }}>
@@ -213,43 +190,6 @@ export const SeasonSettingsPage: React.FC = () => {
         </Stack>
       </Paper>
 
-      {/* Profile Sharing */}
-      <Paper sx={{ p: 3, mb: 3 }}>
-        <Typography variant="h6" gutterBottom>
-          Profile Sharing
-        </Typography>
-        <Typography variant="body2" color="text.secondary" paragraph>
-          Share this seller profile with others. They will be able to view and
-          edit all seasons for this profile.
-        </Typography>
-        <Button
-          variant="outlined"
-          startIcon={
-            creatingInvite ? <CircularProgress size={20} /> : <ShareIcon />
-          }
-          onClick={handleCreateInvite}
-          disabled={creatingInvite}
-        >
-          Generate Invite Code
-        </Button>
-        {inviteCode && (
-          <Alert severity="success" sx={{ mt: 2 }}>
-            <Stack direction="row" spacing={1} alignItems="center">
-              <Typography variant="body2">
-                Invite Code: <strong>{inviteCode}</strong>
-              </Typography>
-              <IconButton size="small" onClick={handleCopyInviteCode}>
-                <CopyIcon fontSize="small" />
-              </IconButton>
-            </Stack>
-            <Typography variant="caption" display="block" mt={1}>
-              Share this code with others. It expires in 14 days and can only be
-              used once.
-            </Typography>
-          </Alert>
-        )}
-      </Paper>
-
       {/* Danger Zone */}
       <Paper
         sx={{
@@ -276,7 +216,7 @@ export const SeasonSettingsPage: React.FC = () => {
         </Button>
       </Paper>
 
-      {/* Delete Confirmation Dialog */}
+      {/* Delete Season Confirmation Dialog */}
       <Dialog
         open={deleteConfirmOpen}
         onClose={() => setDeleteConfirmOpen(false)}
@@ -302,3 +242,4 @@ export const SeasonSettingsPage: React.FC = () => {
     </Box>
   );
 };
+

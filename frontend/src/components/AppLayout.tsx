@@ -24,6 +24,7 @@ import AdminPanelSettingsIcon from "@mui/icons-material/AdminPanelSettings";
 import InventoryIcon from "@mui/icons-material/Inventory";
 import AccountCircleIcon from "@mui/icons-material/AccountCircle";
 import LogoutIcon from "@mui/icons-material/Logout";
+import CardGiftcardIcon from "@mui/icons-material/CardGiftcard";
 import { useAuth } from "../contexts/AuthContext";
 import { Toast } from "./Toast";
 import { Outlet } from "react-router-dom";
@@ -67,7 +68,16 @@ export const AppLayout: React.FC<{ children?: React.ReactNode }> = ({
           <ListItemIcon>
             <PersonIcon />
           </ListItemIcon>
-          <ListItemText primary="Profiles" />
+          <ListItemText primary="Seller Profiles" />
+        </ListItemButton>
+        <ListItemButton
+          onClick={() => handleNavigation("/accept-invite")}
+          selected={isActive("/accept-invite")}
+        >
+          <ListItemIcon>
+            <CardGiftcardIcon />
+          </ListItemIcon>
+          <ListItemText primary="Accept Invite" />
         </ListItemButton>
         <ListItemButton
           onClick={() => handleNavigation("/catalogs")}

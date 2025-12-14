@@ -74,19 +74,12 @@ export const SeasonCard: React.FC<SeasonCardProps> = ({
               </Typography>
               {isActive && <Chip label="Active" color="success" size="small" />}
             </Stack>
-            <Typography variant="body2" color="text.secondary">
-              Season ID: {seasonId.substring(0, 8)}...
-            </Typography>
-          </Box>
 
-          {/* Dates */}
-          <Stack direction="row" spacing={1} alignItems="center">
-            <CalendarIcon fontSize="small" color="action" />
             <Typography variant="body2" color="text.secondary">
               {formatDate(startDate)}
               {endDate && ` - ${formatDate(endDate)}`}
             </Typography>
-          </Stack>
+          </Box>
 
           {/* Stats */}
           <Stack spacing={1}>

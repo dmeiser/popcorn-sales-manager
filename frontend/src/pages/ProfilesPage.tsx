@@ -4,6 +4,7 @@
 
 import React, { useState } from "react";
 import { useQuery, useMutation } from "@apollo/client/react";
+import { useNavigate } from "react-router-dom";
 import {
   Typography,
   Box,
@@ -13,8 +14,12 @@ import {
   CircularProgress,
   Stack,
   Divider,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
 } from "@mui/material";
-import { Add as AddIcon } from "@mui/icons-material";
+import { Add as AddIcon, CardGiftcard as GiftIcon } from "@mui/icons-material";
 import { ProfileCard } from "../components/ProfileCard";
 import { CreateProfileDialog } from "../components/CreateProfileDialog";
 import { EditProfileDialog } from "../components/EditProfileDialog";
@@ -23,6 +28,7 @@ import {
   LIST_SHARED_PROFILES,
   CREATE_SELLER_PROFILE,
   UPDATE_SELLER_PROFILE,
+  DELETE_SELLER_PROFILE,
 } from "../lib/graphql";
 
 interface Profile {
@@ -38,8 +44,13 @@ interface EditingProfile {
 }
 
 export const ProfilesPage: React.FC = () => {
+  const navigate = useNavigate();
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [editingProfile, setEditingProfile] = useState<EditingProfile | null>(
+    null,
+  );
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [deletingProfileId, setDeletingProfileId] = useState<string | null>(
     null,
   );
 
@@ -74,12 +85,26 @@ export const ProfilesPage: React.FC = () => {
     },
   });
 
+  // Delete profile mutation
+  const [deleteProfile] = useMutation(DELETE_SELLER_PROFILE, {
+    onCompleted: () => {
+      setDeleteConfirmOpen(false);
+      setDeletingProfileId(null);
+      refetchMyProfiles();
+    },
+  });
+
   const handleCreateProfile = async (sellerName: string) => {
     await createProfile({ variables: { sellerName } });
   };
 
   const handleUpdateProfile = async (profileId: string, sellerName: string) => {
     await updateProfile({ variables: { profileId, sellerName } });
+  };
+
+  const handleDeleteProfile = async () => {
+    if (!deletingProfileId) return;
+    await deleteProfile({ variables: { profileId: deletingProfileId } });
   };
 
   const myProfiles: Profile[] = myProfilesData?.listMyProfiles || [];
@@ -112,15 +137,24 @@ export const ProfilesPage: React.FC = () => {
         mb={3}
       >
         <Typography variant="h4" component="h1">
-          My Profiles
+          My Seller Profiles
         </Typography>
-        <Button
-          variant="contained"
-          startIcon={<AddIcon />}
-          onClick={() => setCreateDialogOpen(true)}
-        >
-          Create Profile
-        </Button>
+        <Stack direction="row" spacing={2}>
+          <Button
+            variant="outlined"
+            startIcon={<GiftIcon />}
+            onClick={() => navigate("/accept-invite")}
+          >
+            Accept Invite
+          </Button>
+          <Button
+            variant="contained"
+            startIcon={<AddIcon />}
+            onClick={() => setCreateDialogOpen(true)}
+          >
+            Create Seller
+          </Button>
+        </Stack>
       </Stack>
 
       {error && (
@@ -133,7 +167,7 @@ export const ProfilesPage: React.FC = () => {
       {myProfiles.length > 0 && (
         <Box mb={4}>
           <Typography variant="h6" gutterBottom>
-            Profiles I Own
+            Seller Profiles I Own
           </Typography>
           <Grid container spacing={2}>
             {myProfiles.map((profile) => (
@@ -143,12 +177,6 @@ export const ProfilesPage: React.FC = () => {
                   sellerName={profile.sellerName}
                   isOwner={profile.isOwner}
                   permissions={profile.permissions}
-                  onEdit={() =>
-                    setEditingProfile({
-                      profileId: profile.profileId,
-                      sellerName: profile.sellerName,
-                    })
-                  }
                 />
               </Grid>
             ))}
@@ -161,7 +189,7 @@ export const ProfilesPage: React.FC = () => {
         <Box>
           {myProfiles.length > 0 && <Divider sx={{ my: 4 }} />}
           <Typography variant="h6" gutterBottom>
-            Shared With Me
+            Seller Profiles Shared With Me
           </Typography>
           <Grid container spacing={2}>
             {sharedProfiles.map((profile) => (
@@ -171,15 +199,6 @@ export const ProfilesPage: React.FC = () => {
                   sellerName={profile.sellerName}
                   isOwner={profile.isOwner}
                   permissions={profile.permissions}
-                  onEdit={
-                    profile.permissions.includes("WRITE")
-                      ? () =>
-                          setEditingProfile({
-                            profileId: profile.profileId,
-                            sellerName: profile.sellerName,
-                          })
-                      : undefined
-                  }
                 />
               </Grid>
             ))}
@@ -190,7 +209,7 @@ export const ProfilesPage: React.FC = () => {
       {/* Empty State */}
       {myProfiles.length === 0 && sharedProfiles.length === 0 && !loading && (
         <Alert severity="info">
-          You don't have any seller profiles yet. Click "Create Profile" to get
+          You don't have any seller profiles yet. Click "Create Seller" to get
           started!
         </Alert>
       )}
@@ -211,6 +230,30 @@ export const ProfilesPage: React.FC = () => {
           onSubmit={handleUpdateProfile}
         />
       )}
+
+      {/* Delete Profile Confirmation Dialog */}
+      <Dialog
+        open={deleteConfirmOpen}
+        onClose={() => setDeleteConfirmOpen(false)}
+      >
+        <DialogTitle>Delete Profile?</DialogTitle>
+        <DialogContent>
+          <Typography>
+            Are you sure you want to delete this profile? All seasons and orders
+            will be permanently deleted. This action cannot be undone.
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDeleteConfirmOpen(false)}>Cancel</Button>
+          <Button
+            onClick={handleDeleteProfile}
+            color="error"
+            variant="contained"
+          >
+            Delete Permanently
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 };

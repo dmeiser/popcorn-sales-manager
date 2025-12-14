@@ -307,6 +307,7 @@ type Mutation {
   
   # Sharing mutations
   createProfileInvite(input: CreateProfileInviteInput!): ProfileInvite!
+  deleteProfileInvite(profileId: ID!, inviteCode: ID!): Boolean!
   redeemProfileInvite(input: RedeemProfileInviteInput!): Share!
   shareProfileDirect(input: ShareProfileDirectInput!): Share!
   revokeShare(input: RevokeShareInput!): Boolean!

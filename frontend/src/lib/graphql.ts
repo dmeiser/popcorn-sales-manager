@@ -200,6 +200,32 @@ export const GET_CATALOG = gql`
   }
 `;
 
+export const LIST_INVITES_BY_PROFILE = gql`
+  query ListInvitesByProfile($profileId: ID!) {
+    listInvitesByProfile(profileId: $profileId) {
+      inviteCode
+      profileId
+      permissions
+      expiresAt
+      createdAt
+      createdByAccountId
+    }
+  }
+`;
+
+export const LIST_SHARES_BY_PROFILE = gql`
+  query ListSharesByProfile($profileId: ID!) {
+    listSharesByProfile(profileId: $profileId) {
+      shareId
+      profileId
+      targetAccountId
+      permissions
+      createdAt
+      createdByAccountId
+    }
+  }
+`;
+
 // ============================================================================
 // Mutations
 // ============================================================================
@@ -226,9 +252,7 @@ export const UPDATE_SELLER_PROFILE = gql`
 
 export const DELETE_SELLER_PROFILE = gql`
   mutation DeleteSellerProfile($profileId: ID!) {
-    deleteSellerProfile(profileId: $profileId) {
-      profileId
-    }
+    deleteSellerProfile(profileId: $profileId)
   }
 `;
 
@@ -252,9 +276,7 @@ export const UPDATE_SEASON = gql`
 
 export const DELETE_SEASON = gql`
   mutation DeleteSeason($seasonId: ID!) {
-    deleteSeason(seasonId: $seasonId) {
-      seasonId
-    }
+    deleteSeason(seasonId: $seasonId)
   }
 `;
 
@@ -269,8 +291,8 @@ export const CREATE_ORDER = gql`
 
 export const UPDATE_ORDER = gql`
   ${ORDER_FRAGMENT}
-  mutation UpdateOrder($orderId: ID!, $input: UpdateOrderInput!) {
-    updateOrder(orderId: $orderId, input: $input) {
+  mutation UpdateOrder($input: UpdateOrderInput!) {
+    updateOrder(input: $input) {
       ...OrderFields
     }
   }
@@ -310,8 +332,8 @@ export const CREATE_PROFILE_INVITE = gql`
 `;
 
 export const REDEEM_PROFILE_INVITE = gql`
-  mutation RedeemProfileInvite($inviteCode: ID!) {
-    redeemProfileInvite(inviteCode: $inviteCode) {
+  mutation RedeemProfileInvite($input: RedeemProfileInviteInput!) {
+    redeemProfileInvite(input: $input) {
       shareId
       profileId
       targetAccountId
@@ -323,16 +345,8 @@ export const REDEEM_PROFILE_INVITE = gql`
 `;
 
 export const SHARE_PROFILE_DIRECT = gql`
-  mutation ShareProfileDirect(
-    $profileId: ID!
-    $targetAccountId: ID!
-    $permissions: [PermissionType!]!
-  ) {
-    shareProfileDirect(
-      profileId: $profileId
-      targetAccountId: $targetAccountId
-      permissions: $permissions
-    ) {
+  mutation ShareProfileDirect($input: ShareProfileDirectInput!) {
+    shareProfileDirect(input: $input) {
       shareId
       profileId
       targetAccountId
@@ -344,10 +358,8 @@ export const SHARE_PROFILE_DIRECT = gql`
 `;
 
 export const REVOKE_SHARE = gql`
-  mutation RevokeShare($shareId: ID!) {
-    revokeShare(shareId: $shareId) {
-      shareId
-    }
+  mutation RevokeShare($input: RevokeShareInput!) {
+    revokeShare(input: $input)
   }
 `;
 
@@ -372,5 +384,11 @@ export const UPDATE_CATALOG = gql`
 export const DELETE_CATALOG = gql`
   mutation DeleteCatalog($catalogId: ID!) {
     deleteCatalog(catalogId: $catalogId)
+  }
+`;
+
+export const DELETE_PROFILE_INVITE = gql`
+  mutation DeleteProfileInvite($profileId: ID!, $inviteCode: ID!) {
+    deleteProfileInvite(profileId: $profileId, inviteCode: $inviteCode)
   }
 `;

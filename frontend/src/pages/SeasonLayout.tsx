@@ -33,12 +33,10 @@ import {
 import {
   ArrowBack as ArrowBackIcon,
   ShoppingCart as OrdersIcon,
-  BarChart as SummaryIcon,
   Assessment as ReportsIcon,
   Settings as SettingsIcon,
 } from "@mui/icons-material";
 import { OrdersPage } from "./OrdersPage";
-import { SeasonSummaryPage } from "./SeasonSummaryPage";
 import { ReportsPage } from "./ReportsPage";
 import { SeasonSettingsPage } from "./SeasonSettingsPage";
 import { GET_SEASON, GET_PROFILE } from "../lib/graphql";
@@ -71,7 +69,7 @@ export const SeasonLayout: React.FC = () => {
 
   // Determine current tab from URL
   const currentPath = location.pathname.split("/").pop();
-  const tabValue = ["orders", "summary", "reports", "settings"].includes(
+  const tabValue = ["orders", "reports", "settings"].includes(
     currentPath || "",
   )
     ? currentPath
@@ -204,12 +202,6 @@ export const SeasonLayout: React.FC = () => {
             iconPosition="start"
           />
           <Tab
-            label="Summary"
-            value="summary"
-            icon={<SummaryIcon />}
-            iconPosition="start"
-          />
-          <Tab
             label="Reports"
             value="reports"
             icon={<ReportsIcon />}
@@ -227,7 +219,6 @@ export const SeasonLayout: React.FC = () => {
       {/* Tab Content */}
       <Routes>
         <Route path="orders" element={<OrdersPage />} />
-        <Route path="summary" element={<SeasonSummaryPage />} />
         <Route path="reports" element={<ReportsPage />} />
         <Route path="settings" element={<SeasonSettingsPage />} />
         <Route path="/" element={<Navigate to="orders" replace />} />
