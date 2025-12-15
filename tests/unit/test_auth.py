@@ -458,44 +458,86 @@ class TestGetAccount:
 
 
 class TestIsAdmin:
-    """Tests for is_admin function."""
+    """Tests for is_admin function - checks JWT cognito:groups claim."""
 
-    def test_admin_account_returns_true(self, dynamodb_table: Any, sample_account_id: str) -> None:
-        """Test that admin account returns True."""
-        # Create admin account
-        dynamodb_table.put_item(
-            Item={
-                "PK": f"ACCOUNT#{sample_account_id}",
-                "SK": "METADATA",
-                "accountId": sample_account_id,
-                "isAdmin": True,
+    def test_admin_group_in_jwt_returns_true(self) -> None:
+        """Test that ADMIN group in JWT claims returns True."""
+        event = {
+            "identity": {
+                "claims": {
+                    "cognito:groups": ["ADMIN"],
+                    "sub": "test-user-123",
+                }
             }
-        )
+        }
 
-        result = is_admin(sample_account_id)
+        result = is_admin(event)
 
         assert result is True
 
-    def test_non_admin_account_returns_false(
-        self, dynamodb_table: Any, sample_account_id: str
-    ) -> None:
-        """Test that non-admin account returns False."""
-        # Create non-admin account
-        dynamodb_table.put_item(
-            Item={
-                "PK": f"ACCOUNT#{sample_account_id}",
-                "SK": "METADATA",
-                "accountId": sample_account_id,
-                "isAdmin": False,
+    def test_admin_group_as_string_returns_true(self) -> None:
+        """Test that ADMIN group as string (not list) returns True."""
+        event = {
+            "identity": {
+                "claims": {
+                    "cognito:groups": "ADMIN",  # String instead of list
+                    "sub": "test-user-123",
+                }
             }
-        )
+        }
 
-        result = is_admin(sample_account_id)
+        result = is_admin(event)
+
+        assert result is True
+
+    def test_no_admin_group_returns_false(self) -> None:
+        """Test that user without ADMIN group returns False."""
+        event = {
+            "identity": {
+                "claims": {
+                    "cognito:groups": ["USER"],
+                    "sub": "test-user-123",
+                }
+            }
+        }
+
+        result = is_admin(event)
 
         assert result is False
 
-    def test_nonexistent_account_returns_false(self, dynamodb_table: Any) -> None:
-        """Test that nonexistent account returns False."""
-        result = is_admin("nonexistent-account")
+    def test_empty_groups_returns_false(self) -> None:
+        """Test that empty groups list returns False."""
+        event = {
+            "identity": {
+                "claims": {
+                    "cognito:groups": [],
+                    "sub": "test-user-123",
+                }
+            }
+        }
+
+        result = is_admin(event)
+
+        assert result is False
+
+    def test_missing_groups_claim_returns_false(self) -> None:
+        """Test that missing cognito:groups claim returns False."""
+        event = {
+            "identity": {
+                "claims": {
+                    "sub": "test-user-123",
+                }
+            }
+        }
+
+        result = is_admin(event)
+
+        assert result is False
+
+    def test_missing_identity_returns_false(self) -> None:
+        """Test that missing identity field returns False."""
+        event: Dict[str, Any] = {}
+
+        result = is_admin(event)
 
         assert result is False

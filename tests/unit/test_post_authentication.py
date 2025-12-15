@@ -29,7 +29,10 @@ def cognito_event():
                 "sub": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
                 "email": "user@example.com",
                 "email_verified": "true",
-            }
+            },
+            "groupConfiguration": {
+                "groupsToOverride": [],  # No groups by default (non-admin)
+            },
         },
         "response": {},
     }
@@ -44,9 +47,13 @@ def lambda_context():
     return context
 
 
-def test_create_new_account_first_user(cognito_event, lambda_context, dynamodb_table, monkeypatch):
-    """Test creating account for first user (becomes admin)"""
+def test_create_new_account_admin_user(cognito_event, lambda_context, dynamodb_table, monkeypatch):
+    """Test creating account for user in ADMIN group"""
     monkeypatch.setenv("TABLE_NAME", "PsmApp")
+    
+    # Add user to ADMIN group
+    cognito_event["request"]["groupConfiguration"]["groupsToOverride"] = ["ADMIN"]
+    
     result = lambda_handler(cognito_event, lambda_context)
 
     # Should return event unmodified
@@ -64,35 +71,26 @@ def test_create_new_account_first_user(cognito_event, lambda_context, dynamodb_t
     account = response["Item"]
     assert account["accountId"] == "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
     assert account["email"] == "user@example.com"
-    assert account["isAdmin"] is True  # First user is admin
+    assert account["isAdmin"] is True  # User in ADMIN group
     assert "createdAt" in account
     assert "updatedAt" in account
 
 
-def test_create_new_account_not_first_user(
+def test_create_new_account_regular_user(
     cognito_event, lambda_context, dynamodb_table, monkeypatch
 ):
-    """Test creating account for non-first user (not admin)"""
+    """Test creating account for user not in ADMIN group"""
     monkeypatch.setenv("TABLE_NAME", "PsmApp")
-    # Create an existing account first
-    dynamodb_table.put_item(
-        Item={
-            "PK": "ACCOUNT#existing-user",
-            "SK": "METADATA",
-            "accountId": "existing-user",
-            "email": "existing@example.com",
-            "isAdmin": True,
-            "createdAt": datetime.now(timezone.utc).isoformat(),
-            "updatedAt": datetime.now(timezone.utc).isoformat(),
-        }
-    )
-
+    
+    # User has no groups (or only USER group - not ADMIN)
+    cognito_event["request"]["groupConfiguration"]["groupsToOverride"] = ["USER"]
+    
     result = lambda_handler(cognito_event, lambda_context)
 
     # Should return event unmodified
     assert result == cognito_event
 
-    # Check new Account was created
+    # Check Account was created
     response = dynamodb_table.get_item(
         Key={
             "PK": "ACCOUNT#a1b2c3d4-e5f6-7890-abcd-ef1234567890",
@@ -102,13 +100,17 @@ def test_create_new_account_not_first_user(
 
     assert "Item" in response
     account = response["Item"]
-    assert account["isAdmin"] is False  # Not first user, not admin
+    assert account["isAdmin"] is False  # Not in ADMIN group
 
 
 def test_update_existing_account(cognito_event, lambda_context, dynamodb_table, monkeypatch):
     """Test updating existing account on subsequent login"""
     monkeypatch.setenv("TABLE_NAME", "PsmApp")
-    # Create existing account with old email
+    
+    # Add user to ADMIN group
+    cognito_event["request"]["groupConfiguration"]["groupsToOverride"] = ["ADMIN"]
+    
+    # Create existing account with old email and non-admin status
     original_timestamp = "2024-01-01T00:00:00+00:00"
     dynamodb_table.put_item(
         Item={
@@ -137,6 +139,7 @@ def test_update_existing_account(cognito_event, lambda_context, dynamodb_table, 
 
     account = response["Item"]
     assert account["email"] == "user@example.com"  # Updated email
+    assert account["isAdmin"] is True  # Updated admin status from group
     assert account["updatedAt"] > original_timestamp  # Updated timestamp
     assert account["createdAt"] == original_timestamp  # Created unchanged
 

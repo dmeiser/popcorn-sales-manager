@@ -1208,6 +1208,25 @@ describe('Catalog CRUD Integration Tests', () => {
         });
         const contributorSeasonId = contributorSeasonData.createSeason.seasonId;
 
+        // Verify both seasons were created with the catalog reference
+        const { data: ownerSeasonCheck }: any = await ownerClient.query({
+          query: GET_SEASON,
+          variables: { seasonId: ownerSeasonId },
+          fetchPolicy: 'network-only',
+        });
+        expect(ownerSeasonCheck.getSeason.catalogId).toBe(catalogId);
+        
+        const { data: contributorSeasonCheck }: any = await contributorClient.query({
+          query: GET_SEASON,
+          variables: { seasonId: contributorSeasonId },
+          fetchPolicy: 'network-only',
+        });
+        expect(contributorSeasonCheck.getSeason.catalogId).toBe(catalogId);
+
+        // Wait 1 second to ensure DynamoDB has fully replicated the season writes
+        // (consistentRead doesn't fully solve eventual consistency for Scan operations)
+        await new Promise(resolve => setTimeout(resolve, 1000));
+
         // Act & Assert: Owner tries to delete the public catalog but should fail
         // because 2 seasons are using it
         await expect(

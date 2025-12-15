@@ -58,11 +58,13 @@ export const ProfileCard: React.FC<ProfileCardProps> = ({
 
   const seasons = seasonsData?.listSeasonsByProfile || [];
   // Get latest season by startDate
-  const latestSeason = seasons.length > 0
-    ? [...seasons].sort((a, b) =>
-        new Date(b.startDate).getTime() - new Date(a.startDate).getTime()
-      )[0]
-    : null;
+  const latestSeason =
+    seasons.length > 0
+      ? [...seasons].sort(
+          (a, b) =>
+            new Date(b.startDate).getTime() - new Date(a.startDate).getTime(),
+        )[0]
+      : null;
 
   const handleViewSeasons = () => {
     navigate(`/profiles/${encodeURIComponent(profileId)}/seasons`);
@@ -72,21 +74,34 @@ export const ProfileCard: React.FC<ProfileCardProps> = ({
     if (latestSeason) {
       navigate(
         `/profiles/${encodeURIComponent(profileId)}/seasons/${encodeURIComponent(
-          latestSeason.seasonId
-        )}`
+          latestSeason.seasonId,
+        )}`,
       );
     }
   };
 
   return (
-    <Card elevation={2} sx={{ height: "100%", display: "flex", flexDirection: "column" }}>
+    <Card
+      elevation={2}
+      sx={{ height: "100%", display: "flex", flexDirection: "column" }}
+    >
       <CardContent sx={{ flexGrow: 1 }}>
         <Stack direction="row" spacing={2} alignItems="flex-start" mb={0.25}>
-          <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
+          <Box
+            sx={{
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+            }}
+          >
             <PersonIcon color="primary" sx={{ fontSize: 40 }} />
           </Box>
           <Box flexGrow={1}>
-            <Typography variant="h5" component="h3" sx={{ fontWeight: 600, mb: 0.5 }}>
+            <Typography
+              variant="h5"
+              component="h3"
+              sx={{ fontWeight: 600, mb: 0.5 }}
+            >
               {sellerName}
             </Typography>
             <Stack direction="row" spacing={1} flexWrap="wrap" sx={{ mb: 2 }}>
@@ -106,7 +121,14 @@ export const ProfileCard: React.FC<ProfileCardProps> = ({
           <CircularProgress size={20} sx={{ mt: 1 }} />
         ) : latestSeason ? (
           <Stack direction="row" spacing={2} alignItems="flex-start">
-            <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", width: 40 }}>
+            <Box
+              sx={{
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                width: 40,
+              }}
+            >
               {latestSeason && (
                 <CalendarIcon sx={{ fontSize: 40, color: "text.secondary" }} />
               )}
@@ -136,7 +158,10 @@ export const ProfileCard: React.FC<ProfileCardProps> = ({
                   </Typography>
                 </Box>
                 <Box>
-                  <Typography variant="body1" sx={{ fontWeight: 600, color: "success.main" }}>
+                  <Typography
+                    variant="body1"
+                    sx={{ fontWeight: 600, color: "success.main" }}
+                  >
                     ${(latestSeason?.totalRevenue ?? 0).toFixed(2)}
                   </Typography>
                   <Typography variant="body2" color="text.secondary">

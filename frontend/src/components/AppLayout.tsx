@@ -56,6 +56,22 @@ export const AppLayout: React.FC<{ children?: React.ReactNode }> = ({
     );
   };
 
+  const getDisplayName = () => {
+    if (!account) return "";
+
+    const { givenName, familyName, email } = account;
+
+    if (givenName && familyName) {
+      return `${givenName} ${familyName}`;
+    }
+
+    if (givenName) {
+      return givenName;
+    }
+
+    return email;
+  };
+
   const drawerContent = (
     <Box>
       <Toolbar />
@@ -173,7 +189,18 @@ export const AppLayout: React.FC<{ children?: React.ReactNode }> = ({
             </Box>
 
             {!isDesktop && account && (
-              <Box sx={{ display: "flex", alignItems: "center", mr: 1 }}>
+              <Button
+                color="inherit"
+                onClick={() => handleNavigation("/account/settings")}
+                sx={{
+                  textTransform: "none",
+                  mr: 1,
+                  display: "flex",
+                  alignItems: "center",
+                  minWidth: "auto",
+                  px: 1,
+                }}
+              >
                 <AccountCircleIcon sx={{ fontSize: "1.5rem" }} />
                 <Typography
                   variant="body2"
@@ -184,18 +211,29 @@ export const AppLayout: React.FC<{ children?: React.ReactNode }> = ({
                     display: { xs: "none", sm: "block" },
                   }}
                 >
-                  {account.displayName}
+                  {getDisplayName()}
                 </Typography>
-              </Box>
+              </Button>
             )}
 
             {isDesktop && account && (
-              <Box sx={{ display: "flex", alignItems: "center", mr: 1 }}>
+              <Button
+                color="inherit"
+                onClick={() => handleNavigation("/account/settings")}
+                sx={{
+                  textTransform: "none",
+                  mr: 1,
+                  display: "flex",
+                  alignItems: "center",
+                  minWidth: "auto",
+                  px: 1,
+                }}
+              >
                 <AccountCircleIcon sx={{ mr: 0.5, fontSize: "1.25rem" }} />
                 <Typography variant="body2" noWrap>
-                  {account.displayName}
+                  {getDisplayName()}
                 </Typography>
-              </Box>
+              </Button>
             )}
 
             <Button

@@ -5,49 +5,23 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@apollo/client/react";
-import {
-  Box,
-  Typography,
-  Paper,
-  Stack,
-  Button,
-  Divider,
-  List,
-  ListItem,
-  ListItemText,
-  ListItemIcon,
-  Alert,
-  Chip,
-  CircularProgress,
-} from "@mui/material";
-import {
-  Person as PersonIcon,
-  Email as EmailIcon,
-  AdminPanelSettings as AdminIcon,
-  Logout as LogoutIcon,
-  Info as InfoIcon,
-} from "@mui/icons-material";
+import { Box, Typography, Paper, Stack, Button } from "@mui/material";
+import { Logout as LogoutIcon } from "@mui/icons-material";
 import { useAuth } from "../contexts/AuthContext";
 import { GET_MY_ACCOUNT } from "../lib/graphql";
 
 interface Account {
-  accountId: string;
-  email: string;
   isAdmin: boolean;
-  createdAt: string;
-  updatedAt: string;
 }
 
 export const SettingsPage: React.FC = () => {
   const navigate = useNavigate();
   const { logout } = useAuth();
 
-  const {
-    data: accountData,
-    loading,
-    error,
-  } = useQuery<{ getMyAccount: Account }>(GET_MY_ACCOUNT);
-
+  // Only query for isAdmin to show/hide Admin Console button
+  const { data: accountData } = useQuery<{ getMyAccount: Account }>(
+    GET_MY_ACCOUNT,
+  );
   const account = accountData?.getMyAccount;
 
   const handleLogout = async () => {
@@ -55,117 +29,11 @@ export const SettingsPage: React.FC = () => {
     navigate("/");
   };
 
-  if (loading) {
-    return (
-      <Box
-        display="flex"
-        justifyContent="center"
-        alignItems="center"
-        minHeight="400px"
-      >
-        <CircularProgress />
-      </Box>
-    );
-  }
-
-  if (error) {
-    return (
-      <Alert severity="error">
-        Failed to load account information: {error.message}
-      </Alert>
-    );
-  }
-
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString("en-US", {
-      year: "numeric",
-      month: "long",
-      day: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  };
-
   return (
     <Box>
       <Typography variant="h4" component="h1" gutterBottom>
         Account Settings
       </Typography>
-
-      {/* Account Information */}
-      <Paper sx={{ p: 3, mb: 3 }}>
-        <Typography variant="h6" gutterBottom>
-          Account Information
-        </Typography>
-        <List>
-          <ListItem>
-            <ListItemIcon>
-              <PersonIcon color="primary" />
-            </ListItemIcon>
-            <ListItemText
-              primary="Account ID"
-              secondary={account?.accountId.substring(0, 16) + "..."}
-            />
-          </ListItem>
-          <Divider component="li" />
-          <ListItem>
-            <ListItemIcon>
-              <EmailIcon color="primary" />
-            </ListItemIcon>
-            <ListItemText primary="Email Address" secondary={account?.email} />
-          </ListItem>
-          <Divider component="li" />
-          <ListItem>
-            <ListItemIcon>
-              <AdminIcon color="primary" />
-            </ListItemIcon>
-            <ListItemText
-              primary="Account Type"
-              secondary={
-                <Stack
-                  direction="row"
-                  spacing={1}
-                  alignItems="center"
-                  component="span"
-                  sx={{ display: "inline-flex" }}
-                >
-                  <span>
-                    {account?.isAdmin ? "Administrator" : "Standard User"}
-                  </span>
-                  {account?.isAdmin && (
-                    <Chip label="Admin" color="error" size="small" />
-                  )}
-                </Stack>
-              }
-              secondaryTypographyProps={{ component: "span" }}
-            />
-          </ListItem>
-          <Divider component="li" />
-          <ListItem>
-            <ListItemIcon>
-              <InfoIcon color="primary" />
-            </ListItemIcon>
-            <ListItemText
-              primary="Account Created"
-              secondary={
-                account?.createdAt ? formatDate(account.createdAt) : "Unknown"
-              }
-            />
-          </ListItem>
-          <Divider component="li" />
-          <ListItem>
-            <ListItemIcon>
-              <InfoIcon color="primary" />
-            </ListItemIcon>
-            <ListItemText
-              primary="Last Updated"
-              secondary={
-                account?.updatedAt ? formatDate(account.updatedAt) : "Unknown"
-              }
-            />
-          </ListItem>
-        </List>
-      </Paper>
 
       {/* Quick Actions */}
       <Paper sx={{ p: 3, mb: 3 }}>
@@ -175,11 +43,11 @@ export const SettingsPage: React.FC = () => {
         <Stack spacing={2}>
           <Button
             variant="outlined"
-            onClick={() => navigate("/account/security")}
+            onClick={() => navigate("/account/settings")}
             fullWidth
             sx={{ justifyContent: "flex-start" }}
           >
-            Account Security (Password & MFA)
+            User Settings
           </Button>
           <Button
             variant="outlined"

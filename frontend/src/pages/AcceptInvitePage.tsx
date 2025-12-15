@@ -29,7 +29,7 @@ export const AcceptInvitePage: React.FC = () => {
     onCompleted: (data) => {
       const share = data.redeemProfileInvite;
       setSuccessMessage(
-        `Successfully accepted! You now have ${share.permissions.join(" and ")} access.`
+        `Successfully accepted! You now have ${share.permissions.join(" and ")} access.`,
       );
       setInviteCode("");
       // Redirect to profiles page after 2 seconds
@@ -38,7 +38,10 @@ export const AcceptInvitePage: React.FC = () => {
       }, 2000);
     },
     onError: (err) => {
-      setError(err.message || "Failed to accept invite. Please check the code and try again.");
+      setError(
+        err.message ||
+          "Failed to accept invite. Please check the code and try again.",
+      );
     },
   });
 
@@ -71,7 +74,8 @@ export const AcceptInvitePage: React.FC = () => {
                 Accept Profile Invite
               </Typography>
               <Typography variant="body2" color="text.secondary">
-                Enter the invite code you received to gain access to a seller profile
+                Enter the invite code you received to gain access to a seller
+                profile
               </Typography>
             </Box>
 
@@ -110,7 +114,9 @@ export const AcceptInvitePage: React.FC = () => {
                   size="large"
                   type="submit"
                   disabled={loading || !inviteCode.trim() || !!successMessage}
-                  startIcon={loading ? <CircularProgress size={20} /> : undefined}
+                  startIcon={
+                    loading ? <CircularProgress size={20} /> : undefined
+                  }
                 >
                   {loading ? "Accepting..." : "Accept Invite"}
                 </Button>
@@ -125,8 +131,9 @@ export const AcceptInvitePage: React.FC = () => {
               }}
             >
               <Typography variant="caption" color="text.secondary">
-                <strong>Don't have an invite code?</strong> Ask the profile owner to send you one,
-                or ask them to share the profile directly with your email address.
+                <strong>Don't have an invite code?</strong> Ask the profile
+                owner to send you one, or ask them to share the profile directly
+                with your email address.
               </Typography>
             </Box>
           </Stack>

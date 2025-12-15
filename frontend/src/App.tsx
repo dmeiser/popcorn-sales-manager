@@ -11,12 +11,13 @@ import { AuthProvider } from "./contexts/AuthContext";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import { LandingPage } from "./pages/LandingPage";
 import { LoginPage } from "./pages/LoginPage";
+import { SignupPage } from "./pages/SignupPage";
 import { ProfilesPage } from "./pages/ProfilesPage";
 import { ProfileSeasonsPage } from "./pages/ProfileSeasonsPage";
 import { SellerProfileManagementPage } from "./pages/SellerProfileManagementPage";
 import { SeasonLayout } from "./pages/SeasonLayout";
 import { SettingsPage } from "./pages/SettingsPage";
-import { AccountSecurityPage } from "./pages/AccountSecurityPage";
+import { UserSettingsPage } from "./pages/UserSettingsPage";
 import { AcceptInvitePage } from "./pages/AcceptInvitePage";
 import { AdminPage } from "./pages/AdminPage";
 import { CatalogsPage } from "./pages/CatalogsPage";
@@ -35,6 +36,7 @@ function App() {
               {/* Public routes */}
               <Route path="/" element={<LandingPage />} />
               <Route path="/login" element={<LoginPage />} />
+              <Route path="/signup" element={<SignupPage />} />
               <Route
                 path="/accept-invite"
                 element={
@@ -103,11 +105,11 @@ function App() {
               />
 
               <Route
-                path="/account/security"
+                path="/account/settings"
                 element={
                   <ProtectedRoute>
                     <AppLayout>
-                      <AccountSecurityPage />
+                      <UserSettingsPage />
                     </AppLayout>
                   </ProtectedRoute>
                 }

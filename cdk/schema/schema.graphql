@@ -38,6 +38,11 @@ enum CatalogType {
 type Account {
   accountId: ID!
   email: AWSEmail!
+  givenName: String
+  familyName: String
+  city: String
+  state: String
+  unitNumber: String
   isAdmin: Boolean!
   createdAt: AWSDateTime!
   updatedAt: AWSDateTime!
@@ -243,6 +248,14 @@ input RevokeShareInput {
   targetAccountId: ID!
 }
 
+input UpdateMyAccountInput {
+  givenName: String
+  familyName: String
+  city: String
+  state: String
+  unitNumber: String
+}
+
 input RequestSeasonReportInput {
   seasonId: ID!
   format: String
@@ -285,6 +298,9 @@ type Query {
 # ============================================================================
 
 type Mutation {
+  # Account mutations
+  updateMyAccount(input: UpdateMyAccountInput!): Account!
+  
   # Profile mutations
   createSellerProfile(input: CreateSellerProfileInput!): SellerProfile!
   updateSellerProfile(input: UpdateSellerProfileInput!): SellerProfile!

@@ -69,9 +69,7 @@ export const SeasonLayout: React.FC = () => {
 
   // Determine current tab from URL
   const currentPath = location.pathname.split("/").pop();
-  const tabValue = ["orders", "reports", "settings"].includes(
-    currentPath || "",
-  )
+  const tabValue = ["orders", "reports", "settings"].includes(currentPath || "")
     ? currentPath
     : "orders";
 

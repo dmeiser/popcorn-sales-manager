@@ -71,10 +71,7 @@ export const SeasonSummaryTiles: React.FC<SeasonSummaryTilesProps> = ({
   const totalItemsSold = orders.reduce(
     (sum, order) =>
       sum +
-      order.lineItems.reduce(
-        (itemSum, item) => itemSum + item.quantity,
-        0,
-      ),
+      order.lineItems.reduce((itemSum, item) => itemSum + item.quantity, 0),
     0,
   );
 

@@ -5,7 +5,11 @@
 export interface Account {
   accountId: string;
   email: string;
-  displayName: string;
+  givenName?: string;
+  familyName?: string;
+  city?: string;
+  state?: string;
+  unitNumber?: string;
   isAdmin: boolean;
   createdAt: string;
   updatedAt: string;
@@ -28,7 +32,10 @@ export interface AuthContextValue {
   login: () => Promise<void>;
 
   /** Sign in with email and password (custom UI) */
-  loginWithPassword: (email: string, password: string) => Promise<{ isSignedIn: boolean }>;
+  loginWithPassword: (
+    email: string,
+    password: string,
+  ) => Promise<{ isSignedIn: boolean }>;
 
   /** Sign out current user and clear session */
   logout: () => Promise<void>;

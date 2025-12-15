@@ -20,6 +20,8 @@ import {
   getCurrentUser,
 } from "aws-amplify/auth";
 import { Hub } from "aws-amplify/utils";
+import { apolloClient } from "../lib/apollo";
+import { GET_MY_ACCOUNT } from "../lib/graphql";
 import type { Account, AuthContextValue } from "../types/auth";
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -31,27 +33,23 @@ interface AuthProviderProps {
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [account, setAccount] = useState<Account | null>(null);
   const [loading, setLoading] = useState(true);
+  const [hasValidTokens, setHasValidTokens] = useState(false);
 
   /**
    * Fetch account data from GraphQL API
-   *
-   * TODO: Implement when Apollo Client is integrated
    */
   const fetchAccountData = useCallback(
     async (accountId: string): Promise<Account | null> => {
-      // Placeholder - will be implemented with Apollo Client in next step
-      // const GET_MY_ACCOUNT = gql`query GetMyAccount { getMyAccount { accountId email displayName isAdmin createdAt updatedAt } }`;
-      // const { data } = await apolloClient.query({ query: GET_MY_ACCOUNT });
-      // return data.getMyAccount;
-
-      return {
-        accountId,
-        email: "",
-        displayName: "User",
-        isAdmin: false,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      };
+      try {
+        const { data } = await apolloClient.query<{ getMyAccount: Account }>({
+          query: GET_MY_ACCOUNT,
+          fetchPolicy: "network-only", // Always fetch fresh data
+        });
+        return data.getMyAccount;
+      } catch (error) {
+        console.error("Failed to fetch account data:", error);
+        return null;
+      }
     },
     [],
   );
@@ -64,19 +62,38 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       const session = await fetchAuthSession();
 
       if (session.tokens?.idToken) {
-        // User is authenticated, get user info
+        // User has valid tokens
+        setHasValidTokens(true);
+        
+        // Get user info and account data
         const user = await getCurrentUser();
         const accountData = await fetchAccountData(user.userId);
 
         if (accountData) {
-          setAccount(accountData);
+          // Check admin status from JWT token claims, NOT from DynamoDB
+          // The cognito:groups claim is the source of truth for permissions
+          const groups = (session.tokens.idToken.payload['cognito:groups'] as string[]) || [];
+          const isAdminFromToken = groups.includes('ADMIN');
+          
+          // Override isAdmin with token value
+          setAccount({
+            ...accountData,
+            isAdmin: isAdminFromToken,
+          });
+        } else {
+          // User is authenticated but account record doesn't exist yet
+          // This can happen right after signup before post-auth Lambda runs
+          console.warn("User has valid tokens but no account record yet");
+          setAccount(null);
         }
       } else {
         // No valid session
+        setHasValidTokens(false);
         setAccount(null);
       }
     } catch (error) {
       console.error("Auth session check failed:", error);
+      setHasValidTokens(false);
       setAccount(null);
     } finally {
       setLoading(false);
@@ -144,31 +161,34 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   /**
    * Login with email and password (custom UI)
-   * 
+   *
    * This uses Amplify's direct sign-in without redirecting to Hosted UI.
    * After successful sign-in, the auth state will be updated automatically.
    */
-  const loginWithPassword = useCallback(async (email: string, password: string) => {
-    try {
-      const result = await signIn({ username: email, password });
-      
-      // Check if sign-in is complete or if there's a next step (MFA, etc.)
-      if (result.isSignedIn) {
-        // Sign-in complete - refresh the auth session
-        await checkAuthSession();
+  const loginWithPassword = useCallback(
+    async (email: string, password: string) => {
+      try {
+        const result = await signIn({ username: email, password });
+
+        // Check if sign-in is complete or if there's a next step (MFA, etc.)
+        if (result.isSignedIn) {
+          // Sign-in complete - refresh the auth session
+          await checkAuthSession();
+          return result;
+        } else if (result.nextStep) {
+          // There's a next step (MFA challenge, new password required, etc.)
+          // Return the result so the UI can handle it
+          return result;
+        }
+
         return result;
-      } else if (result.nextStep) {
-        // There's a next step (MFA challenge, new password required, etc.)
-        // Return the result so the UI can handle it
-        return result;
+      } catch (error) {
+        console.error("Email/password login failed:", error);
+        throw error;
       }
-      
-      return result;
-    } catch (error) {
-      console.error("Email/password login failed:", error);
-      throw error;
-    }
-  }, [checkAuthSession]);
+    },
+    [checkAuthSession],
+  );
 
   /**
    * Logout and clear session
@@ -180,6 +200,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     try {
       console.log("Starting logout...");
       setAccount(null);
+      setHasValidTokens(false);
       // signOut with global:true will redirect to Cognito's /logout endpoint
       // which clears the Cognito session cookies, then redirects back to redirectSignOut
       await signOut({ global: true });
@@ -208,7 +229,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const value: AuthContextValue = {
     account,
     loading,
-    isAuthenticated: !!account,
+    isAuthenticated: hasValidTokens, // Check tokens, not account record
     isAdmin: account?.isAdmin ?? false,
     login,
     loginWithPassword,

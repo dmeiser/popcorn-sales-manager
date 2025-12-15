@@ -92,6 +92,28 @@ export const GET_MY_ACCOUNT = gql`
     getMyAccount {
       accountId
       email
+      givenName
+      familyName
+      city
+      state
+      unitNumber
+      isAdmin
+      createdAt
+      updatedAt
+    }
+  }
+`;
+
+export const UPDATE_MY_ACCOUNT = gql`
+  mutation UpdateMyAccount($input: UpdateMyAccountInput!) {
+    updateMyAccount(input: $input) {
+      accountId
+      email
+      givenName
+      familyName
+      city
+      state
+      unitNumber
       isAdmin
       createdAt
       updatedAt

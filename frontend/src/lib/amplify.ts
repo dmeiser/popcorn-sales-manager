@@ -23,9 +23,11 @@ Amplify.configure({
         webAuthn: {
           // For localhost: use 'localhost' (WebAuthn RP ID can't include port)
           // For production: use the app domain (dev.kernelworx.app, not login.dev.kernelworx.app)
-          rpId: window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-            ? 'localhost'
-            : window.location.hostname,
+          rpId:
+            window.location.hostname === "localhost" ||
+            window.location.hostname === "127.0.0.1"
+              ? "localhost"
+              : window.location.hostname,
         },
       },
     },

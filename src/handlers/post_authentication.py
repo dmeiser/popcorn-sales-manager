@@ -78,33 +78,39 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
 
         timestamp = datetime.now(timezone.utc).isoformat()
 
+        # Check if user is in ADMIN group
+        # Groups are in the event under request.groupConfiguration.groupsToOverride
+        group_config = event.get("request", {}).get("groupConfiguration", {})
+        groups_to_override = group_config.get("groupsToOverride", [])
+        is_admin = "ADMIN" in groups_to_override
+
         if existing_account:
-            # Update existing account (email might have changed, update timestamp)
+            # Update existing account (email might have changed, update timestamp and admin status)
             logger.info(f"Updating existing account: {account_id}")
             table.update_item(
                 Key={"PK": f"ACCOUNT#{account_id}", "SK": "METADATA"},
-                UpdateExpression="SET email = :email, updatedAt = :updated",
-                ExpressionAttributeValues={":email": email, ":updated": timestamp},
+                UpdateExpression="SET email = :email, updatedAt = :updated, isAdmin = :admin",
+                ExpressionAttributeValues={
+                    ":email": email,
+                    ":updated": timestamp,
+                    ":admin": is_admin,
+                },
             )
         else:
             # Create new Account record
             logger.info(f"Creating new account: {account_id}")
-
-            # Check if this is the first user (make them admin)
-            # This is a simple approach - in production, use a more controlled method
-            scan_response = table.scan(
-                FilterExpression="begins_with(PK, :prefix)",
-                ExpressionAttributeValues={":prefix": "ACCOUNT#"},
-                Limit=1,
-            )
-            is_first_user = len(scan_response.get("Items", [])) == 0
 
             account_item = {
                 "PK": f"ACCOUNT#{account_id}",
                 "SK": "METADATA",
                 "accountId": account_id,
                 "email": email,
-                "isAdmin": is_first_user,  # First user gets admin rights
+                "givenName": user_attributes.get("given_name", ""),  # Optional metadata
+                "familyName": user_attributes.get("family_name", ""),  # Optional metadata
+                "city": "",  # Will be set via updateMyAccount if provided
+                "state": "",  # Will be set via updateMyAccount if provided
+                "unitNumber": "",  # Will be set via updateMyAccount if provided
+                "isAdmin": is_admin,  # Admin status based on Cognito group membership
                 "createdAt": timestamp,
                 "updatedAt": timestamp,
                 "GSI1PK": f"ACCOUNT#{account_id}",  # For account lookups
@@ -114,7 +120,7 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             table.put_item(Item=account_item)
 
             logger.info(
-                f"Account created successfully: {account_id}, email={email}, is_admin={is_first_user}"
+                f"Account created successfully: {account_id}, email={email}, is_admin={is_admin}, groups={groups_to_override}"
             )
 
         # IMPORTANT: Must return the event for Cognito to continue

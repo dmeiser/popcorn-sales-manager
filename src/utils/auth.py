@@ -152,19 +152,26 @@ def get_account(account_id: str) -> Optional[Dict[str, Any]]:
     return response.get("Item")
 
 
-def is_admin(account_id: str) -> bool:
+def is_admin(event: Dict[str, Any]) -> bool:
     """
-    Check if account has admin privileges.
+    Check if caller has admin privileges from JWT cognito:groups claim.
+    
+    IMPORTANT: This checks the JWT token claim, NOT DynamoDB cache.
+    The DynamoDB isAdmin field is updated by post-auth Lambda but is NOT
+    the source of truth - always use JWT claims for authorization.
 
     Args:
-        account_id: Cognito sub (Account ID)
+        event: Lambda event with identity.claims from AppSync
 
     Returns:
-        True if account is admin, False otherwise
+        True if caller is in ADMIN Cognito group, False otherwise
     """
-    account = get_account(account_id)
-    if not account:
+    try:
+        claims = event.get("identity", {}).get("claims", {})
+        groups = claims.get("cognito:groups", [])
+        # cognito:groups can be a string or list in JWT
+        if isinstance(groups, str):
+            groups = [groups]
+        return "ADMIN" in groups
+    except Exception:
         return False
-
-    is_admin = account.get("isAdmin", False)
-    return bool(is_admin)

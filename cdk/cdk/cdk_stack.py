@@ -368,6 +368,21 @@ class CdkStack(Stack):
             environment=lambda_env,
         )
 
+        # Account Operations Lambda Functions
+        self.update_my_account_fn = lambda_.Function(
+            self,
+            "UpdateMyAccountFnV2",
+            function_name=f"kernelworx-update-account-{env_name}",
+            runtime=lambda_.Runtime.PYTHON_3_13,
+            handler="handlers.account_operations.update_my_account",
+            code=lambda_code,
+            layers=[self.shared_layer],
+            timeout=Duration.seconds(10),
+            memory_size=256,
+            role=self.lambda_execution_role,
+            environment=lambda_env,
+        )
+
         # Post-Authentication Lambda (Cognito Trigger)
         self.post_auth_fn = lambda_.Function(
             self,
@@ -493,24 +508,26 @@ class CdkStack(Stack):
                 # UI customization (logo, CSS) is available without advanced_security_mode
             )
 
+            # Configure user attribute update settings to require verification for email changes
+            cfn_user_pool = self.user_pool.node.default_child
+            cfn_user_pool.user_attribute_update_settings = (
+                cognito.CfnUserPool.UserAttributeUpdateSettingsProperty(
+                    attributes_require_verification_before_update=["email"]
+                )
+            )
+
             # Note: COPPA compliance warning (13+ age requirement) must be displayed
             # in application UI. Lambda trigger for age verification deferred to later phase.
 
-            # Create user groups
+            # Create ADMIN user group
+            # Note: Only ADMIN group is needed. Everyone else is a regular user by default.
+            # The Lambda checks for ADMIN group membership; all other users have isAdmin=False.
             cognito.CfnUserPoolGroup(
                 self,
                 "AdminGroup",
                 user_pool_id=self.user_pool.user_pool_id,
                 group_name="ADMIN",
                 description="Administrator users with elevated privileges",
-            )
-
-            cognito.CfnUserPoolGroup(
-                self,
-                "UserGroup",
-                user_pool_id=self.user_pool.user_pool_id,
-                group_name="USER",
-                description="Standard application users",
             )
 
             # Configure social identity providers (optional - only create if credentials provided)
@@ -787,6 +804,12 @@ class CdkStack(Stack):
             self.request_season_report_ds = self.api.add_lambda_data_source(
                 "RequestSeasonReportDS",
                 lambda_function=self.request_season_report_fn,
+            )
+
+            # Lambda data sources for account operations
+            self.update_my_account_ds = self.api.add_lambda_data_source(
+                "UpdateMyAccountDS",
+                lambda_function=self.update_my_account_fn,
             )
 
             # Resolvers for profile sharing mutations
@@ -4832,47 +4855,12 @@ $util.toJson($ctx.result)
 
             # deleteCatalog - Delete a catalog (owner or admin for ADMIN_MANAGED)
             # Pipeline resolver with 3 steps:
-            # 1. Get caller's Account to check isAdmin
-            # 2. Get Catalog to check catalogType and ownerAccountId
+            # 1. Get Catalog to check catalogType and ownerAccountId
+            # 2. Check if catalog is in use by any seasons
             # 3. Delete if authorized
-            
-            # Step 1: Get caller's account to check isAdmin
-            get_caller_account_for_delete_fn = appsync.AppsyncFunction(
-                self,
-                "GetCallerAccountForDeleteFn",
-                name=f"GetCallerAccountForDeleteFn_{env_name}",
-                api=self.api,
-                data_source=self.dynamodb_datasource,
-                runtime=appsync.FunctionRuntime.JS_1_0_0,
-                code=appsync.Code.from_inline(
-                    """
-import { util } from '@aws-appsync/utils';
+            # Note: Admin check uses JWT cognito:groups claim, not DynamoDB
 
-export function request(ctx) {
-    const callerId = ctx.identity.sub;
-    return {
-        operation: 'GetItem',
-        key: util.dynamodb.toMapValues({
-            PK: 'ACCOUNT#' + callerId,
-            SK: 'METADATA'
-        })
-    };
-}
-
-export function response(ctx) {
-    if (ctx.error) {
-        return util.error(ctx.error.message, ctx.error.type);
-    }
-    // Store account info for next step
-    ctx.stash.callerAccount = ctx.result;
-    ctx.stash.callerId = ctx.identity.sub;
-    return ctx.result;
-}
-                    """
-                ),
-            )
-
-            # Step 2: Get catalog to check catalogType and ownerAccountId
+            # Step 1: Get catalog to check catalogType and ownerAccountId
             get_catalog_for_delete_fn = appsync.AppsyncFunction(
                 self,
                 "GetCatalogForDeleteFn",
@@ -4886,6 +4874,8 @@ import { util } from '@aws-appsync/utils';
 
 export function request(ctx) {
     const catalogId = ctx.args.catalogId;
+    // Store caller ID for authorization check
+    ctx.stash.callerId = ctx.identity.sub;
     return {
         operation: 'GetItem',
         key: util.dynamodb.toMapValues({
@@ -4904,9 +4894,11 @@ export function response(ctx) {
     }
     
     const catalog = ctx.result;
-    const callerAccount = ctx.stash.callerAccount;
     const callerId = ctx.stash.callerId;
-    const isAdmin = callerAccount && callerAccount.isAdmin === true;
+    
+    // Check admin status from JWT cognito:groups claim (source of truth)
+    const groups = ctx.identity.claims['cognito:groups'] || [];
+    const isAdmin = groups.includes('ADMIN');
     const isOwner = catalog.ownerAccountId === callerId;
     
     // Authorization logic:
@@ -5030,7 +5022,6 @@ export function response(ctx) {
                 field_name="deleteCatalog",
                 runtime=appsync.FunctionRuntime.JS_1_0_0,
                 pipeline_config=[
-                    get_caller_account_for_delete_fn,
                     get_catalog_for_delete_fn,
                     check_catalog_usage_fn,
                     delete_catalog_fn,
@@ -5129,6 +5120,13 @@ export function response(ctx) {
                 "RequestSeasonReportResolver",
                 type_name="Mutation",
                 field_name="requestSeasonReport",
+            )
+
+            # updateMyAccount - Update user metadata in DynamoDB (Lambda resolver)
+            self.update_my_account_ds.create_resolver(
+                "UpdateMyAccountResolver",
+                type_name="Mutation",
+                field_name="updateMyAccount",
             )
 
             # Custom domain for AppSync API

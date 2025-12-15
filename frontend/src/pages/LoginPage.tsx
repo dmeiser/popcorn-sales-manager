@@ -1,6 +1,6 @@
 /**
  * Custom Login Page
- * 
+ *
  * Provides branded login interface with:
  * - Email/password authentication
  * - Social login buttons (Google, Facebook, Apple)
@@ -8,7 +8,7 @@
  * - Link to signup page
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect } from "react";
 import {
   Box,
   Button,
@@ -20,33 +20,38 @@ import {
   Alert,
   CircularProgress,
   Link as MuiLink,
-} from '@mui/material';
-import { Google as GoogleIcon, Facebook as FacebookIcon, Apple as AppleIcon, Fingerprint as FingerprintIcon } from '@mui/icons-material';
-import { useNavigate, useLocation } from 'react-router-dom';
-import { useAuth } from '../contexts/AuthContext';
-import { confirmSignIn, signIn } from 'aws-amplify/auth';
+} from "@mui/material";
+import {
+  Google as GoogleIcon,
+  Facebook as FacebookIcon,
+  Apple as AppleIcon,
+  Fingerprint as FingerprintIcon,
+} from "@mui/icons-material";
+import { useNavigate, useLocation } from "react-router-dom";
+import { useAuth } from "../contexts/AuthContext";
+import { confirmSignIn, signIn } from "aws-amplify/auth";
 
 export const LoginPage: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { isAuthenticated, loginWithPassword } = useAuth();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [mfaCode, setMfaCode] = useState('');
+  const [mfaCode, setMfaCode] = useState("");
   const [showMfa, setShowMfa] = useState(false);
   const [showPasskeyPrompt, setShowPasskeyPrompt] = useState(false);
 
   // If already logged in, redirect to profiles
   useEffect(() => {
     if (isAuthenticated) {
-      navigate('/profiles', { replace: true });
+      navigate("/profiles", { replace: true });
     }
   }, [isAuthenticated, navigate]);
 
   // Get the redirect path from location state (defaults to /profiles)
-  const from = (location.state as any)?.from?.pathname || '/profiles';
+  const from = (location.state as any)?.from?.pathname || "/profiles";
 
   const handleEmailLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -55,11 +60,13 @@ export const LoginPage: React.FC = () => {
 
     try {
       const result = await loginWithPassword(email, password);
-      
+
       if (result.isSignedIn) {
         // Login successful, navigate to destination
         navigate(from, { replace: true });
-      } else if (result.nextStep?.signInStep === 'CONFIRM_SIGN_IN_WITH_TOTP_CODE') {
+      } else if (
+        result.nextStep?.signInStep === "CONFIRM_SIGN_IN_WITH_TOTP_CODE"
+      ) {
         // MFA required
         setShowMfa(true);
         setLoading(false);
@@ -69,8 +76,8 @@ export const LoginPage: React.FC = () => {
         setLoading(false);
       }
     } catch (err: any) {
-      console.error('Login failed:', err);
-      setError(err.message || 'Login failed. Please check your credentials.');
+      console.error("Login failed:", err);
+      setError(err.message || "Login failed. Please check your credentials.");
       setLoading(false);
     }
   };
@@ -82,26 +89,26 @@ export const LoginPage: React.FC = () => {
 
     try {
       const result = await confirmSignIn({ challengeResponse: mfaCode });
-      
+
       if (result.isSignedIn) {
         // Wait a bit for auth state to propagate
-        await new Promise(resolve => setTimeout(resolve, 500));
+        await new Promise((resolve) => setTimeout(resolve, 500));
         // Force a page reload to ensure auth state is fresh
         window.location.href = from;
       } else {
-        setError('MFA verification failed');
+        setError("MFA verification failed");
         setLoading(false);
       }
     } catch (err: any) {
-      console.error('MFA failed:', err);
-      setError(err.message || 'Invalid MFA code');
+      console.error("MFA failed:", err);
+      setError(err.message || "Invalid MFA code");
       setLoading(false);
     }
   };
 
   const handlePasskeyLogin = async () => {
     if (!email) {
-      setError('Please enter your email address');
+      setError("Please enter your email address");
       return;
     }
 
@@ -110,57 +117,75 @@ export const LoginPage: React.FC = () => {
 
     try {
       // Sign in with USER_AUTH flow
-      const result = await signIn({ 
+      const result = await signIn({
         username: email,
         options: {
-          authFlowType: 'USER_AUTH',
-        }
+          authFlowType: "USER_AUTH",
+        },
       });
-      
+
       if (result.isSignedIn) {
-        await new Promise(resolve => setTimeout(resolve, 500));
+        await new Promise((resolve) => setTimeout(resolve, 500));
         window.location.href = from;
-      } else if (result.nextStep?.signInStep === 'CONTINUE_SIGN_IN_WITH_FIRST_FACTOR_SELECTION') {
+      } else if (
+        result.nextStep?.signInStep ===
+        "CONTINUE_SIGN_IN_WITH_FIRST_FACTOR_SELECTION"
+      ) {
         // Multiple auth methods available - check what's available and select WebAuthn
-        console.log('Available auth factors:', result.nextStep);
-        
+        console.log("Available auth factors:", result.nextStep);
+
         // Select WebAuthn from available options
         const confirmResult = await confirmSignIn({
-          challengeResponse: 'WEB_AUTHN',
+          challengeResponse: "WEB_AUTHN",
         });
-        
+
         if (confirmResult.isSignedIn) {
-          await new Promise(resolve => setTimeout(resolve, 500));
+          await new Promise((resolve) => setTimeout(resolve, 500));
           window.location.href = from;
-        } else if (confirmResult.nextStep?.signInStep === 'CONFIRM_SIGN_IN_WITH_WEBAUTHN_CREDENTIAL') {
+        } else if (
+          confirmResult.nextStep?.signInStep ===
+          "CONFIRM_SIGN_IN_WITH_WEBAUTHN_CREDENTIAL"
+        ) {
           // Now the WebAuthn prompt should appear
           setShowPasskeyPrompt(true);
           setLoading(false);
         } else {
-          setError(`Unexpected step after selecting WebAuthn: ${confirmResult.nextStep?.signInStep}`);
+          setError(
+            `Unexpected step after selecting WebAuthn: ${confirmResult.nextStep?.signInStep}`,
+          );
           setLoading(false);
         }
-      } else if (result.nextStep?.signInStep === 'CONFIRM_SIGN_IN_WITH_WEBAUTHN_CREDENTIAL') {
+      } else if (
+        result.nextStep?.signInStep ===
+        "CONFIRM_SIGN_IN_WITH_WEBAUTHN_CREDENTIAL"
+      ) {
         // Passkey challenge initiated directly
         setShowPasskeyPrompt(true);
         setLoading(false);
-      } else if (result.nextStep?.signInStep === 'CONFIRM_SIGN_IN_WITH_PASSWORD') {
+      } else if (
+        result.nextStep?.signInStep === "CONFIRM_SIGN_IN_WITH_PASSWORD"
+      ) {
         // Cognito chose password - this means WebAuthn isn't available or user doesn't have passkey
-        setError('No passkey found for this account. Please register a passkey first or use password login.');
+        setError(
+          "No passkey found for this account. Please register a passkey first or use password login.",
+        );
         setLoading(false);
       } else if (result.nextStep) {
-        console.log('Unexpected next step:', result.nextStep);
+        console.log("Unexpected next step:", result.nextStep);
         setError(`Unexpected step: ${result.nextStep.signInStep}`);
         setLoading(false);
       }
     } catch (err: any) {
-      console.error('Passkey login failed:', err);
-      setError(err.message || 'Passkey authentication failed. Make sure you have a passkey registered.');
+      console.error("Passkey login failed:", err);
+      setError(
+        err.message ||
+          "Passkey authentication failed. Make sure you have a passkey registered.",
+      );
       setLoading(false);
     }
   };
 
-  const handleSocialLogin = (provider: 'Google' | 'Facebook' | 'Apple') => {
+  const handleSocialLogin = (provider: "Google" | "Facebook" | "Apple") => {
     setError(null);
     setLoading(true);
 
@@ -169,13 +194,13 @@ export const LoginPage: React.FC = () => {
       const domain = import.meta.env.VITE_COGNITO_DOMAIN;
       const clientId = import.meta.env.VITE_COGNITO_USER_POOL_CLIENT_ID;
       const redirectUri = encodeURIComponent(
-        import.meta.env.VITE_OAUTH_REDIRECT_SIGNIN || window.location.origin
+        import.meta.env.VITE_OAUTH_REDIRECT_SIGNIN || window.location.origin,
       );
       const identityProvider = provider.toLowerCase();
-      
+
       window.location.href = `https://${domain}/oauth2/authorize?client_id=${clientId}&response_type=code&redirect_uri=${redirectUri}&identity_provider=${identityProvider}&scope=openid+email+profile`;
     } catch (err: any) {
-      console.error('Social login failed:', err);
+      console.error("Social login failed:", err);
       setError(`${provider} login failed. Please try again.`);
       setLoading(false);
     }
@@ -184,29 +209,34 @@ export const LoginPage: React.FC = () => {
   return (
     <Box
       sx={{
-        minHeight: '100vh',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        bgcolor: 'background.default',
+        minHeight: "100vh",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        background: "linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%)",
         p: 2,
       }}
     >
       <Paper
-        elevation={3}
+        elevation={6}
         sx={{
           p: 4,
-          width: '100%',
+          width: "100%",
           maxWidth: 450,
         }}
       >
         {/* Header */}
-        <Box sx={{ textAlign: 'center', mb: 4 }}>
-          <Typography variant="h4" component="h1" gutterBottom fontWeight={600}>
+        <Box sx={{ textAlign: "center", mb: 4 }}>
+          <Typography
+            variant="h4"
+            component="h1"
+            gutterBottom
+            sx={{ fontFamily: "Kaushan Script, cursive" }}
+          >
             Welcome Back
           </Typography>
           <Typography variant="body2" color="text.secondary">
-            Sign in to your Popcorn Manager account
+            Sign in to your KernelWorx account
           </Typography>
         </Box>
 
@@ -240,7 +270,7 @@ export const LoginPage: React.FC = () => {
                 fullWidth
                 autoComplete="one-time-code"
                 disabled={loading}
-                inputProps={{ maxLength: 6, pattern: '[0-9]*' }}
+                inputProps={{ maxLength: 6, pattern: "[0-9]*" }}
                 autoFocus
               />
             </Stack>
@@ -253,7 +283,7 @@ export const LoginPage: React.FC = () => {
               disabled={loading || mfaCode.length !== 6}
               sx={{ mb: 2 }}
             >
-              {loading ? <CircularProgress size={24} /> : 'Verify'}
+              {loading ? <CircularProgress size={24} /> : "Verify"}
             </Button>
 
             <Button
@@ -261,8 +291,8 @@ export const LoginPage: React.FC = () => {
               fullWidth
               onClick={() => {
                 setShowMfa(false);
-                setMfaCode('');
-                setPassword('');
+                setMfaCode("");
+                setPassword("");
               }}
               disabled={loading}
             >
@@ -272,67 +302,67 @@ export const LoginPage: React.FC = () => {
         ) : (
           /* Email/Password Form */
           <form onSubmit={handleEmailLogin}>
-          <Stack spacing={2} sx={{ mb: 3 }}>
-            <TextField
-              label="Email"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-              fullWidth
-              autoComplete="email"
-              disabled={loading}
-            />
-            <TextField
-              label="Password"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              fullWidth
-              autoComplete="current-password"
-              disabled={loading}
-            />
-          </Stack>
+            <Stack spacing={2} sx={{ mb: 3 }}>
+              <TextField
+                label="Email"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                fullWidth
+                autoComplete="email"
+                disabled={loading}
+              />
+              <TextField
+                label="Password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                fullWidth
+                autoComplete="current-password"
+                disabled={loading}
+              />
+            </Stack>
 
-          {/* Forgot Password Link */}
-          <Box sx={{ textAlign: 'right', mb: 2 }}>
-            <MuiLink
-              component="button"
-              type="button"
-              variant="body2"
-              onClick={() => navigate('/forgot-password')}
-              sx={{ cursor: 'pointer' }}
+            {/* Forgot Password Link */}
+            <Box sx={{ textAlign: "right", mb: 2 }}>
+              <MuiLink
+                component="button"
+                type="button"
+                variant="body2"
+                onClick={() => navigate("/forgot-password")}
+                sx={{ cursor: "pointer" }}
+              >
+                Forgot password?
+              </MuiLink>
+            </Box>
+
+            {/* Sign In Button */}
+            <Button
+              type="submit"
+              variant="contained"
+              fullWidth
+              size="large"
+              disabled={loading}
+              sx={{ mb: 2 }}
             >
-              Forgot password?
-            </MuiLink>
-          </Box>
+              {loading ? <CircularProgress size={24} /> : "Sign In"}
+            </Button>
 
-          {/* Sign In Button */}
-          <Button
-            type="submit"
-            variant="contained"
-            fullWidth
-            size="large"
-            disabled={loading}
-            sx={{ mb: 2 }}
-          >
-            {loading ? <CircularProgress size={24} /> : 'Sign In'}
-          </Button>
-
-          {/* Passkey Login Button */}
-          <Button
-            variant="outlined"
-            fullWidth
-            size="large"
-            startIcon={<FingerprintIcon />}
-            onClick={handlePasskeyLogin}
-            disabled={loading}
-            sx={{ mb: 3 }}
-          >
-            Sign In with Passkey
-          </Button>
-        </form>
+            {/* Passkey Login Button */}
+            <Button
+              variant="outlined"
+              fullWidth
+              size="large"
+              startIcon={<FingerprintIcon />}
+              onClick={handlePasskeyLogin}
+              disabled={loading}
+              sx={{ mb: 3 }}
+            >
+              Sign In with Passkey
+            </Button>
+          </form>
         )}
 
         {/* Divider */}
@@ -346,60 +376,71 @@ export const LoginPage: React.FC = () => {
 
             {/* Social Login Buttons */}
             <Stack spacing={2} sx={{ mb: 3 }}>
-          <Button
-            variant="outlined"
-            fullWidth
-            size="large"
-            startIcon={<GoogleIcon />}
-            onClick={() => handleSocialLogin('Google')}
-            disabled={loading}
-          >
-            Continue with Google
-          </Button>
-          <Button
-            variant="outlined"
-            fullWidth
-            size="large"
-            startIcon={<FacebookIcon />}
-            onClick={() => handleSocialLogin('Facebook')}
-            disabled={loading}
-          >
-            Continue with Facebook
-          </Button>
-          <Button
-            variant="outlined"
-            fullWidth
-            size="large"
-            startIcon={<AppleIcon />}
-            onClick={() => handleSocialLogin('Apple')}
-            disabled={loading}
-          >
-            Continue with Apple
-          </Button>
-        </Stack>
+              <Button
+                variant="outlined"
+                fullWidth
+                size="large"
+                startIcon={<GoogleIcon />}
+                onClick={() => handleSocialLogin("Google")}
+                disabled={loading}
+              >
+                Continue with Google
+              </Button>
+              <Button
+                variant="outlined"
+                fullWidth
+                size="large"
+                startIcon={<FacebookIcon />}
+                onClick={() => handleSocialLogin("Facebook")}
+                disabled={loading}
+              >
+                Continue with Facebook
+              </Button>
+              <Button
+                variant="outlined"
+                fullWidth
+                size="large"
+                startIcon={<AppleIcon />}
+                onClick={() => handleSocialLogin("Apple")}
+                disabled={loading}
+              >
+                Continue with Apple
+              </Button>
+            </Stack>
 
-        {/* Sign Up Link */}
-        <Box sx={{ textAlign: 'center', mt: 3 }}>
-          <Typography variant="body2" color="text.secondary">
-            Don't have an account?{' '}
-            <MuiLink
-              component="button"
-              type="button"
-              variant="body2"
-              onClick={() => navigate('/signup')}
-              sx={{ cursor: 'pointer', fontWeight: 600 }}
+            {/* Sign Up Link */}
+            <Box sx={{ textAlign: "center", mt: 3 }}>
+              <Typography variant="body2" color="text.secondary">
+                Don't have an account?{" "}
+                <MuiLink
+                  component="button"
+                  type="button"
+                  variant="body2"
+                  onClick={() => navigate("/signup")}
+                  sx={{ cursor: "pointer", fontWeight: 600 }}
+                >
+                  Sign up
+                </MuiLink>
+              </Typography>
+            </Box>
+
+            {/* COPPA Notice */}
+            <Alert
+              severity="warning"
+              sx={{
+                mt: 3,
+                backgroundColor: "#fff3e0",
+                borderLeft: "4px solid #f57c00",
+                "& .MuiAlert-icon": {
+                  color: "#e65100",
+                },
+              }}
             >
-              Sign up
-            </MuiLink>
-          </Typography>
-        </Box>
-
-        {/* COPPA Notice */}
-        <Alert severity="warning" sx={{ mt: 3 }}>
-          <Typography variant="caption">
-            You must be at least 13 years old to create an account (COPPA compliance).
-          </Typography>
-        </Alert>
+              <Typography variant="caption" sx={{ color: "#e65100" }}>
+                <strong>⚠️ Age Requirement:</strong> You must be at least 13
+                years old to create an account (COPPA compliance).
+              </Typography>
+            </Alert>
           </>
         )}
       </Paper>

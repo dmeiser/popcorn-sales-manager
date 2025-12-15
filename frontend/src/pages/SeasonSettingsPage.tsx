@@ -165,14 +165,19 @@ export const SeasonSettingsPage: React.FC = () => {
 
   return (
     <Box>
-      <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 3 }}>
-        <Typography variant="h5">
-          Season Settings
-        </Typography>
+      <Stack
+        direction="row"
+        justifyContent="space-between"
+        alignItems="center"
+        sx={{ mb: 3 }}
+      >
+        <Typography variant="h5">Season Settings</Typography>
         <Button
           variant="text"
           color="primary"
-          onClick={() => navigate(`/profiles/${encodeURIComponent(profileId)}/manage`)}
+          onClick={() =>
+            navigate(`/profiles/${encodeURIComponent(profileId)}/manage`)
+          }
         >
           Manage Seller Profile
         </Button>
@@ -286,4 +291,3 @@ export const SeasonSettingsPage: React.FC = () => {
     </Box>
   );
 };
-

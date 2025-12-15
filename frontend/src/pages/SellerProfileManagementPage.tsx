@@ -95,16 +95,21 @@ export const SellerProfileManagementPage: React.FC = () => {
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deletingProfile, setDeletingProfile] = useState(false);
   const [inviteCode, setInviteCode] = useState<string | null>(null);
-  const [invitePermissions, setInvitePermissions] = useState<string[]>(["READ"]);
-  const [deleteInviteConfirmOpen, setDeleteInviteConfirmOpen] =
-    useState(false);
+  const [invitePermissions, setInvitePermissions] = useState<string[]>([
+    "READ",
+  ]);
+  const [deleteInviteConfirmOpen, setDeleteInviteConfirmOpen] = useState(false);
   const [deletingInviteCode, setDeletingInviteCode] = useState<string | null>(
-    null
+    null,
   );
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
 
   // Fetch profile
-  const { data: profileData, loading, refetch } = useQuery<{
+  const {
+    data: profileData,
+    loading,
+    refetch,
+  } = useQuery<{
     getProfile: Profile;
   }>(GET_PROFILE, {
     variables: { profileId },
@@ -167,7 +172,7 @@ export const SellerProfileManagementPage: React.FC = () => {
         setDeletingInviteCode(null);
         refetchInvites();
       },
-    }
+    },
   );
 
   const profile = profileData?.getProfile;
@@ -238,16 +243,19 @@ export const SellerProfileManagementPage: React.FC = () => {
 
   if (loading) {
     return (
-      <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
+      <Box
+        display="flex"
+        justifyContent="center"
+        alignItems="center"
+        minHeight="400px"
+      >
         <CircularProgress />
       </Box>
     );
   }
 
   if (!profile) {
-    return (
-      <Alert severity="error">Profile not found</Alert>
-    );
+    return <Alert severity="error">Profile not found</Alert>;
   }
 
   return (
@@ -286,7 +294,8 @@ export const SellerProfileManagementPage: React.FC = () => {
             Invite Codes
           </Typography>
           <Typography variant="body2" color="textSecondary" sx={{ mb: 2 }}>
-            Generate invite codes to share this profile with others. Codes expire after 14 days.
+            Generate invite codes to share this profile with others. Codes
+            expire after 14 days.
           </Typography>
 
           {inviteCode && (
@@ -307,7 +316,9 @@ export const SellerProfileManagementPage: React.FC = () => {
           )}
 
           <Stack spacing={2} sx={{ mb: 2 }}>
-            <Typography variant="subtitle2">Permissions for new invites:</Typography>
+            <Typography variant="subtitle2">
+              Permissions for new invites:
+            </Typography>
             <Stack direction="row" spacing={2}>
               <FormControlLabel
                 control={
@@ -316,11 +327,11 @@ export const SellerProfileManagementPage: React.FC = () => {
                     onChange={(e) => {
                       if (e.target.checked) {
                         setInvitePermissions((prev) =>
-                          prev.includes("READ") ? prev : [...prev, "READ"]
+                          prev.includes("READ") ? prev : [...prev, "READ"],
                         );
                       } else {
                         setInvitePermissions((prev) =>
-                          prev.filter((p) => p !== "READ")
+                          prev.filter((p) => p !== "READ"),
                         );
                       }
                     }}
@@ -335,11 +346,11 @@ export const SellerProfileManagementPage: React.FC = () => {
                     onChange={(e) => {
                       if (e.target.checked) {
                         setInvitePermissions((prev) =>
-                          prev.includes("WRITE") ? prev : [...prev, "WRITE"]
+                          prev.includes("WRITE") ? prev : [...prev, "WRITE"],
                         );
                       } else {
                         setInvitePermissions((prev) =>
-                          prev.filter((p) => p !== "WRITE")
+                          prev.filter((p) => p !== "WRITE"),
                         );
                       }
                     }}
@@ -377,11 +388,7 @@ export const SellerProfileManagementPage: React.FC = () => {
                   {invites.map((invite) => (
                     <TableRow key={invite.inviteCode}>
                       <TableCell>
-                        <Stack
-                          direction="row"
-                          spacing={1}
-                          alignItems="center"
-                        >
+                        <Stack direction="row" spacing={1} alignItems="center">
                           <Typography variant="body2" fontFamily="monospace">
                             {invite.inviteCode}
                           </Typography>
@@ -400,12 +407,8 @@ export const SellerProfileManagementPage: React.FC = () => {
                           variant="outlined"
                         />
                       </TableCell>
-                      <TableCell>
-                        {formatDate(invite.createdAt)}
-                      </TableCell>
-                      <TableCell>
-                        {formatDate(invite.expiresAt)}
-                      </TableCell>
+                      <TableCell>{formatDate(invite.createdAt)}</TableCell>
+                      <TableCell>{formatDate(invite.expiresAt)}</TableCell>
                       <TableCell>
                         {isExpired(invite.expiresAt) ? (
                           <Chip
@@ -455,7 +458,8 @@ export const SellerProfileManagementPage: React.FC = () => {
               Who Has Access
             </Typography>
             <Typography variant="body2" color="textSecondary" sx={{ mb: 2 }}>
-              Accounts with access to your profile (via share links or redeemed invites).
+              Accounts with access to your profile (via share links or redeemed
+              invites).
             </Typography>
 
             <TableContainer>
@@ -482,9 +486,7 @@ export const SellerProfileManagementPage: React.FC = () => {
                           variant="outlined"
                         />
                       </TableCell>
-                      <TableCell>
-                        {formatDate(share.createdAt)}
-                      </TableCell>
+                      <TableCell>{formatDate(share.createdAt)}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -499,8 +501,8 @@ export const SellerProfileManagementPage: React.FC = () => {
             Danger Zone
           </Typography>
           <Typography variant="body2" color="textSecondary" sx={{ mb: 2 }}>
-            Permanently delete this seller profile and all associated seasons and orders.
-            This action cannot be undone.
+            Permanently delete this seller profile and all associated seasons
+            and orders. This action cannot be undone.
           </Typography>
           <Button
             variant="contained"
@@ -549,11 +551,15 @@ export const SellerProfileManagementPage: React.FC = () => {
       </Dialog>
 
       {/* Delete Profile Confirmation Dialog */}
-      <Dialog open={deleteConfirmOpen} onClose={() => setDeleteConfirmOpen(false)}>
+      <Dialog
+        open={deleteConfirmOpen}
+        onClose={() => setDeleteConfirmOpen(false)}
+      >
         <DialogTitle>Delete Seller Profile?</DialogTitle>
         <DialogContent>
           <Typography>
-            Are you sure you want to delete seller profile <strong>{profile.sellerName}</strong>?
+            Are you sure you want to delete seller profile{" "}
+            <strong>{profile.sellerName}</strong>?
           </Typography>
           <Typography variant="body2" color="error" sx={{ mt: 2 }}>
             This will permanently delete:

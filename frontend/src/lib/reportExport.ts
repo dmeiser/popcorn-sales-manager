@@ -63,9 +63,9 @@ function getUniqueProducts(orders: Order[]): string[] {
   return Array.from(
     new Set(
       orders.flatMap((order) =>
-        order.lineItems.map((item) => item.productName)
-      )
-    )
+        order.lineItems.map((item) => item.productName),
+      ),
+    ),
   ).sort();
 }
 
@@ -76,7 +76,13 @@ function prepareReportData(orders: Order[]) {
   const rows: (string | number)[][] = [];
 
   // Header row
-  const headers: (string | number)[] = ["Name", "Phone", "Address", ...allProducts, "Total"];
+  const headers: (string | number)[] = [
+    "Name",
+    "Phone",
+    "Address",
+    ...allProducts,
+    "Total",
+  ];
   rows.push(headers);
 
   // Data rows

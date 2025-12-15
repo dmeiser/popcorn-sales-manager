@@ -14,11 +14,7 @@ import {
   CircularProgress,
   Alert,
 } from "@mui/material";
-import {
-  ShoppingCart,
-  AttachMoney,
-  People,
-} from "@mui/icons-material";
+import { ShoppingCart, AttachMoney, People } from "@mui/icons-material";
 import { LIST_ORDERS_BY_SEASON } from "../lib/graphql";
 
 interface LineItem {

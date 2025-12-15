@@ -68,10 +68,9 @@ export const ReportsPage: React.FC = () => {
   const [format, setFormat] = useState<"CSV" | "XLSX">("XLSX");
   const [lastReport, setLastReport] = useState<ReportResult | null>(null);
 
-  const {
-    data: ordersData,
-    loading: ordersLoading,
-  } = useQuery<{ listOrdersBySeason: Order[] }>(LIST_ORDERS_BY_SEASON, {
+  const { data: ordersData, loading: ordersLoading } = useQuery<{
+    listOrdersBySeason: Order[];
+  }>(LIST_ORDERS_BY_SEASON, {
     variables: { seasonId },
     skip: !seasonId,
   });
@@ -135,8 +134,8 @@ export const ReportsPage: React.FC = () => {
         </Typography>
         <Stack spacing={1}>
           <Typography variant="body2">
-            • <strong>Excel (XLSX):</strong> Formatted spreadsheet with product columns,
-            suitable for further analysis and pivot tables.
+            • <strong>Excel (XLSX):</strong> Formatted spreadsheet with product
+            columns, suitable for further analysis and pivot tables.
           </Typography>
           <Typography variant="body2">
             • <strong>CSV:</strong> Plain text file, compatible with all
@@ -184,89 +183,93 @@ export const ReportsPage: React.FC = () => {
           <Typography variant="body2" color="text.secondary">
             No orders found for this season.
           </Typography>
-        ) : (() => {
-          // Get all unique products
-          const allProducts = Array.from(
-            new Set(
-              orders.flatMap((order) =>
-                order.lineItems.map((item) => item.productName)
-              )
-            )
-          ).sort();
+        ) : (
+          (() => {
+            // Get all unique products
+            const allProducts = Array.from(
+              new Set(
+                orders.flatMap((order) =>
+                  order.lineItems.map((item) => item.productName),
+                ),
+              ),
+            ).sort();
 
-          return (
-            <TableContainer sx={{ overflowX: "auto" }}>
-              <Table size="small">
-                <TableHead>
-                  <TableRow sx={{ bgcolor: "action.hover" }}>
-                    <TableCell>
-                      <strong>Name</strong>
-                    </TableCell>
-                    <TableCell>
-                      <strong>Phone</strong>
-                    </TableCell>
-                    <TableCell>
-                      <strong>Address</strong>
-                    </TableCell>
-                    {allProducts.map((product) => (
-                      <TableCell key={product} align="center">
-                        <strong>{product}</strong>
-                      </TableCell>
-                    ))}
-                    <TableCell align="right">
-                      <strong>Total</strong>
-                    </TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {orders.map((order) => (
-                    <TableRow key={order.orderId}>
-                      <TableCell>{order.customerName}</TableCell>
-                      <TableCell>{formatPhone(order.customerPhone)}</TableCell>
+            return (
+              <TableContainer sx={{ overflowX: "auto" }}>
+                <Table size="small">
+                  <TableHead>
+                    <TableRow sx={{ bgcolor: "action.hover" }}>
                       <TableCell>
-                        {order.customerAddress ? (
-                          <Box sx={{ fontSize: "0.875rem" }}>
-                            {order.customerAddress.street && (
-                              <div>{order.customerAddress.street}</div>
-                            )}
-                            {(order.customerAddress.city ||
-                              order.customerAddress.state ||
-                              order.customerAddress.zipCode) && (
-                              <div>
-                                {[
-                                  order.customerAddress.city,
-                                  order.customerAddress.state,
-                                  order.customerAddress.zipCode,
-                                ]
-                                  .filter(Boolean)
-                                  .join(" ")}
-                              </div>
-                            )}
-                          </Box>
-                        ) : (
-                          "-"
-                        )}
+                        <strong>Name</strong>
                       </TableCell>
-                      {allProducts.map((product) => {
-                        const item = order.lineItems.find(
-                          (li) => li.productName === product
-                        );
-                        return (
-                          <TableCell key={product} align="center">
-                            {item ? item.quantity : "-"}
-                          </TableCell>
-                        );
-                      })}
-                      <TableCell align="right" sx={{ fontWeight: "bold" }}>
-                        {formatCurrency(order.totalAmount)}
+                      <TableCell>
+                        <strong>Phone</strong>
+                      </TableCell>
+                      <TableCell>
+                        <strong>Address</strong>
+                      </TableCell>
+                      {allProducts.map((product) => (
+                        <TableCell key={product} align="center">
+                          <strong>{product}</strong>
+                        </TableCell>
+                      ))}
+                      <TableCell align="right">
+                        <strong>Total</strong>
                       </TableCell>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </TableContainer>
-          );
-        })()}
+                  </TableHead>
+                  <TableBody>
+                    {orders.map((order) => (
+                      <TableRow key={order.orderId}>
+                        <TableCell>{order.customerName}</TableCell>
+                        <TableCell>
+                          {formatPhone(order.customerPhone)}
+                        </TableCell>
+                        <TableCell>
+                          {order.customerAddress ? (
+                            <Box sx={{ fontSize: "0.875rem" }}>
+                              {order.customerAddress.street && (
+                                <div>{order.customerAddress.street}</div>
+                              )}
+                              {(order.customerAddress.city ||
+                                order.customerAddress.state ||
+                                order.customerAddress.zipCode) && (
+                                <div>
+                                  {[
+                                    order.customerAddress.city,
+                                    order.customerAddress.state,
+                                    order.customerAddress.zipCode,
+                                  ]
+                                    .filter(Boolean)
+                                    .join(" ")}
+                                </div>
+                              )}
+                            </Box>
+                          ) : (
+                            "-"
+                          )}
+                        </TableCell>
+                        {allProducts.map((product) => {
+                          const item = order.lineItems.find(
+                            (li) => li.productName === product,
+                          );
+                          return (
+                            <TableCell key={product} align="center">
+                              {item ? item.quantity : "-"}
+                            </TableCell>
+                          );
+                        })}
+                        <TableCell align="right" sx={{ fontWeight: "bold" }}>
+                          {formatCurrency(order.totalAmount)}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            );
+          })()
+        )}
       </Paper>
     </Box>
   );
