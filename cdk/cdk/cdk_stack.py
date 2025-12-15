@@ -3023,38 +3023,11 @@ $util.toJson($ctx.result.items)
                 ),
             )
 
-            # listSharedProfiles - List profiles shared with current user (via GSI1)
-            self.dynamodb_datasource.create_resolver(
-                "ListSharedProfilesResolver",
-                type_name="Query",
-                field_name="listSharedProfiles",
-                request_mapping_template=appsync.MappingTemplate.from_string(
-                    """
-{
-    "version": "2017-02-28",
-    "operation": "Query",
-    "index": "GSI1",
-    "query": {
-        "expression": "GSI1PK = :gsi1pk AND begins_with(GSI1SK, :gsi1sk)",
-        "expressionValues": {
-            ":gsi1pk": $util.dynamodb.toDynamoDBJson("ACCOUNT#$ctx.identity.sub"),
-            ":gsi1sk": $util.dynamodb.toDynamoDBJson("PROFILE#")
-        }
-    }
-}
-                """
-                ),
-                response_mapping_template=appsync.MappingTemplate.from_string(
-                    """
-#if($ctx.error)
-    $util.error($ctx.error.message, $ctx.error.type)
-#end
-## Extract profile IDs from shares and return them
-## In production, you'd batch-get the actual profiles
-$util.toJson($ctx.result.items)
-                """
-                ),
-            )
+            # listSharedProfiles - Pipeline resolver created manually via AWS CLI
+            # Functions: ListSharesFn_Manual (myyynoscxjfhvehlyavxy3jer4), BatchGetProfilesFn_Manual (a6o26v55gzfthfizxur2dzolu4)
+            # Resolver ARN: arn:aws:appsync:us-east-1:750620721302:apis/rjyym3iptva73nnbfuk52y7p34/types/Query/resolvers/listSharedProfiles
+            # Note: This resolver is NOT managed by CloudFormation to avoid deployment conflicts
+            # The manual functions query GSI1 for shares, then batch-get the actual profile records
 
             # getSeason - Get a specific season by ID with authorization
             # Pipeline: QuerySeasonFn → VerifyProfileReadAccessFn → CheckShareReadPermissionsFn → ReturnSeasonFn

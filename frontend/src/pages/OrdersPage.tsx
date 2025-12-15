@@ -33,6 +33,7 @@ import {
   LIST_ORDERS_BY_SEASON,
   DELETE_ORDER,
   GET_SEASON,
+  GET_PROFILE,
 } from "../lib/graphql";
 
 interface LineItem {
@@ -61,10 +62,17 @@ interface Product {
 }
 
 export const OrdersPage: React.FC = () => {
-  const { seasonId: encodedSeasonId } = useParams<{ seasonId: string }>();
+  const { profileId: encodedProfileId, seasonId: encodedSeasonId } = useParams<{ profileId: string; seasonId: string }>();
+  const profileId = encodedProfileId ? decodeURIComponent(encodedProfileId) : "";
   const seasonId = encodedSeasonId ? decodeURIComponent(encodedSeasonId) : "";
   const [editorOpen, setEditorOpen] = useState(false);
   const [editingOrder, setEditingOrder] = useState<Order | null>(null);
+
+  // Fetch profile (for permissions check)
+  const { data: profileData } = useQuery<{ getProfile: any }>(GET_PROFILE, {
+    variables: { profileId },
+    skip: !profileId,
+  });
 
   // Fetch season (for catalog/products)
   const { data: seasonData } = useQuery<{ getSeason: any }>(GET_SEASON, {
@@ -92,6 +100,8 @@ export const OrdersPage: React.FC = () => {
 
   const orders = ordersData?.listOrdersBySeason || [];
   const products: Product[] = seasonData?.getSeason?.catalog?.products || [];
+  const profile = profileData?.getProfile;
+  const hasWritePermission = profile?.isOwner || profile?.permissions?.includes('WRITE');
 
   console.log("[OrdersPage] seasonId:", seasonId);
   console.log("[OrdersPage] getSeason:", seasonData?.getSeason);
@@ -186,13 +196,15 @@ export const OrdersPage: React.FC = () => {
         mb={3}
       >
         <Typography variant="h5">Orders</Typography>
-        <Button
-          variant="contained"
-          startIcon={<AddIcon />}
-          onClick={handleCreateOrder}
-        >
-          New Order
-        </Button>
+        {hasWritePermission && (
+          <Button
+            variant="contained"
+            startIcon={<AddIcon />}
+            onClick={handleCreateOrder}
+          >
+            New Order
+          </Button>
+        )}
       </Stack>
 
       {/* Orders Table */}
@@ -248,20 +260,24 @@ export const OrdersPage: React.FC = () => {
                     </Typography>
                   </TableCell>
                   <TableCell align="right">
-                    <IconButton
-                      size="small"
-                      onClick={() => handleEditOrder(order)}
-                      color="primary"
-                    >
-                      <EditIcon fontSize="small" />
-                    </IconButton>
-                    <IconButton
-                      size="small"
-                      onClick={() => handleDeleteOrder(order.orderId)}
-                      color="error"
-                    >
-                      <DeleteIcon fontSize="small" />
-                    </IconButton>
+                    {hasWritePermission && (
+                      <>
+                        <IconButton
+                          size="small"
+                          onClick={() => handleEditOrder(order)}
+                          color="primary"
+                        >
+                          <EditIcon fontSize="small" />
+                        </IconButton>
+                        <IconButton
+                          size="small"
+                          onClick={() => handleDeleteOrder(order.orderId)}
+                          color="error"
+                        >
+                          <DeleteIcon fontSize="small" />
+                        </IconButton>
+                      </>
+                    )}
                   </TableCell>
                 </TableRow>
               ))}

@@ -17,7 +17,7 @@ import {
 import {
   CalendarToday as CalendarIcon,
   ShoppingCart as OrdersIcon,
-  AttachMoney as RevenueIcon,
+  AttachMoney as SalesIcon,
 } from "@mui/icons-material";
 
 interface SeasonCardProps {
@@ -90,7 +90,7 @@ export const SeasonCard: React.FC<SeasonCardProps> = ({
               </Typography>
             </Stack>
             <Stack direction="row" spacing={1} alignItems="center">
-              <RevenueIcon fontSize="small" color="action" />
+              <SalesIcon fontSize="small" color="action" />
               <Typography variant="body2">
                 ${(totalRevenue ?? 0).toFixed(2)} in sales
               </Typography>

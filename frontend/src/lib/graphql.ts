@@ -97,7 +97,6 @@ export const GET_MY_ACCOUNT = gql`
       city
       state
       unitNumber
-      isAdmin
       createdAt
       updatedAt
     }
@@ -114,7 +113,6 @@ export const UPDATE_MY_ACCOUNT = gql`
       city
       state
       unitNumber
-      isAdmin
       createdAt
       updatedAt
     }

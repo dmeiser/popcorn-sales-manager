@@ -294,7 +294,7 @@ export const AdminPage: React.FC = () => {
                 products)
               </li>
               <li>
-                System analytics (usage stats, popular products, revenue trends)
+                System analytics (usage stats, popular products, sales trends)
               </li>
               <li>Audit logs (view all admin actions and changes)</li>
             </ul>

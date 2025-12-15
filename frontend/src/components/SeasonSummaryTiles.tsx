@@ -3,7 +3,7 @@
  *
  * Displays key metrics:
  * - Total Orders
- * - Total Revenue
+ * - Total Sales
  * - Unique Customers
  */
 
@@ -127,7 +127,7 @@ export const SeasonSummaryTiles: React.FC<SeasonSummaryTilesProps> = ({
                 {formatCurrency(totalRevenue)}
               </Typography>
               <Typography variant="body2" color="text.secondary">
-                Total Revenue
+                Total Sales
               </Typography>
             </Box>
           </Stack>

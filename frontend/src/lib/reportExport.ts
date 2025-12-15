@@ -93,10 +93,11 @@ function prepareReportData(orders: Order[]) {
       formatAddress(order.customerAddress),
     ];
 
-    // Product quantities
+    // Product quantities (sum duplicates)
     const lineItemsByProduct: Record<string, number> = {};
     for (const item of order.lineItems) {
-      lineItemsByProduct[item.productName] = item.quantity;
+      lineItemsByProduct[item.productName] = 
+        (lineItemsByProduct[item.productName] || 0) + item.quantity;
     }
 
     for (const product of allProducts) {

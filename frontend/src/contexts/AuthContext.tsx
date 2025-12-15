@@ -75,7 +75,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           const groups = (session.tokens.idToken.payload['cognito:groups'] as string[]) || [];
           const isAdminFromToken = groups.includes('ADMIN');
           
-          // Override isAdmin with token value
+          // Set account with admin status from JWT token
           setAccount({
             ...accountData,
             isAdmin: isAdminFromToken,

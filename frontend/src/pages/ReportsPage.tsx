@@ -250,12 +250,12 @@ export const ReportsPage: React.FC = () => {
                           )}
                         </TableCell>
                         {allProducts.map((product) => {
-                          const item = order.lineItems.find(
-                            (li) => li.productName === product,
-                          );
+                          const totalQuantity = order.lineItems
+                            .filter((li) => li.productName === product)
+                            .reduce((sum, item) => sum + item.quantity, 0);
                           return (
                             <TableCell key={product} align="center">
-                              {item ? item.quantity : "-"}
+                              {totalQuantity > 0 ? totalQuantity : "-"}
                             </TableCell>
                           );
                         })}

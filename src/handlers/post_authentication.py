@@ -78,26 +78,21 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
 
         timestamp = datetime.now(timezone.utc).isoformat()
 
-        # Check if user is in ADMIN group
-        # Groups are in the event under request.groupConfiguration.groupsToOverride
-        group_config = event.get("request", {}).get("groupConfiguration", {})
-        groups_to_override = group_config.get("groupsToOverride", [])
-        is_admin = "ADMIN" in groups_to_override
-
         if existing_account:
-            # Update existing account (email might have changed, update timestamp and admin status)
+            # Update existing account (email might have changed, update timestamp)
+            # Note: isAdmin is NOT stored in DynamoDB - it comes from JWT cognito:groups claim
             logger.info(f"Updating existing account: {account_id}")
             table.update_item(
                 Key={"PK": f"ACCOUNT#{account_id}", "SK": "METADATA"},
-                UpdateExpression="SET email = :email, updatedAt = :updated, isAdmin = :admin",
+                UpdateExpression="SET email = :email, updatedAt = :updated",
                 ExpressionAttributeValues={
                     ":email": email,
                     ":updated": timestamp,
-                    ":admin": is_admin,
                 },
             )
         else:
             # Create new Account record
+            # Note: isAdmin is NOT stored in DynamoDB - it comes from JWT cognito:groups claim
             logger.info(f"Creating new account: {account_id}")
 
             account_item = {
@@ -110,7 +105,6 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 "city": "",  # Will be set via updateMyAccount if provided
                 "state": "",  # Will be set via updateMyAccount if provided
                 "unitNumber": "",  # Will be set via updateMyAccount if provided
-                "isAdmin": is_admin,  # Admin status based on Cognito group membership
                 "createdAt": timestamp,
                 "updatedAt": timestamp,
                 "GSI1PK": f"ACCOUNT#{account_id}",  # For account lookups
@@ -119,9 +113,8 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
 
             table.put_item(Item=account_item)
 
-            logger.info(
-                f"Account created successfully: {account_id}, email={email}, is_admin={is_admin}, groups={groups_to_override}"
-            )
+            logger.info(f"Account created successfully: {account_id}, email={email}")
+
 
         # IMPORTANT: Must return the event for Cognito to continue
         return event

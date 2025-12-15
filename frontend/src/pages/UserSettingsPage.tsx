@@ -79,7 +79,7 @@ interface Account {
 
 export const UserSettingsPage: React.FC = () => {
   const navigate = useNavigate();
-  const { logout } = useAuth();
+  const { logout, account: authAccount } = useAuth();
 
   // Account query and mutation
   const {
@@ -106,7 +106,11 @@ export const UserSettingsPage: React.FC = () => {
     },
   );
 
-  const account = accountData?.getMyAccount;
+  // Merge GraphQL account data with AuthContext account (which has isAdmin from JWT token)
+  const account = authAccount ? {
+    ...accountData?.getMyAccount,
+    isAdmin: authAccount.isAdmin, // Always use isAdmin from JWT token, not GraphQL
+  } : accountData?.getMyAccount;
 
   // Edit profile state
   const [editDialogOpen, setEditDialogOpen] = useState(false);

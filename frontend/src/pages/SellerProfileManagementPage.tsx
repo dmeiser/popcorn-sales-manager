@@ -466,7 +466,7 @@ export const SellerProfileManagementPage: React.FC = () => {
               <Table size="small">
                 <TableHead>
                   <TableRow sx={{ backgroundColor: "#f5f5f5" }}>
-                    <TableCell>Account ID</TableCell>
+                    <TableCell>User</TableCell>
                     <TableCell>Permissions</TableCell>
                     <TableCell>Shared</TableCell>
                   </TableRow>
@@ -475,8 +475,13 @@ export const SellerProfileManagementPage: React.FC = () => {
                   {shares.map((share) => (
                     <TableRow key={share.shareId}>
                       <TableCell>
-                        <Typography variant="body2" fontFamily="monospace">
-                          {share.targetAccountId}
+                        <Typography 
+                          variant="body2" 
+                          fontFamily="monospace"
+                          title={`Account ID: ${share.targetAccountId}`}
+                          sx={{ cursor: "help" }}
+                        >
+                          User {share.targetAccountId.substring(0, 8)}...
                         </Typography>
                       </TableCell>
                       <TableCell>

@@ -53,6 +53,8 @@ interface Season {
 interface Profile {
   profileId: string;
   sellerName: string;
+  isOwner: boolean;
+  permissions: string[];
 }
 
 export const SeasonLayout: React.FC = () => {
@@ -104,6 +106,7 @@ export const SeasonLayout: React.FC = () => {
 
   const season = seasonData?.getSeason;
   const profile = profileData?.getProfile;
+  const hasWritePermission = profile && (profile.isOwner || profile.permissions?.includes('WRITE'));
   const loading = seasonLoading || profileLoading;
 
   const handleTabChange = (_event: React.SyntheticEvent, newValue: string) => {
@@ -205,12 +208,14 @@ export const SeasonLayout: React.FC = () => {
             icon={<ReportsIcon />}
             iconPosition="start"
           />
-          <Tab
-            label="Settings"
-            value="settings"
-            icon={<SettingsIcon />}
-            iconPosition="start"
-          />
+          {hasWritePermission && (
+            <Tab
+              label="Settings"
+              value="settings"
+              icon={<SettingsIcon />}
+              iconPosition="start"
+            />
+          )}
         </Tabs>
       </Box>
 

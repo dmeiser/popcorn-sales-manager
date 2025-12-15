@@ -224,11 +224,13 @@ def _generate_csv_report(season: Dict[str, Any], orders: list[Dict[str, Any]]) -
             _format_address(order.get("customerAddress", {})),
         ]
 
-        # Add product quantities
-        line_items_by_product = {
-            item.get("productName", ""): item.get("quantity", 0)
-            for item in order.get("lineItems", [])
-        }
+        # Add product quantities (sum duplicates)
+        line_items_by_product: dict[str, int] = {}
+        for item in order.get("lineItems", []):
+            product_name = item.get("productName", "")
+            quantity = item.get("quantity", 0)
+            line_items_by_product[product_name] = line_items_by_product.get(product_name, 0) + quantity
+        
         for product in all_products:
             row.append(line_items_by_product.get(product, ""))
 
@@ -273,11 +275,13 @@ def _generate_excel_report(season: Dict[str, Any], orders: list[Dict[str, Any]])
         ws.cell(row=row_idx, column=2, value=order.get("customerPhone", ""))
         ws.cell(row=row_idx, column=3, value=_format_address(order.get("customerAddress", {})))
 
-        # Add product quantities
-        line_items_by_product = {
-            item.get("productName", ""): item.get("quantity", 0)
-            for item in order.get("lineItems", [])
-        }
+        # Add product quantities (sum duplicates)
+        line_items_by_product: dict[str, int] = {}
+        for item in order.get("lineItems", []):
+            product_name = item.get("productName", "")
+            quantity = item.get("quantity", 0)
+            line_items_by_product[product_name] = line_items_by_product.get(product_name, 0) + quantity
+        
         for col_idx, product in enumerate(all_products, start=4):
             ws.cell(row=row_idx, column=col_idx, value=line_items_by_product.get(product, ""))
 

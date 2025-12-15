@@ -141,7 +141,7 @@ export const SeasonSummaryPage: React.FC = () => {
                   {formatCurrency(totalRevenue)}
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
-                  Total Revenue
+                  Total Sales
                 </Typography>
               </Box>
             </Stack>
