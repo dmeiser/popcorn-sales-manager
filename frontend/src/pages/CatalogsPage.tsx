@@ -2,8 +2,9 @@
  * CatalogsPage - Manage product catalogs (public and user-owned)
  */
 
-import React, { useState } from "react";
-import { useQuery, useMutation } from "@apollo/client/react";
+import React, { useState, useEffect } from "react";
+import { useQuery, useMutation, useLazyQuery } from "@apollo/client/react";
+import { useAuth } from "../contexts/AuthContext";
 import {
   Box,
   Button,
@@ -34,6 +35,9 @@ import { CatalogEditorDialog } from "../components/CatalogEditorDialog";
 import {
   LIST_PUBLIC_CATALOGS,
   LIST_MY_CATALOGS,
+  LIST_MY_PROFILES,
+  LIST_SHARED_PROFILES,
+  LIST_SEASONS_BY_PROFILE,
   CREATE_CATALOG,
   UPDATE_CATALOG,
   DELETE_CATALOG,
@@ -58,6 +62,7 @@ interface Catalog {
 }
 
 export const CatalogsPage: React.FC = () => {
+  const { account } = useAuth();
   const [currentTab, setCurrentTab] = useState(0);
   const [editorOpen, setEditorOpen] = useState(false);
   const [editingCatalog, setEditingCatalog] = useState<Catalog | null>(null);
@@ -77,6 +82,60 @@ export const CatalogsPage: React.FC = () => {
     error: myError,
     refetch: refetchMy,
   } = useQuery<{ listMyCatalogs: Catalog[] }>(LIST_MY_CATALOGS);
+
+  // Fetch user's profiles to check catalog usage
+  const { data: myProfilesData } = useQuery<{ listMyProfiles: any[] }>(
+    LIST_MY_PROFILES,
+  );
+  const { data: sharedProfilesData } = useQuery<{
+    listSharedProfiles: any[];
+  }>(LIST_SHARED_PROFILES);
+
+  // Get all user's profile IDs
+  const allUserProfiles = [
+    ...(myProfilesData?.listMyProfiles || []),
+    ...(sharedProfilesData?.listSharedProfiles || []),
+  ];
+
+  // State to track catalogs in use
+  const [catalogsInUse, setCatalogsInUse] = useState<Set<string>>(new Set());
+
+  // Lazy query for fetching seasons
+  const [fetchSeasons] = useLazyQuery<{ listSeasonsByProfile: any[] }>(
+    LIST_SEASONS_BY_PROFILE,
+  );
+
+  // Fetch seasons for all profiles and determine catalog usage
+  useEffect(() => {
+    const fetchAllSeasons = async () => {
+      const catalogIds = new Set<string>();
+
+      // Fetch seasons for each profile sequentially to respect Hooks rules
+      for (const profile of allUserProfiles) {
+        if (profile.profileId) {
+          try {
+            const { data } = await fetchSeasons({
+              variables: { profileId: profile.profileId },
+            });
+
+            data?.listSeasonsByProfile.forEach((season) => {
+              if (season.catalogId) {
+                catalogIds.add(season.catalogId);
+              }
+            });
+          } catch (error) {
+            console.error(`Failed to fetch seasons for profile ${profile.profileId}:`, error);
+          }
+        }
+      }
+
+      setCatalogsInUse(catalogIds);
+    };
+
+    if (allUserProfiles.length > 0) {
+      fetchAllSeasons();
+    }
+  }, [myProfilesData, sharedProfilesData, fetchSeasons]);
 
   // Create catalog
   const [createCatalog] = useMutation(CREATE_CATALOG, {
@@ -171,12 +230,16 @@ export const CatalogsPage: React.FC = () => {
     });
   };
 
-  const renderCatalogTable = (catalogs: Catalog[], showActions: boolean) => {
+  const renderCatalogTable = (
+    catalogs: Catalog[],
+    showActionsColumn: boolean,
+    catalogsInUse: Set<string>,
+  ) => {
     if (catalogs.length === 0) {
       return (
         <Paper sx={{ p: 4, textAlign: "center" }}>
           <Typography color="text.secondary">
-            {showActions
+            {showActionsColumn
               ? "No catalogs yet. Create your first catalog!"
               : "No public catalogs available."}
           </Typography>
@@ -193,7 +256,7 @@ export const CatalogsPage: React.FC = () => {
               <TableCell>Type</TableCell>
               <TableCell>Products</TableCell>
               <TableCell>Created</TableCell>
-              {showActions && <TableCell align="right">Actions</TableCell>}
+              {showActionsColumn && <TableCell align="right">Actions</TableCell>}
             </TableRow>
           </TableHead>
           <TableBody>
@@ -212,41 +275,54 @@ export const CatalogsPage: React.FC = () => {
                   </Stack>
                 </TableCell>
                 <TableCell>
-                  <Chip
-                    label={catalog.isPublic ? "Public" : "Private"}
-                    size="small"
-                    color={catalog.isPublic ? "primary" : "default"}
-                  />
+                  <Stack direction="row" spacing={1}>
+                    <Chip
+                      label={catalog.isPublic ? "Public" : "Private"}
+                      size="small"
+                      color={catalog.isPublic ? "primary" : "default"}
+                    />
+                    {catalogsInUse.has(catalog.catalogId) && (
+                      <Chip
+                        label="In Use"
+                        size="small"
+                        color="success"
+                        variant="outlined"
+                      />
+                    )}
+                  </Stack>
                 </TableCell>
                 <TableCell>{catalog.products.length} items</TableCell>
                 <TableCell>{formatDate(catalog.createdAt)}</TableCell>
-                {showActions && (
+                {showActionsColumn && (
                   <TableCell align="right">
-                    <Stack
-                      direction="row"
-                      spacing={1}
-                      justifyContent="flex-end"
-                    >
-                      <IconButton
-                        size="small"
-                        onClick={() => handleEditCatalog(catalog)}
-                        color="primary"
+                    {/* Only show actions if user owns this catalog */}
+                    {catalog.ownerAccountId === account?.accountId && (
+                      <Stack
+                        direction="row"
+                        spacing={1}
+                        justifyContent="flex-end"
                       >
-                        <EditIcon fontSize="small" />
-                      </IconButton>
-                      <IconButton
-                        size="small"
-                        onClick={() =>
-                          handleDeleteCatalog(
-                            catalog.catalogId,
-                            catalog.catalogName,
-                          )
-                        }
-                        color="error"
-                      >
-                        <DeleteIcon fontSize="small" />
-                      </IconButton>
-                    </Stack>
+                        <IconButton
+                          size="small"
+                          onClick={() => handleEditCatalog(catalog)}
+                          color="primary"
+                        >
+                          <EditIcon fontSize="small" />
+                        </IconButton>
+                        <IconButton
+                          size="small"
+                          onClick={() =>
+                            handleDeleteCatalog(
+                              catalog.catalogId,
+                              catalog.catalogName,
+                            )
+                          }
+                          color="error"
+                        >
+                          <DeleteIcon fontSize="small" />
+                        </IconButton>
+                      </Stack>
+                    )}
                   </TableCell>
                 )}
               </TableRow>
@@ -320,8 +396,9 @@ export const CatalogsPage: React.FC = () => {
       </Paper>
 
       {/* Tab Content */}
-      {currentTab === 0 && renderCatalogTable(myCatalogs, true)}
-      {currentTab === 1 && renderCatalogTable(publicCatalogs, false)}
+      {currentTab === 0 && renderCatalogTable(myCatalogs, true, catalogsInUse)}
+      {currentTab === 1 &&
+        renderCatalogTable(publicCatalogs, false, catalogsInUse)}
 
       {/* Editor Dialog */}
       <CatalogEditorDialog
