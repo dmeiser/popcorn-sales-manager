@@ -2072,13 +2072,14 @@ export function response(ctx) {
                 runtime=appsync.FunctionRuntime.JS_1_0_0,
                 code=appsync.Code.from_inline(
                     """
-import { util } from '@aws-appsync/utils';
+import { util, runtime } from '@aws-appsync/utils';
 
 export function request(ctx) {
     const ordersToDelete = ctx.stash.ordersToDelete || [];
     
     if (ordersToDelete.length === 0) {
-        return { payload: null };
+        // No orders to delete - use early return to skip this step
+        return runtime.earlyReturn(true);
     }
     
     // Delete first order only - simple approach for now
