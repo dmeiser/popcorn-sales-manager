@@ -175,13 +175,13 @@ class TestRequestSeasonReport:
         appsync_event: Dict[str, Any],
         lambda_context: Any,
         another_account_id: str,
+        shares_table: Any,
     ) -> None:
         """Test that contributor with READ permission can generate report."""
-        # Create share with READ permission (multi-table design: profiles table)
-        dynamodb_table.put_item(
+        # Create share with READ permission (now in dedicated shares table)
+        shares_table.put_item(
             Item={
                 "profileId": sample_profile_id,
-                "recordType": f"SHARE#ACCOUNT#{another_account_id}",
                 "targetAccountId": another_account_id,
                 "permissions": ["READ"],
                 "grantedAt": datetime.now(timezone.utc).isoformat(),

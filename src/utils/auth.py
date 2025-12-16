@@ -28,6 +28,12 @@ def get_profiles_table() -> "Table":
     return dynamodb.Table(table_name)
 
 
+def get_shares_table() -> "Table":
+    """Get shares DynamoDB table instance (new separate table)."""
+    table_name = os.getenv("SHARES_TABLE_NAME", "kernelworx-shares-ue1-dev")
+    return dynamodb.Table(table_name)
+
+
 def get_accounts_table() -> "Table":
     """Get accounts DynamoDB table instance (multi-table design)."""
     table_name = os.getenv("ACCOUNTS_TABLE_NAME", "kernelworx-accounts-ue1-dev")
@@ -54,10 +60,10 @@ def check_profile_access(
     # Normalize required_permission to uppercase for consistent comparison
     required_permission = required_permission.upper()
 
-    table = get_profiles_table()
+    profiles_table = get_profiles_table()
 
     # Get profile metadata (multi-table design: PK=profileId, SK=recordType)
-    response = table.get_item(Key={"profileId": profile_id, "recordType": "METADATA"})
+    response = profiles_table.get_item(Key={"profileId": profile_id, "recordType": "METADATA"})
 
     if "Item" not in response:
         raise AppError(ErrorCode.NOT_FOUND, f"Profile {profile_id} not found")
@@ -71,10 +77,12 @@ def check_profile_access(
     if stored_owner == caller_account_id or stored_owner == f"ACCOUNT#{caller_account_id}":
         return True
 
-    # Check if caller has appropriate share (multi-table design)
-    # Shares are stored with recordType=SHARE#ACCOUNT#{caller_account_id}
-    share_key = f"SHARE#ACCOUNT#{caller_account_id}"
-    share_response = table.get_item(Key={"profileId": profile_id, "recordType": share_key})
+    # Check if caller has appropriate share (NOW USES SHARES TABLE)
+    # Shares table: PK=profileId, SK=targetAccountId
+    shares_table = get_shares_table()
+    share_response = shares_table.get_item(
+        Key={"profileId": profile_id, "targetAccountId": caller_account_id}
+    )
 
     if "Item" in share_response:
         share = share_response["Item"]

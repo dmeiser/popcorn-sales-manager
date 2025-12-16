@@ -314,6 +314,70 @@ class CdkStack(Stack):
             )
         )
 
+        # Shares Table (NEW - separated from profiles for cleaner design)
+        # PK: profileId, SK: targetAccountId
+        # Enables direct query for "all shares for this profile"
+        self.shares_table = dynamodb.Table(
+            self,
+            "SharesTable",
+            table_name=f"kernelworx-shares-ue1-{env_name}",
+            partition_key=dynamodb.Attribute(
+                name="profileId", type=dynamodb.AttributeType.STRING
+            ),
+            sort_key=dynamodb.Attribute(
+                name="targetAccountId", type=dynamodb.AttributeType.STRING
+            ),
+            billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
+            point_in_time_recovery_specification=dynamodb.PointInTimeRecoverySpecification(
+                point_in_time_recovery_enabled=True
+            ),
+            removal_policy=RemovalPolicy.RETAIN,
+        )
+
+        # GSI for "profiles shared with me" query
+        self.shares_table.add_global_secondary_index(
+            index_name="targetAccountId-index",
+            partition_key=dynamodb.Attribute(
+                name="targetAccountId", type=dynamodb.AttributeType.STRING
+            ),
+            projection_type=dynamodb.ProjectionType.ALL,
+        )
+
+        # Invites Table (NEW - separated from profiles for cleaner design)
+        # PK: inviteCode (enables direct lookup)
+        # TTL: expiresAt (automatic cleanup of expired invites)
+        self.invites_table = dynamodb.Table(
+            self,
+            "InvitesTable",
+            table_name=f"kernelworx-invites-ue1-{env_name}",
+            partition_key=dynamodb.Attribute(
+                name="inviteCode", type=dynamodb.AttributeType.STRING
+            ),
+            billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
+            point_in_time_recovery_specification=dynamodb.PointInTimeRecoverySpecification(
+                point_in_time_recovery_enabled=True
+            ),
+            removal_policy=RemovalPolicy.RETAIN,
+        )
+
+        # GSI for "invites for this profile" query
+        self.invites_table.add_global_secondary_index(
+            index_name="profileId-index",
+            partition_key=dynamodb.Attribute(
+                name="profileId", type=dynamodb.AttributeType.STRING
+            ),
+            projection_type=dynamodb.ProjectionType.ALL,
+        )
+
+        # TTL for invites (automatic expiration)
+        cfn_invites_table = self.invites_table.node.default_child
+        cfn_invites_table.time_to_live_specification = (
+            dynamodb.CfnTable.TimeToLiveSpecificationProperty(
+                attribute_name="expiresAt",
+                enabled=True,
+            )
+        )
+
         # Seasons Table
         self.seasons_table = dynamodb.Table(
             self,
@@ -463,6 +527,8 @@ class CdkStack(Stack):
         self.profiles_table.grant_read_write_data(self.lambda_execution_role)
         self.seasons_table.grant_read_write_data(self.lambda_execution_role)
         self.orders_table.grant_read_write_data(self.lambda_execution_role)
+        self.shares_table.grant_read_write_data(self.lambda_execution_role)
+        self.invites_table.grant_read_write_data(self.lambda_execution_role)
 
         # Grant Lambda role access to new table GSI indexes
         for table in [
@@ -471,6 +537,8 @@ class CdkStack(Stack):
             self.profiles_table,
             self.seasons_table,
             self.orders_table,
+            self.shares_table,
+            self.invites_table,
         ]:
             self.lambda_execution_role.add_to_policy(
                 iam.PolicyStatement(
@@ -507,6 +575,8 @@ class CdkStack(Stack):
         self.profiles_table.grant_read_write_data(self.appsync_service_role)
         self.seasons_table.grant_read_write_data(self.appsync_service_role)
         self.orders_table.grant_read_write_data(self.appsync_service_role)
+        self.shares_table.grant_read_write_data(self.appsync_service_role)
+        self.invites_table.grant_read_write_data(self.appsync_service_role)
 
         # Grant AppSync role access to new table GSI indexes
         for table in [
@@ -515,6 +585,8 @@ class CdkStack(Stack):
             self.profiles_table,
             self.seasons_table,
             self.orders_table,
+            self.shares_table,
+            self.invites_table,
         ]:
             self.appsync_service_role.add_to_policy(
                 iam.PolicyStatement(
@@ -542,6 +614,8 @@ class CdkStack(Stack):
             "PROFILES_TABLE_NAME": self.profiles_table.table_name,
             "SEASONS_TABLE_NAME": self.seasons_table.table_name,
             "ORDERS_TABLE_NAME": self.orders_table.table_name,
+            "SHARES_TABLE_NAME": self.shares_table.table_name,
+            "INVITES_TABLE_NAME": self.invites_table.table_name,
         }
 
         # Create Lambda Layer for shared dependencies
@@ -1084,6 +1158,30 @@ class CdkStack(Stack):
                 )
             )
 
+            # Shares table data source
+            self.shares_datasource = self.api.add_dynamo_db_data_source(
+                "SharesDataSource",
+                table=self.shares_table,
+            )
+            self.shares_datasource.grant_principal.add_to_principal_policy(
+                iam.PolicyStatement(
+                    actions=["dynamodb:Query", "dynamodb:Scan"],
+                    resources=[f"{self.shares_table.table_arn}/index/*"],
+                )
+            )
+
+            # Invites table data source
+            self.invites_datasource = self.api.add_dynamo_db_data_source(
+                "InvitesDataSource",
+                table=self.invites_table,
+            )
+            self.invites_datasource.grant_principal.add_to_principal_policy(
+                iam.PolicyStatement(
+                    actions=["dynamodb:Query", "dynamodb:Scan"],
+                    resources=[f"{self.invites_table.table_arn}/index/*"],
+                )
+            )
+
             # NONE data source for computed fields
             self.none_datasource = self.api.add_none_data_source(
                 "NoneDataSource",
@@ -1157,12 +1255,13 @@ export function response(ctx) {
                 ),
             )
 
+            # Create invite in invites table - NOW USES INVITES TABLE
             create_invite_fn = appsync.AppsyncFunction(
                 self,
                 "CreateInviteFn",
                 name=f"CreateInviteFn_{env_name}",
                 api=self.api,
-                data_source=self.profiles_datasource,
+                data_source=self.invites_datasource,
                 runtime=appsync.FunctionRuntime.JS_1_0_0,
                 code=appsync.Code.from_inline(
                     """
@@ -1184,9 +1283,9 @@ export function request(ctx) {
     const now = util.time.nowISO8601();
     const expiresAtISO = util.time.epochMilliSecondsToISO8601(expiresAtEpoch * 1000);
     
+    // Invites table uses inviteCode as PK
     const key = {
-        profileId: profileId,
-        recordType: 'INVITE#' + inviteCode
+        inviteCode: inviteCode
     };
     
     const attributes = {
@@ -1195,9 +1294,8 @@ export function request(ctx) {
         permissions: permissions,
         createdBy: callerAccountId,
         createdAt: now,
-        expiresAt: expiresAtISO,
-        used: false,
-        TTL: expiresAtEpoch
+        expiresAt: expiresAtEpoch,
+        used: false
     };
     
     return {
@@ -1205,7 +1303,7 @@ export function request(ctx) {
         key: util.dynamodb.toMapValues(key),
         attributeValues: util.dynamodb.toMapValues(attributes),
         condition: {
-            expression: 'attribute_not_exists(profileId)'
+            expression: 'attribute_not_exists(inviteCode)'
         }
     };
 }
@@ -1218,11 +1316,14 @@ export function response(ctx) {
         util.error(ctx.error.message, ctx.error.type);
     }
     
+    // Convert expiresAt epoch back to ISO string for API response
+    const expiresAtISO = util.time.epochMilliSecondsToISO8601(ctx.result.expiresAt * 1000);
+    
     return {
         inviteCode: ctx.result.inviteCode,
         profileId: ctx.result.profileId,
         permissions: ctx.result.permissions,
-        expiresAt: ctx.result.expiresAt,
+        expiresAt: expiresAtISO,
         createdByAccountId: ctx.result.createdBy,
         createdAt: ctx.result.createdAt
     };
@@ -1295,7 +1396,7 @@ export function response(ctx) {
                 "DeleteShareFn",
                 name=f"DeleteShareFn_{env_name}",
                 api=self.api,
-                data_source=self.profiles_datasource,
+                data_source=self.shares_datasource,
                 runtime=appsync.FunctionRuntime.JS_1_0_0,
                 code=appsync.Code.from_inline(
                     """
@@ -1303,13 +1404,26 @@ import { util } from '@aws-appsync/utils';
 
 export function request(ctx) {
     const profileId = ctx.args.input.profileId;
-    const targetAccountId = ctx.args.input.targetAccountId;
+    var targetAccountId = ctx.args.input.targetAccountId;
+    
+    // Strip ACCOUNT# prefix if present
+    if (targetAccountId && targetAccountId.startsWith('ACCOUNT#')) {
+        targetAccountId = targetAccountId.substring(8);
+    }
+    // Also strip old SHARE#ACCOUNT# prefix if present
+    if (targetAccountId && targetAccountId.startsWith('SHARE#ACCOUNT#')) {
+        targetAccountId = targetAccountId.substring(14);
+    }
+    // Also strip old SHARE# prefix if present
+    if (targetAccountId && targetAccountId.startsWith('SHARE#')) {
+        targetAccountId = targetAccountId.substring(6);
+    }
     
     return {
         operation: 'DeleteItem',
         key: util.dynamodb.toMapValues({ 
             profileId: profileId, 
-            recordType: 'SHARE#' + targetAccountId 
+            targetAccountId: targetAccountId 
         })
     };
 }
@@ -1390,27 +1504,26 @@ export function response(ctx) {
                 ),
             )
 
-            # Second function to perform the actual deletion
+            # Second function to perform the actual deletion - NOW USES INVITES TABLE
             delete_invite_item_fn = appsync.AppsyncFunction(
                 self,
                 "DeleteInviteItemFn",
                 name=f"DeleteInviteItemFn_{env_name}",
                 api=self.api,
-                data_source=self.profiles_datasource,
+                data_source=self.invites_datasource,
                 runtime=appsync.FunctionRuntime.JS_1_0_0,
                 code=appsync.Code.from_inline(
                     """
 import { util } from '@aws-appsync/utils';
 
 export function request(ctx) {
-    const profileId = ctx.stash.profileId;
     const inviteCode = ctx.stash.inviteCode;
     
+    // Delete from invites table using inviteCode as PK
     return {
         operation: 'DeleteItem',
         key: util.dynamodb.toMapValues({ 
-            profileId: profileId, 
-            recordType: 'INVITE#' + inviteCode
+            inviteCode: inviteCode
         })
     };
 }
@@ -1553,12 +1666,13 @@ export function response(ctx) {
             
             # CheckSharePermissionsFn: Checks if non-owner has WRITE permission via share
             # Used in conjunction with VerifyProfileWriteAccessFn above
+            # NOW USES SHARES TABLE
             check_share_permissions_fn = appsync.AppsyncFunction(
                 self,
                 "CheckSharePermissionsFn",
                 name=f"CheckSharePermissionsFn_{env_name}",
                 api=self.api,
-                data_source=self.profiles_datasource,
+                data_source=self.shares_datasource,
                 runtime=appsync.FunctionRuntime.JS_1_0_0,
                 code=appsync.Code.from_inline(
                     """
@@ -1569,7 +1683,7 @@ export function request(ctx) {
     if (ctx.stash.isOwner || ctx.stash.skipAuth) {
         return {
             operation: 'GetItem',
-            key: util.dynamodb.toMapValues({ profileId: 'NOOP', recordType: 'NOOP' })
+            key: util.dynamodb.toMapValues({ profileId: 'NOOP', targetAccountId: 'NOOP' })
         };
     }
     
@@ -1591,12 +1705,12 @@ export function request(ctx) {
         util.error('Profile ID not found for share check', 'BadRequest');
     }
     
-    // Look up share in profiles table (recordType = SHARE#accountId)
+    // Look up share in shares table: profileId + targetAccountId
     return {
         operation: 'GetItem',
         key: util.dynamodb.toMapValues({ 
             profileId: profileId, 
-            recordType: 'SHARE#' + ctx.identity.sub 
+            targetAccountId: ctx.identity.sub 
         }),
         consistentRead: true
     };
@@ -1744,12 +1858,13 @@ export function response(ctx) {
             
             # CheckShareReadPermissionsFn: Checks if non-owner has READ or WRITE permission
             # Used in conjunction with VerifyProfileReadAccessFn
+            # NOW USES SHARES TABLE
             check_share_read_permissions_fn = appsync.AppsyncFunction(
                 self,
                 "CheckShareReadPermissionsFn",
                 name=f"CheckShareReadPermissionsFn_{env_name}",
                 api=self.api,
-                data_source=self.profiles_datasource,
+                data_source=self.shares_datasource,
                 runtime=appsync.FunctionRuntime.JS_1_0_0,
                 code=appsync.Code.from_inline(
                     """
@@ -1761,18 +1876,18 @@ export function request(ctx) {
         // Use a no-op read
         return {
             operation: 'GetItem',
-            key: util.dynamodb.toMapValues({ profileId: 'NOOP', recordType: 'NOOP' })
+            key: util.dynamodb.toMapValues({ profileId: 'NOOP', targetAccountId: 'NOOP' })
         };
     }
     
     const profileId = ctx.stash.profileId;
     
-    // Look up share in profiles table (recordType = SHARE#accountId)
+    // Look up share in shares table: profileId + targetAccountId
     return {
         operation: 'GetItem',
         key: util.dynamodb.toMapValues({ 
             profileId: profileId, 
-            recordType: 'SHARE#' + ctx.identity.sub 
+            targetAccountId: ctx.identity.sub 
         }),
         consistentRead: true
     };
@@ -2889,12 +3004,13 @@ export function response(ctx) {
             )
 
             # Check if share already exists (to prevent duplicates and support idempotent upsert)
+            # NOW USES SHARES TABLE
             check_existing_share_fn = appsync.AppsyncFunction(
                 self,
                 "CheckExistingShareFn",
                 name=f"CheckExistingShareFn_{env_name}",
                 api=self.api,
-                data_source=self.profiles_datasource,
+                data_source=self.shares_datasource,
                 runtime=appsync.FunctionRuntime.JS_1_0_0,
                 code=appsync.Code.from_inline(
                     """
@@ -2912,12 +3028,12 @@ export function request(ctx) {
     // Store clean ID for later use by CreateShareFn
     ctx.stash.cleanTargetAccountId = targetAccountId;
     
-    // Query for existing share with SHARE#ACCOUNT# prefix
+    // Query shares table directly by PK+SK
     return {
         operation: 'GetItem',
         key: util.dynamodb.toMapValues({ 
             profileId: profileId, 
-            recordType: 'SHARE#ACCOUNT#' + targetAccountId 
+            targetAccountId: targetAccountId 
         }),
         consistentRead: true
     };
@@ -2939,13 +3055,14 @@ export function response(ctx) {
                 ),
             )
 
-            # Create share in profiles table
+            # Create share in shares table
+            # NOW USES SHARES TABLE
             create_share_fn = appsync.AppsyncFunction(
                 self,
                 "CreateShareFn",
                 name=f"CreateShareFn_{env_name}",
                 api=self.api,
-                data_source=self.profiles_datasource,
+                data_source=self.shares_datasource,
                 runtime=appsync.FunctionRuntime.JS_1_0_0,
                 code=appsync.Code.from_inline(
                     """
@@ -2958,21 +3075,19 @@ export function request(ctx) {
     const permissions = input.permissions || ctx.stash.invite.permissions;
     const now = util.time.nowISO8601();
     
-    // Strip ACCOUNT# prefix if present - store clean ID for GSI queries
+    // Strip ACCOUNT# prefix if present - store clean ID
     if (targetAccountId && targetAccountId.startsWith('ACCOUNT#')) {
         targetAccountId = targetAccountId.substring(8);
     }
     
-    // Share in profiles table: profileId + recordType: SHARE#ACCOUNT#targetAccountId
-    // Use SHARE#ACCOUNT# prefix for consistency with old data
-    const recordType = 'SHARE#ACCOUNT#' + targetAccountId;
-    // shareId is the recordType (SHARE#ACCOUNT#xxx) to match test expectations
-    const shareId = recordType;
+    // Generate shareId for backward compatibility with tests
+    // Format: SHARE#ACCOUNT#{targetAccountId} to match old expectations
+    const shareId = 'SHARE#ACCOUNT#' + targetAccountId;
+    
     const shareItem = {
         profileId: profileId,
-        recordType: recordType,
-        shareId: shareId,
         targetAccountId: targetAccountId,
+        shareId: shareId,
         permissions: permissions,
         createdByAccountId: ctx.identity.sub,
         createdAt: now
@@ -2984,7 +3099,7 @@ export function request(ctx) {
     // Use PutItem without condition to support both create and update (upsert)
     return {
         operation: 'PutItem',
-        key: util.dynamodb.toMapValues({ profileId: profileId, recordType: recordType }),
+        key: util.dynamodb.toMapValues({ profileId: profileId, targetAccountId: targetAccountId }),
         attributeValues: util.dynamodb.toMapValues(shareItem)
     };
 }
@@ -3026,15 +3141,15 @@ export function response(ctx) {
             )
 
             # ================================================================
-            # redeemProfileInvite Pipeline: Query inviteCode-index for invite → Create Share → Mark invite used
+            # redeemProfileInvite Pipeline: Lookup invite → Create Share → Mark invite used
             # ================================================================
-            # Uses profiles table inviteCode-index GSI
+            # NOW USES INVITES TABLE (direct GetItem by inviteCode)
             lookup_invite_fn = appsync.AppsyncFunction(
                 self,
                 "LookupInviteFn",
                 name=f"LookupInviteFn_{env_name}",
                 api=self.api,
-                data_source=self.profiles_datasource,
+                data_source=self.invites_datasource,
                 runtime=appsync.FunctionRuntime.JS_1_0_0,
                 code=appsync.Code.from_inline(
                     """
@@ -3042,14 +3157,11 @@ import { util } from '@aws-appsync/utils';
 
 export function request(ctx) {
     const inviteCode = ctx.args.input.inviteCode;
+    // Direct GetItem on invites table using inviteCode as PK
     return {
-        operation: 'Query',
-        index: 'inviteCode-index',
-        query: {
-            expression: 'inviteCode = :inviteCode',
-            expressionValues: util.dynamodb.toMapValues({ ':inviteCode': inviteCode })
-        },
-        limit: 1
+        operation: 'GetItem',
+        key: util.dynamodb.toMapValues({ inviteCode: inviteCode }),
+        consistentRead: true
     };
 }
 
@@ -3057,20 +3169,20 @@ export function response(ctx) {
     if (ctx.error) {
         util.error(ctx.error.message, ctx.error.type);
     }
-    if (!ctx.result.items || ctx.result.items.length === 0) {
+    if (!ctx.result || !ctx.result.inviteCode) {
         util.error('Invalid invite code', 'NotFound');
     }
     
-    const invite = ctx.result.items[0];
+    const invite = ctx.result;
     
     // Check if invite is already used
     if (invite.used) {
         util.error('Invite code has already been used', 'ConflictException');
     }
     
-    // Check if invite is expired
+    // Check if invite is expired (expiresAt is epoch seconds)
     const now = util.time.nowEpochSeconds();
-    if (invite.TTL && invite.TTL < now) {
+    if (invite.expiresAt && invite.expiresAt < now) {
         util.error('Invite code has expired', 'ConflictException');
     }
     
@@ -3083,13 +3195,13 @@ export function response(ctx) {
                 ),
             )
 
-            # Mark invite as used in profiles table
+            # Mark invite as used in invites table
             mark_invite_used_fn = appsync.AppsyncFunction(
                 self,
                 "MarkInviteUsedFn",
                 name=f"MarkInviteUsedFn_{env_name}",
                 api=self.api,
-                data_source=self.profiles_datasource,
+                data_source=self.invites_datasource,
                 runtime=appsync.FunctionRuntime.JS_1_0_0,
                 code=appsync.Code.from_inline(
                     """
@@ -3099,9 +3211,10 @@ export function request(ctx) {
     const invite = ctx.stash.invite;
     const now = util.time.nowISO8601();
     
+    // Update invite in invites table using inviteCode as key
     return {
         operation: 'UpdateItem',
-        key: util.dynamodb.toMapValues({ profileId: invite.profileId, recordType: invite.recordType }),
+        key: util.dynamodb.toMapValues({ inviteCode: invite.inviteCode }),
         update: {
             expression: 'SET used = :used, usedBy = :usedBy, usedAt = :usedAt',
             expressionValues: util.dynamodb.toMapValues({
@@ -3111,7 +3224,7 @@ export function request(ctx) {
                 ':false': false
             })
         },
-        condition: { expression: 'attribute_exists(profileId) AND used = :false' }
+        condition: { expression: 'attribute_exists(inviteCode) AND used = :false' }
     };
 }
 
@@ -3239,12 +3352,13 @@ export function response(ctx) {
             )
             
             # CheckProfileReadAuthFn: Check if caller is owner or has share
+            # NOW USES SHARES TABLE
             check_profile_read_auth_fn = appsync.AppsyncFunction(
                 self,
                 "CheckProfileReadAuthFn",
                 name=f"CheckProfileReadAuthFn_{env_name}",
                 api=self.api,
-                data_source=self.profiles_datasource,
+                data_source=self.shares_datasource,
                 runtime=appsync.FunctionRuntime.JS_1_0_0,
                 code=appsync.Code.from_inline(
                     """
@@ -3260,7 +3374,7 @@ export function request(ctx) {
         // No DB operation needed, return no-op
         return {
             operation: 'GetItem',
-            key: util.dynamodb.toMapValues({ profileId: 'NOOP', recordType: 'NOOP' })
+            key: util.dynamodb.toMapValues({ profileId: 'NOOP', targetAccountId: 'NOOP' })
         };
     }
     
@@ -3268,12 +3382,12 @@ export function request(ctx) {
     ctx.stash.authorized = false;
     const profileId = ctx.stash.profileId;
     
-    // Check for share in profiles table
+    // Check for share in shares table: profileId + targetAccountId
     return {
         operation: 'GetItem',
         key: util.dynamodb.toMapValues({ 
             profileId: profileId, 
-            recordType: 'SHARE#' + ctx.identity.sub 
+            targetAccountId: ctx.identity.sub 
         }),
         consistentRead: true
     };
@@ -3377,20 +3491,21 @@ $util.toJson($ctx.result.items)
             )
 
             # listSharedProfiles - Pipeline resolver to get profiles shared with current user
-            # Step 1: Query GSI2 (targetAccountId-index) for shares where targetAccountId = current user
+            # Step 1: Query shares table GSI (targetAccountId-index) for shares where targetAccountId = current user
+            # NOW USES SHARES TABLE
             list_shares_fn = appsync.AppsyncFunction(
                 self,
                 "ListSharesFn",
                 name=f"ListSharesFn_{env_name}",
                 api=self.api,
-                data_source=self.profiles_datasource,
+                data_source=self.shares_datasource,
                 runtime=appsync.FunctionRuntime.JS_1_0_0,
                 code=appsync.Code.from_inline(
                     """
 import { util } from '@aws-appsync/utils';
 
 export function request(ctx) {
-    // Query with clean accountId - CreateShareFn stores targetAccountId without ACCOUNT# prefix
+    // Query shares table GSI with caller's accountId
     const accountId = ctx.identity.sub;
     return {
         operation: 'Query',
@@ -3833,8 +3948,8 @@ export function response(ctx) {
 
             # SellerProfile.permissions - Return caller's permissions on this profile
             # If owner: ['READ', 'WRITE'], if shared: share.permissions, else: null
-            # Uses profiles table to look up share
-            self.profiles_datasource.create_resolver(
+            # NOW USES SHARES TABLE
+            self.shares_datasource.create_resolver(
                 "SellerProfilePermissionsResolver",
                 type_name="SellerProfile",
                 field_name="permissions",
@@ -3855,17 +3970,16 @@ export function request(ctx) {
         // Return a no-op query
         return {
             operation: 'GetItem',
-            key: util.dynamodb.toMapValues({ profileId: 'NOOP', recordType: 'NOOP' })
+            key: util.dynamodb.toMapValues({ profileId: 'NOOP', targetAccountId: 'NOOP' })
         };
     }
     
-    // Query for share record in profiles table
-    // recordType uses SHARE#ACCOUNT# prefix
+    // Query shares table for share record: profileId + targetAccountId
     return {
         operation: 'GetItem',
         key: util.dynamodb.toMapValues({ 
             profileId: profileId, 
-            recordType: 'SHARE#ACCOUNT#' + callerAccountId 
+            targetAccountId: callerAccountId 
         }),
         consistentRead: true
     };
@@ -4225,13 +4339,13 @@ export function response(ctx) {
             # FIXED Bug #27/#28: Added authorization check (owner or WRITE permission required)
             # Pipeline: VerifyProfileWriteAccessOrOwnerFn → QuerySharesFn
             
-            # Function to query shares (only if authorized) - uses profiles table
+            # Function to query shares (only if authorized) - NOW USES SHARES TABLE
             query_shares_fn = appsync.AppsyncFunction(
                 self,
                 "QuerySharesFn",
                 name=f"QuerySharesFn_{env_name}",
                 api=self.api,
-                data_source=self.profiles_datasource,
+                data_source=self.shares_datasource,
                 runtime=appsync.FunctionRuntime.JS_1_0_0,
                 code=appsync.Code.from_inline(
                     """
@@ -4243,24 +4357,22 @@ export function request(ctx) {
         return {
             operation: 'Query',
             query: {
-                expression: 'profileId = :profileId AND begins_with(recordType, :recordType)',
+                expression: 'profileId = :profileId',
                 expressionValues: util.dynamodb.toMapValues({ 
-                    ':profileId': 'NONEXISTENT',
-                    ':recordType': 'NONE'
+                    ':profileId': 'NONEXISTENT'
                 })
             }
         };
     }
     
     const profileId = ctx.args.profileId;
-    // Query profiles table for SHARE# records
+    // Query shares table directly by PK (profileId)
     return {
         operation: 'Query',
         query: {
-            expression: 'profileId = :profileId AND begins_with(recordType, :recordType)',
+            expression: 'profileId = :profileId',
             expressionValues: util.dynamodb.toMapValues({ 
-                ':profileId': profileId,
-                ':recordType': 'SHARE#'
+                ':profileId': profileId
             })
         }
     };
@@ -4363,13 +4475,13 @@ export function response(ctx) {
                 ),
             )
             
-            # Check WRITE permission function - uses profiles table
+            # Check WRITE permission function - NOW USES SHARES TABLE
             check_write_permission_fn = appsync.AppsyncFunction(
                 self,
                 "CheckWritePermissionFn",
                 name=f"CheckWritePermissionFn_{env_name}",
                 api=self.api,
-                data_source=self.profiles_datasource,
+                data_source=self.shares_datasource,
                 runtime=appsync.FunctionRuntime.JS_1_0_0,
                 code=appsync.Code.from_inline(
                     """
@@ -4380,7 +4492,7 @@ export function request(ctx) {
     if (ctx.stash.isOwner || ctx.stash.skipGetItem) {
         return {
             operation: 'GetItem',
-            key: util.dynamodb.toMapValues({ profileId: 'NOOP', recordType: 'NOOP' })
+            key: util.dynamodb.toMapValues({ profileId: 'NOOP', targetAccountId: 'NOOP' })
         };
     }
     
@@ -4391,16 +4503,16 @@ export function request(ctx) {
         ctx.stash.hasWritePermission = false;
         return {
             operation: 'GetItem',
-            key: util.dynamodb.toMapValues({ profileId: 'NOOP', recordType: 'NOOP' })
+            key: util.dynamodb.toMapValues({ profileId: 'NOOP', targetAccountId: 'NOOP' })
         };
     }
     
-    // Get share using profileId/recordType keys
+    // Get share from shares table using profileId + targetAccountId (caller's sub)
     return {
         operation: 'GetItem',
         key: util.dynamodb.toMapValues({ 
             profileId: profileId, 
-            recordType: 'SHARE#' + ctx.identity.sub 
+            targetAccountId: ctx.identity.sub 
         }),
         consistentRead: true
     };
@@ -4514,12 +4626,13 @@ export function response(ctx) {
                 ),
             )
 
+            # NOW USES INVITES TABLE
             query_invites_fn = appsync.AppsyncFunction(
                 self,
                 "QueryInvitesFn",
                 name=f"QueryInvitesFn_{env_name}",
                 api=self.api,
-                data_source=self.profiles_datasource,
+                data_source=self.invites_datasource,
                 runtime=appsync.FunctionRuntime.JS_1_0_0,
                 code=appsync.Code.from_inline(
                     """
@@ -4533,24 +4646,24 @@ export function request(ctx) {
         // Return empty query that yields no results
         return {
             operation: 'Query',
+            index: 'profileId-index',
             query: {
-                expression: 'profileId = :profileId AND begins_with(recordType, :recordType)',
+                expression: 'profileId = :profileId',
                 expressionValues: util.dynamodb.toMapValues({
-                    ':profileId': 'NONEXISTENT',
-                    ':recordType': 'NONEXISTENT'
+                    ':profileId': 'NONEXISTENT'
                 })
             }
         };
     }
     
-    // Owner is authorized - query invites using profileId/recordType keys
+    // Owner is authorized - query invites table using profileId-index GSI
     return {
         operation: 'Query',
+        index: 'profileId-index',
         query: {
-            expression: 'profileId = :profileId AND begins_with(recordType, :recordType)',
+            expression: 'profileId = :profileId',
             expressionValues: util.dynamodb.toMapValues({
-                ':profileId': profileId,
-                ':recordType': 'INVITE#'
+                ':profileId': profileId
             })
         }
     };
@@ -4562,19 +4675,19 @@ export function response(ctx) {
     }
     
     const items = ctx.result.items || [];
-    // Get current time in ISO string format
-    const nowEpochMillis = util.time.nowEpochMilliSeconds();
-    const now = util.time.epochMilliSecondsToISO8601(nowEpochMillis);
+    // Get current time as epoch seconds for comparison
+    const nowEpochSeconds = util.time.nowEpochSeconds();
     
     // Filter out expired and used invites
+    // expiresAt is now stored as epoch seconds (number)
     const activeInvites = items.filter(invite => {
         // Skip if already used
         if (invite.used === true) {
             return false;
         }
         
-        // Skip if expired (expiresAt is ISO string)
-        if (invite.expiresAt && invite.expiresAt < now) {
+        // Skip if expired (expiresAt is epoch seconds)
+        if (invite.expiresAt && invite.expiresAt < nowEpochSeconds) {
             return false;
         }
         
@@ -4582,11 +4695,12 @@ export function response(ctx) {
     });
     
     // Map DynamoDB field names to GraphQL schema names
+    // Convert expiresAt from epoch to ISO string for API response
     return activeInvites.map(invite => ({
         inviteCode: invite.inviteCode,
         profileId: invite.profileId,
         permissions: invite.permissions,
-        expiresAt: invite.expiresAt,
+        expiresAt: util.time.epochMilliSecondsToISO8601(invite.expiresAt * 1000),
         createdAt: invite.createdAt,
         createdByAccountId: invite.createdBy
     }));
@@ -4779,8 +4893,8 @@ $util.toJson($ctx.result)
             # deleteSellerProfile - Delete a seller profile (owner only)
             # 9-step Pipeline resolver:
             # 1. Verify ownership by looking up profile metadata
-            # 2. Query all SHARE# records for this profile
-            # 3. Query all INVITE# records for this profile
+            # 2. Query all shares for this profile from shares table
+            # 3. Query all invites for this profile from invites table
             # 4. Delete all shares (TransactWriteItems)
             # 5. Delete all invites (TransactWriteItems)
             # 6. Query all SEASON# records for this profile
@@ -4832,13 +4946,13 @@ export function response(ctx) {
                 ),
             )
 
-            # Step 2: Query all SHARE# records for this profile - uses profiles table
+            # Step 2: Query all shares for this profile - NOW USES SHARES TABLE
             query_profile_shares_fn = appsync.AppsyncFunction(
                 self,
                 "QueryProfileSharesForDeleteFn",
                 name=f"QueryProfileSharesForDeleteFn_{env_name}",
                 api=self.api,
-                data_source=self.profiles_datasource,
+                data_source=self.shares_datasource,
                 runtime=appsync.FunctionRuntime.JS_1_0_0,
                 code=appsync.Code.from_inline(
                     """
@@ -4846,14 +4960,13 @@ import { util } from '@aws-appsync/utils';
 
 export function request(ctx) {
     const profileId = ctx.stash.profileId;
-    // Query profiles table for SHARE# records using profileId/recordType keys
+    // Query shares table directly by PK (profileId)
     return {
         operation: 'Query',
         query: {
-            expression: 'profileId = :profileId AND begins_with(recordType, :recordType)',
+            expression: 'profileId = :profileId',
             expressionValues: util.dynamodb.toMapValues({
-                ':profileId': profileId,
-                ':recordType': 'SHARE#'
+                ':profileId': profileId
             })
         }
     };
@@ -4870,13 +4983,13 @@ export function response(ctx) {
                 ),
             )
 
-            # Step 3: Query all INVITE# records for this profile - uses profiles table
+            # Step 3: Query all invites for this profile - NOW USES INVITES TABLE
             query_profile_invites_fn = appsync.AppsyncFunction(
                 self,
                 "QueryProfileInvitesForDeleteFn",
                 name=f"QueryProfileInvitesForDeleteFn_{env_name}",
                 api=self.api,
-                data_source=self.profiles_datasource,
+                data_source=self.invites_datasource,
                 runtime=appsync.FunctionRuntime.JS_1_0_0,
                 code=appsync.Code.from_inline(
                     """
@@ -4884,14 +4997,14 @@ import { util } from '@aws-appsync/utils';
 
 export function request(ctx) {
     const profileId = ctx.stash.profileId;
-    // Query profiles table for INVITE# records using profileId/recordType keys
+    // Query invites table using profileId-index GSI
     return {
         operation: 'Query',
+        index: 'profileId-index',
         query: {
-            expression: 'profileId = :profileId AND begins_with(recordType, :recordType)',
+            expression: 'profileId = :profileId',
             expressionValues: util.dynamodb.toMapValues({
-                ':profileId': profileId,
-                ':recordType': 'INVITE#'
+                ':profileId': profileId
             })
         }
     };
@@ -4908,13 +5021,13 @@ export function response(ctx) {
                 ),
             )
 
-            # Step 4: Delete all shares using BatchDeleteItem - uses profiles table
+            # Step 4: Delete all shares using BatchDeleteItem - NOW USES SHARES TABLE
             delete_profile_shares_fn = appsync.AppsyncFunction(
                 self,
                 "DeleteProfileSharesFn",
                 name=f"DeleteProfileSharesFn_{env_name}",
                 api=self.api,
-                data_source=self.profiles_datasource,
+                data_source=self.shares_datasource,
                 runtime=appsync.FunctionRuntime.JS_1_0_0,
                 code=appsync.Code.from_inline(
                     """
@@ -4925,18 +5038,18 @@ export function request(ctx) {
     
     // If no shares to delete, skip with a no-op GetItem
     if (shares.length === 0) {
-        return { operation: 'GetItem', key: util.dynamodb.toMapValues({ profileId: 'SKIP', recordType: 'SKIP' }) };
+        return { operation: 'GetItem', key: util.dynamodb.toMapValues({ profileId: 'SKIP', targetAccountId: 'SKIP' }) };
     }
     
-    // Build delete keys for BatchDeleteItem (max 25 items per batch) using profileId/recordType keys
+    // Build delete keys for BatchDeleteItem (max 25 items per batch) using shares table keys
     const keys = shares.slice(0, 25).map(share => 
-        util.dynamodb.toMapValues({ profileId: share.profileId, recordType: share.recordType })
+        util.dynamodb.toMapValues({ profileId: share.profileId, targetAccountId: share.targetAccountId })
     );
     
     return {
         operation: 'BatchDeleteItem',
         tables: {
-            '""" + self.profiles_table.table_name + """': keys
+            '""" + self.shares_table.table_name + """': keys
         }
     };
 }
@@ -4949,13 +5062,13 @@ export function response(ctx) {
                 ),
             )
 
-            # Step 5: Delete all invites using BatchDeleteItem - uses profiles table
+            # Step 5: Delete all invites using BatchDeleteItem - NOW USES INVITES TABLE
             delete_profile_invites_fn = appsync.AppsyncFunction(
                 self,
                 "DeleteProfileInvitesFn",
                 name=f"DeleteProfileInvitesFn_{env_name}",
                 api=self.api,
-                data_source=self.profiles_datasource,
+                data_source=self.invites_datasource,
                 runtime=appsync.FunctionRuntime.JS_1_0_0,
                 code=appsync.Code.from_inline(
                     """
@@ -4966,18 +5079,18 @@ export function request(ctx) {
     
     // If no invites to delete, skip with a no-op GetItem
     if (invites.length === 0) {
-        return { operation: 'GetItem', key: util.dynamodb.toMapValues({ profileId: 'SKIP', recordType: 'SKIP' }) };
+        return { operation: 'GetItem', key: util.dynamodb.toMapValues({ inviteCode: 'SKIP' }) };
     }
     
-    // Build delete keys for BatchDeleteItem (max 25 items per batch) using profileId/recordType keys
+    // Build delete keys for BatchDeleteItem (max 25 items per batch) using invites table key
     const keys = invites.slice(0, 25).map(invite => 
-        util.dynamodb.toMapValues({ profileId: invite.profileId, recordType: invite.recordType })
+        util.dynamodb.toMapValues({ inviteCode: invite.inviteCode })
     );
     
     return {
         operation: 'BatchDeleteItem',
         tables: {
-            '""" + self.profiles_table.table_name + """': keys
+            '""" + self.invites_table.table_name + """': keys
         }
     };
 }

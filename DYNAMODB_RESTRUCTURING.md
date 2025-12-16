@@ -390,14 +390,14 @@ The `isAdmin` field is no longer used. Admin checks now use Cognito groups direc
 **Estimated: 3-4 hours**
 
 #### 1.1 CDK Changes
-- [ ] Create new `shares` table with PK=profileId, SK=targetAccountId
-- [ ] Create new `invites` table with PK=inviteCode, TTL=expiresAt
+- [x] Create new `shares` table with PK=profileId, SK=targetAccountId
+- [x] Create new `invites` table with PK=inviteCode, TTL=expiresAt
 - [ ] Modify `profiles` table: PK=ownerAccountId, SK=profileId
 - [ ] Add profileId-index GSI to profiles table (sparse)
-- [ ] Add targetAccountId-index GSI to shares table
-- [ ] Add profileId-index GSI to invites table
+- [x] Add targetAccountId-index GSI to shares table
+- [x] Add profileId-index GSI to invites table
 - [ ] Remove old GSIs from profiles table (ownerAccountId-index, targetAccountId-index, inviteCode-index)
-- [ ] Add datasources for shares and invites tables
+- [x] Add datasources for shares and invites tables
 
 #### 1.2 Resolver Updates - Profiles
 - [ ] Update `createSellerProfile` resolver (Lambda) - use new key structure
@@ -407,23 +407,24 @@ The `isAdmin` field is no longer used. Admin checks now use Cognito groups direc
 - [ ] Update `deleteSellerProfile` resolver - use new key structure, cleanup shares/invites
 
 #### 1.3 Resolver Updates - Shares
-- [ ] Update `shareProfileDirect` resolver - write to shares table
-- [ ] Update `revokeShare` resolver - delete from shares table
-- [ ] Update `listSharesByProfile` resolver - query shares table by PK
-- [ ] Update `listSharedProfiles` resolver - query targetAccountId-index
-- [ ] Update `SellerProfile.permissions` field resolver - query shares table
+- [x] Update `shareProfileDirect` resolver - write to shares table
+- [x] Update `revokeShare` resolver - delete from shares table
+- [x] Update `listSharesByProfile` resolver - query shares table by PK
+- [x] Update `listSharedProfiles` resolver - query targetAccountId-index
+- [x] Update `SellerProfile.permissions` field resolver - query shares table
 - [ ] Update `SellerProfile.isOwner` field resolver - compare ownerAccountId
 
 #### 1.4 Resolver Updates - Invites
-- [ ] Update `createProfileInvite` resolver - write to invites table
-- [ ] Update `redeemProfileInvite` resolver - read/update invites table, write to shares table
-- [ ] Update `revokeProfileInvite` resolver - delete from invites table
-- [ ] Update `listInvitesByProfile` resolver - query profileId-index
-- [ ] Update `getInviteDetails` resolver - direct GetItem by inviteCode
+- [x] Update `createProfileInvite` resolver - write to invites table
+- [x] Update `redeemProfileInvite` resolver - read/update invites table, write to shares table
+- [x] Update `revokeProfileInvite` resolver - delete from invites table
+- [x] Update `listInvitesByProfile` resolver - query profileId-index
+- [x] Update `getInviteDetails` resolver - direct GetItem by inviteCode
 
 #### 1.5 Lambda Updates
 - [ ] Update `profile_operations.py` for new key structure
 - [ ] Update `profile_sharing.py` for shares/invites tables
+- [x] Update `src/utils/auth.py` to query shares table for authorization
 
 #### 1.6 Data Migration - Profiles/Shares/Invites
 - [ ] Export existing profiles (METADATA records only)

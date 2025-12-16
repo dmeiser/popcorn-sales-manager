@@ -29,6 +29,8 @@ def aws_credentials() -> None:
     os.environ["PROFILES_TABLE_NAME"] = "kernelworx-profiles-ue1-dev"
     os.environ["SEASONS_TABLE_NAME"] = "kernelworx-seasons-ue1-dev"
     os.environ["ORDERS_TABLE_NAME"] = "kernelworx-orders-ue1-dev"
+    os.environ["SHARES_TABLE_NAME"] = "kernelworx-shares-ue1-dev"
+    os.environ["INVITES_TABLE_NAME"] = "kernelworx-invites-ue1-dev"
 
 
 @pytest.fixture
@@ -193,8 +195,71 @@ def dynamodb_table(aws_credentials: None) -> Generator[Any, None, None]:
             BillingMode="PAY_PER_REQUEST",
         )
 
+        # ================================================================
+        # Shares Table (NEW - dedicated table for profile shares)
+        # ================================================================
+        shares_table = dynamodb.create_table(
+            TableName="kernelworx-shares-ue1-dev",
+            KeySchema=[
+                {"AttributeName": "profileId", "KeyType": "HASH"},
+                {"AttributeName": "targetAccountId", "KeyType": "RANGE"},
+            ],
+            AttributeDefinitions=[
+                {"AttributeName": "profileId", "AttributeType": "S"},
+                {"AttributeName": "targetAccountId", "AttributeType": "S"},
+            ],
+            GlobalSecondaryIndexes=[
+                {
+                    "IndexName": "targetAccountId-index",
+                    "KeySchema": [
+                        {"AttributeName": "targetAccountId", "KeyType": "HASH"},
+                    ],
+                    "Projection": {"ProjectionType": "ALL"},
+                },
+            ],
+            BillingMode="PAY_PER_REQUEST",
+        )
+
+        # ================================================================
+        # Invites Table (NEW - dedicated table for profile invites)
+        # ================================================================
+        invites_table = dynamodb.create_table(
+            TableName="kernelworx-invites-ue1-dev",
+            KeySchema=[
+                {"AttributeName": "inviteCode", "KeyType": "HASH"},
+            ],
+            AttributeDefinitions=[
+                {"AttributeName": "inviteCode", "AttributeType": "S"},
+                {"AttributeName": "profileId", "AttributeType": "S"},
+            ],
+            GlobalSecondaryIndexes=[
+                {
+                    "IndexName": "profileId-index",
+                    "KeySchema": [
+                        {"AttributeName": "profileId", "KeyType": "HASH"},
+                    ],
+                    "Projection": {"ProjectionType": "ALL"},
+                },
+            ],
+            BillingMode="PAY_PER_REQUEST",
+        )
+
         # Return profiles table as primary (most commonly used)
         yield profiles_table
+
+
+@pytest.fixture
+def shares_table(dynamodb_table: Any) -> Any:
+    """Get the shares DynamoDB table."""
+    dynamodb = boto3.resource("dynamodb", region_name="us-east-1")
+    return dynamodb.Table("kernelworx-shares-ue1-dev")
+
+
+@pytest.fixture
+def invites_table(dynamodb_table: Any) -> Any:
+    """Get the invites DynamoDB table."""
+    dynamodb = boto3.resource("dynamodb", region_name="us-east-1")
+    return dynamodb.Table("kernelworx-invites-ue1-dev")
 
 
 @pytest.fixture
