@@ -26,9 +26,9 @@ from ..utils.logging import StructuredLogger, get_correlation_id
 dynamodb = boto3.resource("dynamodb", endpoint_url=os.getenv("DYNAMODB_ENDPOINT"))
 
 
-def get_table() -> Table:
-    """Get DynamoDB table instance."""
-    table_name = os.getenv("TABLE_NAME", "PsmApp")
+def get_profiles_table() -> Table:
+    """Get DynamoDB profiles table instance (multi-table design)."""
+    table_name = os.getenv("PROFILES_TABLE_NAME", "kernelworx-profiles-ue1-dev")
     return dynamodb.Table(table_name)
 
 
@@ -84,13 +84,12 @@ def create_profile_invite(event: Dict[str, Any], context: Any) -> Dict[str, Any]
         # Calculate expiration (14 days from now)
         expires_at = datetime.now(timezone.utc) + timedelta(days=14)
 
-        # Store invite in DynamoDB
-        table = get_table()
+        # Store invite in DynamoDB (multi-table design: profiles table)
+        table = get_profiles_table()
         invite_item = {
-            "PK": profile_id,
-            "SK": f"INVITE#{invite_code}",
-            "inviteCode": invite_code,
-            "profileId": profile_id,
+            "profileId": profile_id,  # PK
+            "recordType": f"INVITE#{invite_code}",  # SK
+            "inviteCode": invite_code,  # GSI: inviteCode-index
             "permissions": permissions,
             "createdBy": caller_account_id,
             "createdAt": datetime.now(timezone.utc).isoformat(),

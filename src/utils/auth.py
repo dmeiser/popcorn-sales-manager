@@ -22,9 +22,15 @@ logger = get_logger(__name__)
 dynamodb = boto3.resource("dynamodb", endpoint_url=os.getenv("DYNAMODB_ENDPOINT"))
 
 
-def get_table() -> "Table":
-    """Get DynamoDB table instance."""
-    table_name = os.getenv("TABLE_NAME", "PsmApp")
+def get_profiles_table() -> "Table":
+    """Get profiles DynamoDB table instance (multi-table design)."""
+    table_name = os.getenv("PROFILES_TABLE_NAME", "kernelworx-profiles-ue1-dev")
+    return dynamodb.Table(table_name)
+
+
+def get_accounts_table() -> "Table":
+    """Get accounts DynamoDB table instance (multi-table design)."""
+    table_name = os.getenv("ACCOUNTS_TABLE_NAME", "kernelworx-accounts-ue1-dev")
     return dynamodb.Table(table_name)
 
 
@@ -47,11 +53,11 @@ def check_profile_access(
     """
     # Normalize required_permission to uppercase for consistent comparison
     required_permission = required_permission.upper()
-    
-    table = get_table()
 
-    # Get profile
-    response = table.get_item(Key={"PK": profile_id, "SK": "METADATA"})
+    table = get_profiles_table()
+
+    # Get profile metadata (multi-table design: PK=profileId, SK=recordType)
+    response = table.get_item(Key={"profileId": profile_id, "recordType": "METADATA"})
 
     if "Item" not in response:
         raise AppError(ErrorCode.NOT_FOUND, f"Profile {profile_id} not found")
@@ -62,8 +68,10 @@ def check_profile_access(
     if profile.get("ownerAccountId") == caller_account_id:  # pragma: no branch
         return True
 
-    # Check if caller has appropriate share
-    share_response = table.get_item(Key={"PK": profile_id, "SK": f"SHARE#{caller_account_id}"})
+    # Check if caller has appropriate share (multi-table design: SK=SHARE#accountId)
+    share_response = table.get_item(
+        Key={"profileId": profile_id, "recordType": f"SHARE#{caller_account_id}"}
+    )
 
     if "Item" in share_response:
         share = share_response["Item"]
@@ -79,9 +87,11 @@ def check_profile_access(
                     normalized_permissions.append(perm.upper())
                 elif isinstance(perm, dict) and "S" in perm:
                     normalized_permissions.append(perm["S"].upper())
-            
+
             # WRITE permission implicitly grants READ access
-            if required_permission == "READ" and ("READ" in normalized_permissions or "WRITE" in normalized_permissions):
+            if required_permission == "READ" and (
+                "READ" in normalized_permissions or "WRITE" in normalized_permissions
+            ):
                 return True
             if required_permission == "WRITE" and "WRITE" in normalized_permissions:
                 return True
@@ -124,9 +134,10 @@ def is_profile_owner(caller_account_id: str, profile_id: str) -> bool:
     Raises:
         AppError: If profile not found
     """
-    table = get_table()
+    table = get_profiles_table()
 
-    response = table.get_item(Key={"PK": profile_id, "SK": "METADATA"})
+    # Multi-table design: PK=profileId, SK=recordType
+    response = table.get_item(Key={"profileId": profile_id, "recordType": "METADATA"})
 
     if "Item" not in response:
         raise AppError(ErrorCode.NOT_FOUND, f"Profile {profile_id} not found")
@@ -145,9 +156,10 @@ def get_account(account_id: str) -> Optional[Dict[str, Any]]:
     Returns:
         Account item or None if not found
     """
-    table = get_table()
+    table = get_accounts_table()
 
-    response = table.get_item(Key={"PK": f"ACCOUNT#{account_id}", "SK": "METADATA"})
+    # Multi-table design: accountId is the only key (format: ACCOUNT#uuid)
+    response = table.get_item(Key={"accountId": f"ACCOUNT#{account_id}"})
 
     return response.get("Item")
 
@@ -155,7 +167,7 @@ def get_account(account_id: str) -> Optional[Dict[str, Any]]:
 def is_admin(event: Dict[str, Any]) -> bool:
     """
     Check if caller has admin privileges from JWT cognito:groups claim.
-    
+
     IMPORTANT: This checks the JWT token claim, NOT DynamoDB cache.
     The DynamoDB isAdmin field is updated by post-auth Lambda but is NOT
     the source of truth - always use JWT claims for authorization.

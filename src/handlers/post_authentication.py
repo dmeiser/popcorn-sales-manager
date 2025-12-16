@@ -8,7 +8,6 @@ Trigger: Post Authentication
 Event: After user signs in (including first-time social login)
 """
 
-import json
 import logging
 import os
 from datetime import datetime, timezone
@@ -54,9 +53,9 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         event: Must return the event unmodified for Cognito to continue
     """
     try:
-        # Get table reference (inside function for testability)
+        # Get table reference (multi-table design: use dedicated accounts table)
         dynamodb = boto3.resource("dynamodb")
-        table_name = os.environ.get("TABLE_NAME", "kernelworx-app-dev")
+        table_name = os.environ.get("ACCOUNTS_TABLE_NAME", "kernelworx-accounts-ue1-dev")
         table = dynamodb.Table(table_name)
 
         logger.info(f"Post-authentication trigger invoked: {event.get('triggerSource')}")
@@ -65,16 +64,16 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         user_attributes = event.get("request", {}).get("userAttributes", {})
         account_id = user_attributes.get("sub")
         email = user_attributes.get("email", "")
-        email_verified = user_attributes.get("email_verified") == "true"
 
         if not account_id:
             logger.error("Missing sub (account_id) in user attributes")
             return event  # Return event to allow auth to continue
 
-        # Check if Account already exists
-        existing_account = table.get_item(
-            Key={"PK": f"ACCOUNT#{account_id}", "SK": "METADATA"}
-        ).get("Item")
+        # Build the accountId key with prefix
+        account_id_key = f"ACCOUNT#{account_id}"
+
+        # Check if Account already exists (multi-table design: accountId is only key)
+        existing_account = table.get_item(Key={"accountId": account_id_key}).get("Item")
 
         timestamp = datetime.now(timezone.utc).isoformat()
 
@@ -83,7 +82,7 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             # Note: isAdmin is NOT stored in DynamoDB - it comes from JWT cognito:groups claim
             logger.info(f"Updating existing account: {account_id}")
             table.update_item(
-                Key={"PK": f"ACCOUNT#{account_id}", "SK": "METADATA"},
+                Key={"accountId": account_id_key},
                 UpdateExpression="SET email = :email, updatedAt = :updated",
                 ExpressionAttributeValues={
                     ":email": email,
@@ -91,15 +90,13 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 },
             )
         else:
-            # Create new Account record
+            # Create new Account record (multi-table design: simpler schema)
             # Note: isAdmin is NOT stored in DynamoDB - it comes from JWT cognito:groups claim
             logger.info(f"Creating new account: {account_id}")
 
             account_item = {
-                "PK": f"ACCOUNT#{account_id}",
-                "SK": "METADATA",
-                "accountId": account_id,
-                "email": email,
+                "accountId": account_id_key,  # PK: ACCOUNT#uuid
+                "email": email,  # GSI: email
                 "givenName": user_attributes.get("given_name", ""),  # Optional metadata
                 "familyName": user_attributes.get("family_name", ""),  # Optional metadata
                 "city": "",  # Will be set via updateMyAccount if provided
@@ -107,14 +104,11 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 "unitNumber": "",  # Will be set via updateMyAccount if provided
                 "createdAt": timestamp,
                 "updatedAt": timestamp,
-                "GSI1PK": f"ACCOUNT#{account_id}",  # For account lookups
-                "GSI1SK": "METADATA",
             }
 
             table.put_item(Item=account_item)
 
             logger.info(f"Account created successfully: {account_id}, email={email}")
-
 
         # IMPORTANT: Must return the event for Cognito to continue
         return event

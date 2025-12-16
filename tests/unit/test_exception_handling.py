@@ -16,19 +16,33 @@ from src.utils.errors import AppError, ErrorCode
 class TestExceptionHandling:
     """Tests for exception handling in Lambda handlers."""
 
-    @patch("src.handlers.profile_sharing.get_table")
+    @patch("src.handlers.profile_sharing.get_profiles_table")
+    @patch("src.utils.auth.get_profiles_table")
     def test_create_invite_database_error(
         self,
-        mock_get_table: MagicMock,
+        mock_auth_table: MagicMock,
+        mock_sharing_table: MagicMock,
         sample_profile_id: str,
+        sample_account_id: str,
         appsync_event: Dict[str, Any],
         lambda_context: Any,
     ) -> None:
         """Test that database errors are handled in create_invite."""
-        # Mock table to raise exception
-        mock_table = MagicMock()
-        mock_table.get_item.side_effect = Exception("Database connection failed")
-        mock_get_table.return_value = mock_table
+        # Mock auth table to return valid profile (owner check)
+        auth_mock = MagicMock()
+        auth_mock.get_item.return_value = {
+            "Item": {
+                "profileId": sample_profile_id,
+                "recordType": "METADATA",
+                "ownerAccountId": sample_account_id,
+            }
+        }
+        mock_auth_table.return_value = auth_mock
+
+        # Mock sharing table to raise exception on put_item
+        sharing_mock = MagicMock()
+        sharing_mock.put_item.side_effect = Exception("Database connection failed")
+        mock_sharing_table.return_value = sharing_mock
 
         event = {
             **appsync_event,

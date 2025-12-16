@@ -197,6 +197,190 @@ class CdkStack(Stack):
             )
 
         # ====================================================================
+        # New Multi-Table Design (Migration from Single-Table)
+        # ====================================================================
+
+        # Accounts Table
+        self.accounts_table = dynamodb.Table(
+            self,
+            "AccountsTable",
+            table_name=f"kernelworx-accounts-ue1-{env_name}",
+            partition_key=dynamodb.Attribute(
+                name="accountId", type=dynamodb.AttributeType.STRING
+            ),
+            billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
+            point_in_time_recovery_specification=dynamodb.PointInTimeRecoverySpecification(
+                point_in_time_recovery_enabled=True
+            ),
+            removal_policy=RemovalPolicy.RETAIN,
+        )
+
+        # GSI for email lookup (account by email)
+        self.accounts_table.add_global_secondary_index(
+            index_name="email-index",
+            partition_key=dynamodb.Attribute(
+                name="email", type=dynamodb.AttributeType.STRING
+            ),
+            projection_type=dynamodb.ProjectionType.ALL,
+        )
+
+        # Catalogs Table
+        self.catalogs_table = dynamodb.Table(
+            self,
+            "CatalogsTable",
+            table_name=f"kernelworx-catalogs-ue1-{env_name}",
+            partition_key=dynamodb.Attribute(
+                name="catalogId", type=dynamodb.AttributeType.STRING
+            ),
+            billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
+            point_in_time_recovery_specification=dynamodb.PointInTimeRecoverySpecification(
+                point_in_time_recovery_enabled=True
+            ),
+            removal_policy=RemovalPolicy.RETAIN,
+        )
+
+        # GSI for catalog owner lookup
+        self.catalogs_table.add_global_secondary_index(
+            index_name="ownerAccountId-index",
+            partition_key=dynamodb.Attribute(
+                name="ownerAccountId", type=dynamodb.AttributeType.STRING
+            ),
+            projection_type=dynamodb.ProjectionType.ALL,
+        )
+
+        # GSI for public catalog listing
+        self.catalogs_table.add_global_secondary_index(
+            index_name="isPublic-createdAt-index",
+            partition_key=dynamodb.Attribute(
+                name="isPublicStr", type=dynamodb.AttributeType.STRING
+            ),
+            sort_key=dynamodb.Attribute(
+                name="createdAt", type=dynamodb.AttributeType.STRING
+            ),
+            projection_type=dynamodb.ProjectionType.ALL,
+        )
+
+        # Profiles Table (includes shares, invites, ownership records)
+        self.profiles_table = dynamodb.Table(
+            self,
+            "ProfilesTable",
+            table_name=f"kernelworx-profiles-ue1-{env_name}",
+            partition_key=dynamodb.Attribute(
+                name="profileId", type=dynamodb.AttributeType.STRING
+            ),
+            sort_key=dynamodb.Attribute(
+                name="recordType", type=dynamodb.AttributeType.STRING
+            ),
+            billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
+            point_in_time_recovery_specification=dynamodb.PointInTimeRecoverySpecification(
+                point_in_time_recovery_enabled=True
+            ),
+            removal_policy=RemovalPolicy.RETAIN,
+        )
+
+        # GSI for profile owner lookup (list my profiles)
+        self.profiles_table.add_global_secondary_index(
+            index_name="ownerAccountId-index",
+            partition_key=dynamodb.Attribute(
+                name="ownerAccountId", type=dynamodb.AttributeType.STRING
+            ),
+            projection_type=dynamodb.ProjectionType.ALL,
+        )
+
+        # GSI for shares by target account (list shared profiles)
+        self.profiles_table.add_global_secondary_index(
+            index_name="targetAccountId-index",
+            partition_key=dynamodb.Attribute(
+                name="targetAccountId", type=dynamodb.AttributeType.STRING
+            ),
+            projection_type=dynamodb.ProjectionType.ALL,
+        )
+
+        # GSI for invite code lookup
+        self.profiles_table.add_global_secondary_index(
+            index_name="inviteCode-index",
+            partition_key=dynamodb.Attribute(
+                name="inviteCode", type=dynamodb.AttributeType.STRING
+            ),
+            projection_type=dynamodb.ProjectionType.ALL,
+        )
+
+        # TTL for profile invites
+        cfn_profiles_table = self.profiles_table.node.default_child
+        cfn_profiles_table.time_to_live_specification = (
+            dynamodb.CfnTable.TimeToLiveSpecificationProperty(
+                attribute_name="TTL",
+                enabled=True,
+            )
+        )
+
+        # Seasons Table
+        self.seasons_table = dynamodb.Table(
+            self,
+            "SeasonsTable",
+            table_name=f"kernelworx-seasons-ue1-{env_name}",
+            partition_key=dynamodb.Attribute(
+                name="seasonId", type=dynamodb.AttributeType.STRING
+            ),
+            billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
+            point_in_time_recovery_specification=dynamodb.PointInTimeRecoverySpecification(
+                point_in_time_recovery_enabled=True
+            ),
+            removal_policy=RemovalPolicy.RETAIN,
+        )
+
+        # GSI for seasons by profile
+        self.seasons_table.add_global_secondary_index(
+            index_name="profileId-index",
+            partition_key=dynamodb.Attribute(
+                name="profileId", type=dynamodb.AttributeType.STRING
+            ),
+            sort_key=dynamodb.Attribute(
+                name="createdAt", type=dynamodb.AttributeType.STRING
+            ),
+            projection_type=dynamodb.ProjectionType.ALL,
+        )
+
+        # Orders Table
+        self.orders_table = dynamodb.Table(
+            self,
+            "OrdersTable",
+            table_name=f"kernelworx-orders-ue1-{env_name}",
+            partition_key=dynamodb.Attribute(
+                name="orderId", type=dynamodb.AttributeType.STRING
+            ),
+            billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
+            point_in_time_recovery_specification=dynamodb.PointInTimeRecoverySpecification(
+                point_in_time_recovery_enabled=True
+            ),
+            removal_policy=RemovalPolicy.RETAIN,
+        )
+
+        # GSI for orders by season
+        self.orders_table.add_global_secondary_index(
+            index_name="seasonId-index",
+            partition_key=dynamodb.Attribute(
+                name="seasonId", type=dynamodb.AttributeType.STRING
+            ),
+            sort_key=dynamodb.Attribute(
+                name="createdAt", type=dynamodb.AttributeType.STRING
+            ),
+            projection_type=dynamodb.ProjectionType.ALL,
+        )
+
+        # GSI for orders by profile (cross-season order lookup)
+        self.orders_table.add_global_secondary_index(
+            index_name="profileId-index",
+            partition_key=dynamodb.Attribute(
+                name="profileId", type=dynamodb.AttributeType.STRING
+            ),
+            sort_key=dynamodb.Attribute(
+                name="createdAt", type=dynamodb.AttributeType.STRING
+            ),
+            projection_type=dynamodb.ProjectionType.ALL,
+        )
+
+        # ====================================================================
         # S3 Buckets
         # ====================================================================
 
@@ -264,6 +448,28 @@ class CdkStack(Stack):
             )
         )
 
+        # Grant Lambda role access to new multi-table design tables
+        self.accounts_table.grant_read_write_data(self.lambda_execution_role)
+        self.catalogs_table.grant_read_write_data(self.lambda_execution_role)
+        self.profiles_table.grant_read_write_data(self.lambda_execution_role)
+        self.seasons_table.grant_read_write_data(self.lambda_execution_role)
+        self.orders_table.grant_read_write_data(self.lambda_execution_role)
+
+        # Grant Lambda role access to new table GSI indexes
+        for table in [
+            self.accounts_table,
+            self.catalogs_table,
+            self.profiles_table,
+            self.seasons_table,
+            self.orders_table,
+        ]:
+            self.lambda_execution_role.add_to_policy(
+                iam.PolicyStatement(
+                    actions=["dynamodb:Query", "dynamodb:Scan"],
+                    resources=[f"{table.table_arn}/index/*"],
+                )
+            )
+
         # Grant Lambda role access to exports bucket
         self.exports_bucket.grant_read_write(self.lambda_execution_role)
 
@@ -286,6 +492,28 @@ class CdkStack(Stack):
             )
         )
 
+        # Grant AppSync role access to new multi-table design tables
+        self.accounts_table.grant_read_write_data(self.appsync_service_role)
+        self.catalogs_table.grant_read_write_data(self.appsync_service_role)
+        self.profiles_table.grant_read_write_data(self.appsync_service_role)
+        self.seasons_table.grant_read_write_data(self.appsync_service_role)
+        self.orders_table.grant_read_write_data(self.appsync_service_role)
+
+        # Grant AppSync role access to new table GSI indexes
+        for table in [
+            self.accounts_table,
+            self.catalogs_table,
+            self.profiles_table,
+            self.seasons_table,
+            self.orders_table,
+        ]:
+            self.appsync_service_role.add_to_policy(
+                iam.PolicyStatement(
+                    actions=["dynamodb:Query", "dynamodb:Scan"],
+                    resources=[f"{table.table_arn}/index/*"],
+                )
+            )
+
         # ====================================================================
         # Lambda Functions
         # ====================================================================
@@ -299,6 +527,12 @@ class CdkStack(Stack):
             "EXPORTS_BUCKET": self.exports_bucket.bucket_name,
             "POWERTOOLS_SERVICE_NAME": "kernelworx",
             "LOG_LEVEL": "INFO",
+            # New multi-table design table names
+            "ACCOUNTS_TABLE_NAME": self.accounts_table.table_name,
+            "CATALOGS_TABLE_NAME": self.catalogs_table.table_name,
+            "PROFILES_TABLE_NAME": self.profiles_table.table_name,
+            "SEASONS_TABLE_NAME": self.seasons_table.table_name,
+            "ORDERS_TABLE_NAME": self.orders_table.table_name,
         }
 
         # Create Lambda Layer for shared dependencies
@@ -774,6 +1008,70 @@ class CdkStack(Stack):
                 iam.PolicyStatement(
                     actions=["dynamodb:Query", "dynamodb:Scan"],
                     resources=[f"{self.table.table_arn}/index/*"],
+                )
+            )
+
+            # ================================================================
+            # Multi-table data sources (new architecture)
+            # ================================================================
+            
+            # Accounts table data source
+            self.accounts_datasource = self.api.add_dynamo_db_data_source(
+                "AccountsDataSource",
+                table=self.accounts_table,
+            )
+            self.accounts_datasource.grant_principal.add_to_principal_policy(
+                iam.PolicyStatement(
+                    actions=["dynamodb:Query", "dynamodb:Scan"],
+                    resources=[f"{self.accounts_table.table_arn}/index/*"],
+                )
+            )
+            
+            # Catalogs table data source
+            self.catalogs_datasource = self.api.add_dynamo_db_data_source(
+                "CatalogsDataSource",
+                table=self.catalogs_table,
+            )
+            self.catalogs_datasource.grant_principal.add_to_principal_policy(
+                iam.PolicyStatement(
+                    actions=["dynamodb:Query", "dynamodb:Scan"],
+                    resources=[f"{self.catalogs_table.table_arn}/index/*"],
+                )
+            )
+            
+            # Profiles table data source
+            self.profiles_datasource = self.api.add_dynamo_db_data_source(
+                "ProfilesDataSource",
+                table=self.profiles_table,
+            )
+            self.profiles_datasource.grant_principal.add_to_principal_policy(
+                iam.PolicyStatement(
+                    actions=["dynamodb:Query", "dynamodb:Scan"],
+                    resources=[f"{self.profiles_table.table_arn}/index/*"],
+                )
+            )
+            
+            # Seasons table data source
+            self.seasons_datasource = self.api.add_dynamo_db_data_source(
+                "SeasonsDataSource",
+                table=self.seasons_table,
+            )
+            self.seasons_datasource.grant_principal.add_to_principal_policy(
+                iam.PolicyStatement(
+                    actions=["dynamodb:Query", "dynamodb:Scan"],
+                    resources=[f"{self.seasons_table.table_arn}/index/*"],
+                )
+            )
+            
+            # Orders table data source
+            self.orders_datasource = self.api.add_dynamo_db_data_source(
+                "OrdersDataSource",
+                table=self.orders_table,
+            )
+            self.orders_datasource.grant_principal.add_to_principal_policy(
+                iam.PolicyStatement(
+                    actions=["dynamodb:Query", "dynamodb:Scan"],
+                    resources=[f"{self.orders_table.table_arn}/index/*"],
                 )
             )
 
@@ -2802,8 +3100,8 @@ export function response(ctx) {
             )
 
             # DynamoDB resolvers for queries
-            # getMyAccount - Get current user's account
-            self.dynamodb_datasource.create_resolver(
+            # getMyAccount - Get current user's account (uses accounts table)
+            self.accounts_datasource.create_resolver(
                 "GetMyAccountResolver",
                 type_name="Query",
                 field_name="getMyAccount",
@@ -2813,8 +3111,7 @@ export function response(ctx) {
     "version": "2017-02-28",
     "operation": "GetItem",
     "key": {
-        "PK": $util.dynamodb.toDynamoDBJson("ACCOUNT#$ctx.identity.sub"),
-        "SK": $util.dynamodb.toDynamoDBJson("METADATA")
+        "accountId": $util.dynamodb.toDynamoDBJson("ACCOUNT#$ctx.identity.sub")
     }
 }
                 """
@@ -4140,9 +4437,9 @@ export function response(ctx) {
                 ),
             )
 
-            # getCatalog - Get a specific catalog by ID
+            # getCatalog - Get a specific catalog by ID (uses catalogs table)
             # FIXED Bug #20: Added authorization check (owner or public catalog)
-            self.dynamodb_datasource.create_resolver(
+            self.catalogs_datasource.create_resolver(
                 "GetCatalogResolver",
                 type_name="Query",
                 field_name="getCatalog",
@@ -4152,8 +4449,7 @@ export function response(ctx) {
     "version": "2017-02-28",
     "operation": "GetItem",
     "key": {
-        "PK": $util.dynamodb.toDynamoDBJson("CATALOG"),
-        "SK": $util.dynamodb.toDynamoDBJson($ctx.args.catalogId)
+        "catalogId": $util.dynamodb.toDynamoDBJson($ctx.args.catalogId)
     }
 }
                 """
@@ -4170,8 +4466,8 @@ export function response(ctx) {
     ## Check authorization: Allow if catalog is public OR caller is owner
     #set($catalog = $ctx.result)
     #set($callerAccountId = $util.defaultIfNull($ctx.identity.sub, ""))
-    #set($isPublic = $catalog.isPublic)
-    #set($isOwner = $catalog.ownerAccountId == $callerAccountId)
+    #set($isPublic = $catalog.isPublic == "true")
+    #set($isOwner = $catalog.ownerAccountId == "ACCOUNT#${callerAccountId}")
     
     #if($isPublic || $isOwner)
         $util.toJson($catalog)
@@ -4184,8 +4480,8 @@ export function response(ctx) {
                 ),
             )
 
-            # listPublicCatalogs - List all public catalogs
-            self.dynamodb_datasource.create_resolver(
+            # listPublicCatalogs - List all public catalogs (uses catalogs table GSI)
+            self.catalogs_datasource.create_resolver(
                 "ListPublicCatalogsResolver",
                 type_name="Query",
                 field_name="listPublicCatalogs",
@@ -4194,14 +4490,14 @@ export function response(ctx) {
 {
     "version": "2017-02-28",
     "operation": "Query",
-    "index": "GSI3",
+    "index": "isPublic-createdAt-index",
     "query": {
-        "expression": "GSI3PK = :gsi3pk AND begins_with(GSI3SK, :gsi3sk)",
+        "expression": "isPublic = :isPublic",
         "expressionValues": {
-            ":gsi3pk": $util.dynamodb.toDynamoDBJson("PUBLIC"),
-            ":gsi3sk": $util.dynamodb.toDynamoDBJson("CATALOG#")
+            ":isPublic": $util.dynamodb.toDynamoDBJson("true")
         }
-    }
+    },
+    "scanIndexForward": false
 }
                 """
                 ),
@@ -4215,8 +4511,8 @@ $util.toJson($ctx.result.items)
                 ),
             )
 
-            # listMyCatalogs - List catalogs owned by current user
-            self.dynamodb_datasource.create_resolver(
+            # listMyCatalogs - List catalogs owned by current user (uses catalogs table GSI)
+            self.catalogs_datasource.create_resolver(
                 "ListMyCatalogsResolver",
                 type_name="Query",
                 field_name="listMyCatalogs",
@@ -4225,12 +4521,11 @@ $util.toJson($ctx.result.items)
 {
     "version": "2017-02-28",
     "operation": "Query",
-    "index": "GSI3",
+    "index": "ownerAccountId-index",
     "query": {
-        "expression": "GSI3PK = :gsi3pk AND begins_with(GSI3SK, :gsi3sk)",
+        "expression": "ownerAccountId = :ownerAccountId",
         "expressionValues": {
-            ":gsi3pk": $util.dynamodb.toDynamoDBJson("ACCOUNT#$ctx.identity.sub"),
-            ":gsi3sk": $util.dynamodb.toDynamoDBJson("CATALOG#")
+            ":ownerAccountId": $util.dynamodb.toDynamoDBJson("ACCOUNT#$ctx.identity.sub")
         }
     }
 }
@@ -4689,8 +4984,8 @@ export function response(ctx) {
                 ),
             )
 
-            # createCatalog - Create a new catalog
-            self.dynamodb_datasource.create_resolver(
+            # createCatalog - Create a new catalog (uses catalogs table)
+            self.catalogs_datasource.create_resolver(
                 "CreateCatalogResolver",
                 type_name="Mutation",
                 field_name="createCatalog",
@@ -4717,29 +5012,26 @@ export function response(ctx) {
     #end
     $util.qr($productsWithIds.add($productWithId))
 #end
+## Convert isPublic boolean to string for GSI
+#if($ctx.args.input.isPublic)
+    #set($isPublicStr = "true")
+#else
+    #set($isPublicStr = "false")
+#end
 {
     "version": "2017-02-28",
     "operation": "PutItem",
     "key": {
-        "PK": $util.dynamodb.toDynamoDBJson("CATALOG"),
-        "SK": $util.dynamodb.toDynamoDBJson($catalogId)
+        "catalogId": $util.dynamodb.toDynamoDBJson($catalogId)
     },
     "attributeValues": {
-        "catalogId": $util.dynamodb.toDynamoDBJson($catalogId),
         "catalogName": $util.dynamodb.toDynamoDBJson($ctx.args.input.catalogName),
         "catalogType": $util.dynamodb.toDynamoDBJson("USER_CREATED"),
-        "ownerAccountId": $util.dynamodb.toDynamoDBJson($ctx.identity.sub),
-        "isPublic": $util.dynamodb.toDynamoDBJson($ctx.args.input.isPublic),
+        "ownerAccountId": $util.dynamodb.toDynamoDBJson("ACCOUNT#$ctx.identity.sub"),
+        "isPublic": $util.dynamodb.toDynamoDBJson($isPublicStr),
         "products": $util.dynamodb.toDynamoDBJson($productsWithIds),
         "createdAt": $util.dynamodb.toDynamoDBJson($now),
-        "updatedAt": $util.dynamodb.toDynamoDBJson($now),
-        ## GSI3 for catalog listing
-        #if($ctx.args.input.isPublic)
-            "GSI3PK": $util.dynamodb.toDynamoDBJson("PUBLIC"),
-        #else
-            "GSI3PK": $util.dynamodb.toDynamoDBJson("ACCOUNT#$ctx.identity.sub"),
-        #end
-        "GSI3SK": $util.dynamodb.toDynamoDBJson($catalogId)
+        "updatedAt": $util.dynamodb.toDynamoDBJson($now)
     }
 }
                 """
@@ -4754,8 +5046,8 @@ $util.toJson($ctx.result)
                 ),
             )
 
-            # updateCatalog - Update an existing catalog
-            self.dynamodb_datasource.create_resolver(
+            # updateCatalog - Update an existing catalog (uses catalogs table)
+            self.catalogs_datasource.create_resolver(
                 "UpdateCatalogResolver",
                 type_name="Mutation",
                 field_name="updateCatalog",
@@ -4782,25 +5074,25 @@ $util.toJson($ctx.result)
     #end
     $util.qr($productsWithIds.add($productWithId))
 #end
+## Convert isPublic boolean to string for GSI
+#if($ctx.args.input.isPublic)
+    #set($isPublicStr = "true")
+#else
+    #set($isPublicStr = "false")
+#end
 {
     "version": "2017-02-28",
     "operation": "UpdateItem",
     "key": {
-        "PK": $util.dynamodb.toDynamoDBJson("CATALOG"),
-        "SK": $util.dynamodb.toDynamoDBJson($ctx.args.catalogId)
+        "catalogId": $util.dynamodb.toDynamoDBJson($ctx.args.catalogId)
     },
     "update": {
-        "expression": "SET catalogName = :catalogName, isPublic = :isPublic, products = :products, updatedAt = :updatedAt, GSI3PK = :gsi3pk",
+        "expression": "SET catalogName = :catalogName, isPublic = :isPublic, products = :products, updatedAt = :updatedAt",
         "expressionValues": {
             ":catalogName": $util.dynamodb.toDynamoDBJson($ctx.args.input.catalogName),
-            ":isPublic": $util.dynamodb.toDynamoDBJson($ctx.args.input.isPublic),
+            ":isPublic": $util.dynamodb.toDynamoDBJson($isPublicStr),
             ":products": $util.dynamodb.toDynamoDBJson($productsWithIds),
-            ":updatedAt": $util.dynamodb.toDynamoDBJson($now),
-            #if($ctx.args.input.isPublic)
-                ":gsi3pk": $util.dynamodb.toDynamoDBJson("PUBLIC")
-            #else
-                ":gsi3pk": $util.dynamodb.toDynamoDBJson("ACCOUNT#$ctx.identity.sub")
-            #end
+            ":updatedAt": $util.dynamodb.toDynamoDBJson($now)
         }
     },
     "condition": {

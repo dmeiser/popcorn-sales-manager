@@ -9,9 +9,9 @@ import boto3
 
 # Handle both Lambda (absolute) and unit test (relative) imports
 try:
-    from utils.logging import get_logger
+    from utils.logging import get_logger  # type: ignore[import-not-found]
 except ModuleNotFoundError:
-    from ..utils.logging import get_logger  # type: ignore
+    from ..utils.logging import get_logger
 
 logger = get_logger(__name__)
 

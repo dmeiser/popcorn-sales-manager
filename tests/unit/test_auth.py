@@ -89,8 +89,8 @@ class TestCheckProfileAccess:
         # Create share with READ permission
         dynamodb_table.put_item(
             Item={
-                "PK": sample_profile_id,
-                "SK": f"SHARE#{another_account_id}",
+                "profileId": sample_profile_id,
+                "recordType": f"SHARE#{another_account_id}",
                 "permissions": ["READ"],
             }
         )
@@ -110,8 +110,8 @@ class TestCheckProfileAccess:
         # Create share with READ only
         dynamodb_table.put_item(
             Item={
-                "PK": sample_profile_id,
-                "SK": f"SHARE#{another_account_id}",
+                "profileId": sample_profile_id,
+                "recordType": f"SHARE#{another_account_id}",
                 "permissions": ["READ"],
             }
         )
@@ -131,8 +131,8 @@ class TestCheckProfileAccess:
         # Create share with WRITE only (no READ)
         dynamodb_table.put_item(
             Item={
-                "PK": sample_profile_id,
-                "SK": f"SHARE#{another_account_id}",
+                "profileId": sample_profile_id,
+                "recordType": f"SHARE#{another_account_id}",
                 "permissions": ["WRITE"],
             }
         )
@@ -153,8 +153,8 @@ class TestCheckProfileAccess:
         # Create share with WRITE permission
         dynamodb_table.put_item(
             Item={
-                "PK": sample_profile_id,
-                "SK": f"SHARE#{another_account_id}",
+                "profileId": sample_profile_id,
+                "recordType": f"SHARE#{another_account_id}",
                 "permissions": ["READ", "WRITE"],
             }
         )
@@ -174,8 +174,8 @@ class TestCheckProfileAccess:
         # Create share with READ permission
         dynamodb_table.put_item(
             Item={
-                "PK": sample_profile_id,
-                "SK": f"SHARE#{another_account_id}",
+                "profileId": sample_profile_id,
+                "recordType": f"SHARE#{another_account_id}",
                 "permissions": ["READ"],
             }
         )
@@ -223,8 +223,8 @@ class TestCheckProfileAccess:
         profile_id = "PROFILE#orphan"
         dynamodb_table.put_item(
             Item={
-                "PK": profile_id,
-                "SK": "METADATA",
+                "profileId": profile_id,
+                "recordType": "METADATA",
                 "profileId": profile_id,
                 # No ownerAccountId
             }
@@ -245,8 +245,8 @@ class TestCheckProfileAccess:
         # Create share with dict-format permissions (raw DynamoDB format)
         dynamodb_table.put_item(
             Item={
-                "PK": sample_profile_id,
-                "SK": f"SHARE#{another_account_id}",
+                "profileId": sample_profile_id,
+                "recordType": f"SHARE#{another_account_id}",
                 "permissions": [{"S": "READ"}],  # Dict format instead of list of strings
             }
         )
@@ -266,8 +266,8 @@ class TestCheckProfileAccess:
         # Create share with non-list permissions
         dynamodb_table.put_item(
             Item={
-                "PK": sample_profile_id,
-                "SK": f"SHARE#{another_account_id}",
+                "profileId": sample_profile_id,
+                "recordType": f"SHARE#{another_account_id}",
                 "permissions": {"READ": True},  # Dict instead of list
             }
         )
@@ -287,8 +287,8 @@ class TestCheckProfileAccess:
         # Create share with mixed permission formats
         dynamodb_table.put_item(
             Item={
-                "PK": sample_profile_id,
-                "SK": f"SHARE#{another_account_id}",
+                "profileId": sample_profile_id,
+                "recordType": f"SHARE#{another_account_id}",
                 "permissions": ["WRITE", {"S": "READ"}],  # Mix of string and dict
             }
         )
@@ -308,8 +308,8 @@ class TestCheckProfileAccess:
         # Create share with WRITE permission only
         dynamodb_table.put_item(
             Item={
-                "PK": sample_profile_id,
-                "SK": f"SHARE#{another_account_id}",
+                "profileId": sample_profile_id,
+                "recordType": f"SHARE#{another_account_id}",
                 "permissions": ["WRITE"],
             }
         )
@@ -329,8 +329,8 @@ class TestCheckProfileAccess:
         # Create share with READ permission only
         dynamodb_table.put_item(
             Item={
-                "PK": sample_profile_id,
-                "SK": f"SHARE#{another_account_id}",
+                "profileId": sample_profile_id,
+                "recordType": f"SHARE#{another_account_id}",
                 "permissions": ["READ"],
             }
         )
@@ -350,8 +350,8 @@ class TestCheckProfileAccess:
         # Create share with empty permissions
         dynamodb_table.put_item(
             Item={
-                "PK": sample_profile_id,
-                "SK": f"SHARE#{another_account_id}",
+                "profileId": sample_profile_id,
+                "recordType": f"SHARE#{another_account_id}",
                 "permissions": [],
             }
         )
@@ -371,8 +371,8 @@ class TestCheckProfileAccess:
         # Create share with dict permission that doesn't have "S" key
         dynamodb_table.put_item(
             Item={
-                "PK": sample_profile_id,
-                "SK": f"SHARE#{another_account_id}",
+                "profileId": sample_profile_id,
+                "recordType": f"SHARE#{another_account_id}",
                 "permissions": [{"N": "123"}],  # Dict with N key instead of S
             }
         )
@@ -407,8 +407,8 @@ class TestRequireProfileAccess:
         # Create share
         dynamodb_table.put_item(
             Item={
-                "PK": sample_profile_id,
-                "SK": f"SHARE#{another_account_id}",
+                "profileId": sample_profile_id,
+                "recordType": f"SHARE#{another_account_id}",
                 "permissions": ["READ"],
             }
         )
@@ -435,12 +435,14 @@ class TestGetAccount:
 
     def test_existing_account_returned(self, dynamodb_table: Any, sample_account_id: str) -> None:
         """Test that existing account is returned."""
-        # Create account
-        dynamodb_table.put_item(
+        # Create account in accounts table (multi-table design)
+        import boto3
+
+        dynamodb = boto3.resource("dynamodb", region_name="us-east-1")
+        accounts_table = dynamodb.Table("kernelworx-accounts-ue1-dev")
+        accounts_table.put_item(
             Item={
-                "PK": f"ACCOUNT#{sample_account_id}",
-                "SK": "METADATA",
-                "accountId": sample_account_id,
+                "accountId": f"ACCOUNT#{sample_account_id}",
                 "email": "test@example.com",
             }
         )
@@ -448,7 +450,7 @@ class TestGetAccount:
         result = get_account(sample_account_id)
 
         assert result is not None
-        assert result["accountId"] == sample_account_id
+        assert result["accountId"] == f"ACCOUNT#{sample_account_id}"
 
     def test_nonexistent_account_returns_none(self, dynamodb_table: Any) -> None:
         """Test that nonexistent account returns None."""
@@ -537,6 +539,19 @@ class TestIsAdmin:
     def test_missing_identity_returns_false(self) -> None:
         """Test that missing identity field returns False."""
         event: Dict[str, Any] = {}
+
+        result = is_admin(event)
+
+        assert result is False
+
+    def test_exception_returns_false(self) -> None:
+        """Test that exception during parsing returns False."""
+        # claims is a string instead of dict - causes AttributeError on .get()
+        event: Dict[str, Any] = {
+            "identity": {
+                "claims": "not-a-dict",  # Invalid type
+            }
+        }
 
         result = is_admin(event)
 

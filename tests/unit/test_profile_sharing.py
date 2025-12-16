@@ -10,11 +10,12 @@ NOTE: The following have been migrated to AppSync resolvers:
 - revokeShare → VTL resolver (Phase 1.2)
 
 For AppSync resolver testing strategy, see docs/APPSYNC_TESTING_STRATEGY.md
+
+Updated for multi-table design (profiles table).
 """
 
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from typing import Any, Dict
-from unittest.mock import patch
 
 import pytest
 
@@ -54,9 +55,9 @@ class TestCreateProfileInvite:
         assert result["permissions"] == ["READ"]
         assert "expiresAt" in result
 
-        # Verify invite stored in DynamoDB
+        # Verify invite stored in DynamoDB (multi-table design)
         response = dynamodb_table.get_item(
-            Key={"PK": sample_profile_id, "SK": f"INVITE#{result['inviteCode']}"}
+            Key={"profileId": sample_profile_id, "recordType": f"INVITE#{result['inviteCode']}"}
         )
         assert "Item" in response
         assert response["Item"]["used"] is False

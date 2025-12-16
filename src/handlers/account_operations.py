@@ -10,14 +10,25 @@ from datetime import datetime, timezone
 from typing import Any, Dict
 
 import boto3
+from botocore.exceptions import ClientError
 
-from utils.errors import AppError, ErrorCode
-from utils.logging import get_logger
+# Handle both Lambda (absolute) and unit test (relative) imports
+try:  # pragma: no cover
+    from utils.errors import AppError, ErrorCode  # type: ignore[import-not-found]
+    from utils.logging import get_logger  # type: ignore[import-not-found]
+except ModuleNotFoundError:  # pragma: no cover
+    from ..utils.errors import AppError, ErrorCode
+    from ..utils.logging import get_logger
 
 logger = get_logger(__name__)
 
-dynamodb = boto3.resource("dynamodb")
-table = dynamodb.Table(os.environ["TABLE_NAME"])
+dynamodb = boto3.resource("dynamodb", endpoint_url=os.getenv("DYNAMODB_ENDPOINT"))
+
+
+def get_accounts_table() -> Any:
+    """Get DynamoDB accounts table instance (multi-table design)."""
+    table_name = os.environ.get("ACCOUNTS_TABLE_NAME", "kernelworx-accounts-ue1-dev")
+    return dynamodb.Table(table_name)
 
 
 def update_my_account(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
@@ -93,17 +104,17 @@ def update_my_account(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             "At least one field must be provided (givenName, familyName, city, state, or unitNumber)",
         )
 
-    # Update DynamoDB account record
-    pk = f"ACCOUNT#{account_id}"
-    sk = "METADATA"
+    # Update DynamoDB account record (multi-table design: accountId is the only key)
+    account_id_key = f"ACCOUNT#{account_id}"
+    table = get_accounts_table()
 
     try:
         response = table.update_item(
-            Key={"PK": pk, "SK": sk},
+            Key={"accountId": account_id_key},
             UpdateExpression="SET " + ", ".join(update_expressions),
             ExpressionAttributeNames=expression_attribute_names,
             ExpressionAttributeValues=expression_attribute_values,
-            ConditionExpression="attribute_exists(PK)",  # Ensure account exists
+            ConditionExpression="attribute_exists(accountId)",  # Ensure account exists
             ReturnValues="ALL_NEW",
         )
 
@@ -124,8 +135,11 @@ def update_my_account(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
 
         return account
 
-    except dynamodb.meta.client.exceptions.ConditionalCheckFailedException:
-        raise AppError(ErrorCode.NOT_FOUND, f"Account {account_id} not found")
+    except ClientError as e:
+        if e.response.get("Error", {}).get("Code") == "ConditionalCheckFailedException":
+            raise AppError(ErrorCode.NOT_FOUND, f"Account {account_id} not found")
+        logger.error(f"Failed to update account: {str(e)}")
+        raise
     except Exception as e:
         logger.error(f"Failed to update account: {str(e)}")
         raise
