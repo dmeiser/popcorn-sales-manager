@@ -37,7 +37,8 @@ class TestCreateSellerProfile:
         # Assert
         assert result["profileId"].startswith("PROFILE#")
         assert result["sellerName"] == "Test Scout"
-        assert result["ownerAccountId"] == event["identity"]["sub"]
+        # In multi-table design, API returns clean ownerAccountId without ACCOUNT# prefix
+        assert result["ownerAccountId"] == event['identity']['sub']
         assert "createdAt" in result
         assert "updatedAt" in result
 
@@ -46,7 +47,8 @@ class TestCreateSellerProfile:
         call_args = mock_dynamodb.transact_write_items.call_args
         assert call_args is not None
         assert "TransactItems" in call_args.kwargs
-        assert len(call_args.kwargs["TransactItems"]) == 2
+        # Multi-table design: only 1 item (profile metadata in profiles table)
+        assert len(call_args.kwargs["TransactItems"]) == 1
 
     @patch("src.handlers.profile_operations.boto3.client")
     def test_create_seller_profile_with_special_characters(
@@ -73,13 +75,13 @@ class TestCreateSellerProfile:
         mock_dynamodb.transact_write_items.assert_called_once()
 
     @patch("src.handlers.profile_operations.boto3.client")
-    def test_create_seller_profile_has_ownership_item(
+    def test_create_seller_profile_has_metadata_item_with_correct_keys(
         self,
         mock_client: MagicMock,
         appsync_event: Dict[str, Any],
         lambda_context: Any,
     ) -> None:
-        """Test that ownership item is written correctly."""
+        """Test that profile metadata item is written correctly with multi-table keys."""
         # Arrange
         mock_dynamodb = MagicMock()
         mock_client.return_value = mock_dynamodb
@@ -97,19 +99,21 @@ class TestCreateSellerProfile:
         assert call_args is not None
         items = call_args.kwargs["TransactItems"]
 
-        # First item should be ownership item
-        ownership_item = items[0]["Put"]["Item"]
-        assert ownership_item["PK"]["S"].startswith("ACCOUNT#")
-        assert ownership_item["SK"]["S"].startswith("PROFILE#")
+        # Multi-table design: only 1 item - the profile metadata
+        assert len(items) == 1
+        metadata_item = items[0]["Put"]["Item"]
+        # Keys are profileId and recordType (not PK/SK)
+        assert metadata_item["profileId"]["S"].startswith("PROFILE#")
+        assert metadata_item["recordType"]["S"] == "METADATA"
 
     @patch("src.handlers.profile_operations.boto3.client")
-    def test_create_seller_profile_has_metadata_item(
+    def test_create_seller_profile_metadata_has_owner_with_prefix(
         self,
         mock_client: MagicMock,
         appsync_event: Dict[str, Any],
         lambda_context: Any,
     ) -> None:
-        """Test that metadata item is written correctly."""
+        """Test that ownerAccountId includes ACCOUNT# prefix for GSI lookup."""
         # Arrange
         mock_dynamodb = MagicMock()
         mock_client.return_value = mock_dynamodb
@@ -127,10 +131,10 @@ class TestCreateSellerProfile:
         assert call_args is not None
         items = call_args.kwargs["TransactItems"]
 
-        # Second item should be metadata item
-        metadata_item = items[1]["Put"]["Item"]
-        assert metadata_item["PK"]["S"].startswith("PROFILE#")
-        assert metadata_item["SK"]["S"] == "METADATA"
+        metadata_item = items[0]["Put"]["Item"]
+        # ownerAccountId should have ACCOUNT# prefix for consistency with resolvers
+        expected_owner = f"ACCOUNT#{event['identity']['sub']}"
+        assert metadata_item["ownerAccountId"]["S"] == expected_owner
 
     @patch("src.handlers.profile_operations.boto3.client")
     def test_create_seller_profile_error_handling(

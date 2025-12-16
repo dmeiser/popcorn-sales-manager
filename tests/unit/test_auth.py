@@ -90,7 +90,7 @@ class TestCheckProfileAccess:
         dynamodb_table.put_item(
             Item={
                 "profileId": sample_profile_id,
-                "recordType": f"SHARE#{another_account_id}",
+                "recordType": f"SHARE#ACCOUNT#{another_account_id}",
                 "permissions": ["READ"],
             }
         )
@@ -111,7 +111,7 @@ class TestCheckProfileAccess:
         dynamodb_table.put_item(
             Item={
                 "profileId": sample_profile_id,
-                "recordType": f"SHARE#{another_account_id}",
+                "recordType": f"SHARE#ACCOUNT#{another_account_id}",
                 "permissions": ["READ"],
             }
         )
@@ -132,7 +132,7 @@ class TestCheckProfileAccess:
         dynamodb_table.put_item(
             Item={
                 "profileId": sample_profile_id,
-                "recordType": f"SHARE#{another_account_id}",
+                "recordType": f"SHARE#ACCOUNT#{another_account_id}",
                 "permissions": ["WRITE"],
             }
         )
@@ -154,7 +154,7 @@ class TestCheckProfileAccess:
         dynamodb_table.put_item(
             Item={
                 "profileId": sample_profile_id,
-                "recordType": f"SHARE#{another_account_id}",
+                "recordType": f"SHARE#ACCOUNT#{another_account_id}",
                 "permissions": ["READ", "WRITE"],
             }
         )
@@ -175,7 +175,7 @@ class TestCheckProfileAccess:
         dynamodb_table.put_item(
             Item={
                 "profileId": sample_profile_id,
-                "recordType": f"SHARE#{another_account_id}",
+                "recordType": f"SHARE#ACCOUNT#{another_account_id}",
                 "permissions": ["READ"],
             }
         )
@@ -246,7 +246,7 @@ class TestCheckProfileAccess:
         dynamodb_table.put_item(
             Item={
                 "profileId": sample_profile_id,
-                "recordType": f"SHARE#{another_account_id}",
+                "recordType": f"SHARE#ACCOUNT#{another_account_id}",
                 "permissions": [{"S": "READ"}],  # Dict format instead of list of strings
             }
         )
@@ -267,7 +267,7 @@ class TestCheckProfileAccess:
         dynamodb_table.put_item(
             Item={
                 "profileId": sample_profile_id,
-                "recordType": f"SHARE#{another_account_id}",
+                "recordType": f"SHARE#ACCOUNT#{another_account_id}",
                 "permissions": {"READ": True},  # Dict instead of list
             }
         )
@@ -288,7 +288,7 @@ class TestCheckProfileAccess:
         dynamodb_table.put_item(
             Item={
                 "profileId": sample_profile_id,
-                "recordType": f"SHARE#{another_account_id}",
+                "recordType": f"SHARE#ACCOUNT#{another_account_id}",
                 "permissions": ["WRITE", {"S": "READ"}],  # Mix of string and dict
             }
         )
@@ -309,7 +309,7 @@ class TestCheckProfileAccess:
         dynamodb_table.put_item(
             Item={
                 "profileId": sample_profile_id,
-                "recordType": f"SHARE#{another_account_id}",
+                "recordType": f"SHARE#ACCOUNT#{another_account_id}",
                 "permissions": ["WRITE"],
             }
         )
@@ -330,7 +330,7 @@ class TestCheckProfileAccess:
         dynamodb_table.put_item(
             Item={
                 "profileId": sample_profile_id,
-                "recordType": f"SHARE#{another_account_id}",
+                "recordType": f"SHARE#ACCOUNT#{another_account_id}",
                 "permissions": ["READ"],
             }
         )
@@ -351,7 +351,7 @@ class TestCheckProfileAccess:
         dynamodb_table.put_item(
             Item={
                 "profileId": sample_profile_id,
-                "recordType": f"SHARE#{another_account_id}",
+                "recordType": f"SHARE#ACCOUNT#{another_account_id}",
                 "permissions": [],
             }
         )
@@ -372,7 +372,7 @@ class TestCheckProfileAccess:
         dynamodb_table.put_item(
             Item={
                 "profileId": sample_profile_id,
-                "recordType": f"SHARE#{another_account_id}",
+                "recordType": f"SHARE#ACCOUNT#{another_account_id}",
                 "permissions": [{"N": "123"}],  # Dict with N key instead of S
             }
         )
@@ -408,7 +408,7 @@ class TestRequireProfileAccess:
         dynamodb_table.put_item(
             Item={
                 "profileId": sample_profile_id,
-                "recordType": f"SHARE#{another_account_id}",
+                "recordType": f"SHARE#ACCOUNT#{another_account_id}",
                 "permissions": ["READ"],
             }
         )

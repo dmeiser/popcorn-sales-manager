@@ -17,13 +17,19 @@ logger = get_logger(__name__)
 
 # Initialize DynamoDB client
 dynamodb = boto3.resource("dynamodb")
-table_name = os.environ.get("TABLE_NAME", "psm-app-dev")
-table = dynamodb.Table(table_name)
+
+# Multi-table design: profiles table for profile records
+profiles_table_name = os.environ.get("PROFILES_TABLE_NAME", "kernelworx-profiles-ue1-dev")
+profiles_table = dynamodb.Table(profiles_table_name)
 
 
 def create_seller_profile(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     """
-    Create a new seller profile with both ownership and metadata items.
+    Create a new seller profile.
+
+    In the multi-table design, profiles are stored in the profiles table with:
+    - PK: profileId (e.g., "PROFILE#abc123")
+    - SK: recordType (e.g., "METADATA", "SHARE#...", "INVITE#...")
 
     Args:
         event: AppSync resolver event with arguments and identity
@@ -47,45 +53,33 @@ def create_seller_profile(event: Dict[str, Any], context: Any) -> Dict[str, Any]
 
         # Generate IDs and timestamp
         profile_id = f"PROFILE#{uuid.uuid4()}"
+        # Store with ACCOUNT# prefix for consistency with resolver ownership checks
+        owner_account_id_stored = f"ACCOUNT#{caller_account_id}"
         now = datetime.now(timezone.utc).isoformat()
 
-        # Profile data
+        # Profile data to return (matches GraphQL schema - no prefix for API clients)
         profile_data = {
             "profileId": profile_id,
-            "ownerAccountId": caller_account_id,
+            "ownerAccountId": caller_account_id,  # Return without prefix
             "sellerName": seller_name,
             "createdAt": now,
             "updatedAt": now,
         }
 
-        # Write both items using TransactWriteItems for atomicity
+        # In multi-table design, we only need to create the profile METADATA record
+        # in the profiles table. The ownerAccountId field + GSI (ownerAccountId-index)
+        # enables listing profiles owned by an account.
         dynamodb_client = boto3.client("dynamodb")
         dynamodb_client.transact_write_items(
             TransactItems=[
                 {
-                    # Ownership item: for listing profiles owned by account
+                    # Profile metadata item: for direct profile lookup and authorization
                     "Put": {
-                        "TableName": table_name,
+                        "TableName": profiles_table_name,
                         "Item": {
-                            "PK": {"S": f"ACCOUNT#{caller_account_id}"},
-                            "SK": {"S": profile_id},
                             "profileId": {"S": profile_id},
-                            "ownerAccountId": {"S": caller_account_id},
-                            "sellerName": {"S": seller_name},
-                            "createdAt": {"S": now},
-                            "updatedAt": {"S": now},
-                        },
-                    }
-                },
-                {
-                    # Metadata item: for direct profile lookup and authorization
-                    "Put": {
-                        "TableName": table_name,
-                        "Item": {
-                            "PK": {"S": profile_id},
-                            "SK": {"S": "METADATA"},
-                            "profileId": {"S": profile_id},
-                            "ownerAccountId": {"S": caller_account_id},
+                            "recordType": {"S": "METADATA"},
+                            "ownerAccountId": {"S": owner_account_id_stored},  # Store with prefix
                             "sellerName": {"S": seller_name},
                             "createdAt": {"S": now},
                             "updatedAt": {"S": now},

@@ -2,7 +2,7 @@ import '../setup.ts';
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { ApolloClient, gql, HttpLink, InMemoryCache } from '@apollo/client';
 import { createAuthenticatedClient, AuthenticatedClientResult } from '../setup/apolloClient';
-import { getTestPrefix, deleteTestAccounts } from '../setup/testData';
+import { getTestPrefix, deleteTestAccounts, TABLE_NAMES } from '../setup/testData';
 
 
 // GraphQL Mutations
@@ -1004,12 +1004,11 @@ describe('Profile Operations Integration Tests', () => {
       // We verify via direct DynamoDB check that the invite record is deleted
       const { DynamoDBClient, GetItemCommand } = await import('@aws-sdk/client-dynamodb');
       const dynamoClient = new DynamoDBClient({ region: 'us-east-1' });
-      const tableName = process.env.TABLE_NAME || 'kernelworx-app-dev';
       const result = await dynamoClient.send(new GetItemCommand({
-        TableName: tableName,
+        TableName: TABLE_NAMES.profiles,
         Key: {
-          PK: { S: testProfileId },
-          SK: { S: `INVITE#${inviteCode}` },
+          profileId: { S: testProfileId },
+          recordType: { S: `INVITE#${inviteCode}` },
         },
       }));
       expect(result.Item).toBeUndefined();
@@ -1101,12 +1100,10 @@ describe('Profile Operations Integration Tests', () => {
       // We verify via direct DynamoDB check that the season record is deleted
       const { DynamoDBClient, GetItemCommand, DeleteItemCommand } = await import('@aws-sdk/client-dynamodb');
       const dynamoClient = new DynamoDBClient({ region: 'us-east-1' });
-      const tableName = process.env.TABLE_NAME || 'kernelworx-app-dev';
       const result = await dynamoClient.send(new GetItemCommand({
-        TableName: tableName,
+        TableName: TABLE_NAMES.seasons,
         Key: {
-          PK: { S: testProfileId },
-          SK: { S: seasonId },
+          seasonId: { S: seasonId },
         },
       }));
       expect(result.Item).toBeUndefined();

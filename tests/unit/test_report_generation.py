@@ -181,7 +181,7 @@ class TestRequestSeasonReport:
         dynamodb_table.put_item(
             Item={
                 "profileId": sample_profile_id,
-                "recordType": f"SHARE#{another_account_id}",
+                "recordType": f"SHARE#ACCOUNT#{another_account_id}",
                 "targetAccountId": another_account_id,
                 "permissions": ["READ"],
                 "grantedAt": datetime.now(timezone.utc).isoformat(),

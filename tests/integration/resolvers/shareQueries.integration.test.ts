@@ -2,7 +2,7 @@ import '../setup.ts';
 import { describe, test, expect, beforeAll, afterAll } from 'vitest';
 import { ApolloClient, gql, NormalizedCacheObject } from '@apollo/client';
 import { createAuthenticatedClient } from '../setup/apolloClient';
-import { deleteTestAccounts } from '../setup/testData';
+import { deleteTestAccounts, TABLE_NAMES } from '../setup/testData';
 
 
 /**
@@ -197,46 +197,45 @@ describe('Share Query Operations Integration Tests', () => {
     console.log('Cleaning up share query test data...');
     const { DynamoDBClient, QueryCommand, DeleteItemCommand } = await import('@aws-sdk/client-dynamodb');
     const dynamoClient = new DynamoDBClient({ region: 'us-east-1' });
-    const tableName = process.env.TABLE_NAME || 'kernelworx-app-dev';
     
     try {
-      // 1. Delete all invites for testProfileId
+      // 1. Delete all invites for testProfileId (uses profiles table with profileId/recordType)
       const inviteResult = await dynamoClient.send(new QueryCommand({
-        TableName: tableName,
-        KeyConditionExpression: 'PK = :pk AND begins_with(SK, :sk)',
+        TableName: TABLE_NAMES.profiles,
+        KeyConditionExpression: 'profileId = :pid AND begins_with(recordType, :rt)',
         ExpressionAttributeValues: {
-          ':pk': { S: testProfileId },
-          ':sk': { S: 'INVITE#' },
+          ':pid': { S: testProfileId },
+          ':rt': { S: 'INVITE#' },
         },
-        ProjectionExpression: 'PK, SK',
+        ProjectionExpression: 'profileId, recordType',
       }));
       
       for (const item of inviteResult.Items || []) {
         await dynamoClient.send(new DeleteItemCommand({
-          TableName: tableName,
-          Key: { PK: item.PK, SK: item.SK },
+          TableName: TABLE_NAMES.profiles,
+          Key: { profileId: item.profileId, recordType: item.recordType },
         }));
       }
       
       // 2. Delete any remaining shares for testProfileId
       const shareResult = await dynamoClient.send(new QueryCommand({
-        TableName: tableName,
-        KeyConditionExpression: 'PK = :pk AND begins_with(SK, :sk)',
+        TableName: TABLE_NAMES.profiles,
+        KeyConditionExpression: 'profileId = :pid AND begins_with(recordType, :rt)',
         ExpressionAttributeValues: {
-          ':pk': { S: testProfileId },
-          ':sk': { S: 'SHARE#' },
+          ':pid': { S: testProfileId },
+          ':rt': { S: 'SHARE#' },
         },
-        ProjectionExpression: 'PK, SK',
+        ProjectionExpression: 'profileId, recordType',
       }));
       
       for (const item of shareResult.Items || []) {
         await dynamoClient.send(new DeleteItemCommand({
-          TableName: tableName,
-          Key: { PK: item.PK, SK: item.SK },
+          TableName: TABLE_NAMES.profiles,
+          Key: { profileId: item.profileId, recordType: item.recordType },
         }));
       }
       
-      // 3. Delete profiles via GraphQL (deletes PROFILE#xxx|METADATA and ACCOUNT#xxx|PROFILE#xxx)
+      // 3. Delete profiles via GraphQL (deletes METADATA record and ownership references)
       if (testProfileId) {
         try {
           await ownerClient.mutate({
@@ -550,7 +549,6 @@ describe('Share Query Operations Integration Tests', () => {
       // Create expired invite by directly inserting into DynamoDB
       const { DynamoDBClient, PutItemCommand } = await import('@aws-sdk/client-dynamodb');
       const dynamoClient = new DynamoDBClient({ region: 'us-east-1' });
-      const tableName = process.env.TABLE_NAME || 'PsmApp-dev';
       
       const expiredInviteCode = 'EXPIRED999';
       const now = Math.floor(Date.now() / 1000);
@@ -558,12 +556,11 @@ describe('Share Query Operations Integration Tests', () => {
       const futureTTL = now + (7 * 24 * 60 * 60); // TTL 7 days in future (so DynamoDB doesn't auto-delete)
       
       const putCommand = new PutItemCommand({
-        TableName: tableName,
+        TableName: TABLE_NAMES.profiles,
         Item: {
-          PK: { S: testProfileId },
-          SK: { S: `INVITE#${expiredInviteCode}` },
-          inviteCode: { S: expiredInviteCode },
           profileId: { S: testProfileId },
+          recordType: { S: `INVITE#${expiredInviteCode}` },
+          inviteCode: { S: expiredInviteCode },
           permissions: { L: [{ S: 'READ' }] },
           createdBy: { S: 'test-account-id' },
           createdAt: { S: new Date(pastDate * 1000).toISOString() },

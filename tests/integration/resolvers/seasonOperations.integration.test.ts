@@ -2,7 +2,7 @@ import '../setup.ts';
 import { describe, test, expect, beforeAll, afterAll, it } from 'vitest';
 import { ApolloClient, NormalizedCacheObject, gql } from '@apollo/client';
 import { createAuthenticatedClient } from '../setup/apolloClient';
-import { deleteTestAccounts } from '../setup/testData';
+import { deleteTestAccounts, TABLE_NAMES } from '../setup/testData';
 
 
 /**
@@ -735,13 +735,11 @@ describe('Season Operations Integration Tests', () => {
       // Verify via direct DynamoDB check that the order record is deleted
       const { DynamoDBClient, GetItemCommand } = await import('@aws-sdk/client-dynamodb');
       const dynamoClient = new DynamoDBClient({ region: 'us-east-1' });
-      const tableName = process.env.TABLE_NAME || 'kernelworx-app-dev';
       
       const result = await dynamoClient.send(new GetItemCommand({
-        TableName: tableName,
+        TableName: TABLE_NAMES.orders,
         Key: {
-          PK: { S: testProfileId },  // Orders have PK = profileId
-          SK: { S: orderId },
+          orderId: { S: orderId },
         },
       }));
       

@@ -2,56 +2,56 @@ import '../setup.ts';
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { ApolloClient, gql, HttpLink, InMemoryCache } from '@apollo/client';
 import { createAuthenticatedClient, AuthenticatedClientResult } from '../setup/apolloClient';
-import { getTestPrefix, deleteTestAccounts } from '../setup/testData';
+import { getTestPrefix, deleteTestAccounts, TABLE_NAMES } from '../setup/testData';
 import { DynamoDBClient, QueryCommand, DeleteItemCommand } from '@aws-sdk/client-dynamodb';
 
 // DynamoDB client for direct cleanup
 const dynamoClient = new DynamoDBClient({ region: 'us-east-1' });
-const TABLE_NAME = process.env.TABLE_NAME || 'kernelworx-app-dev';
 
 /**
- * Helper to clean up a profile and all associated data (shares, invites, ownership record).
+ * Helper to clean up a profile and all associated data (shares, invites) from the profiles table.
+ * Uses the new multi-table schema with profileId/recordType as keys.
  * Each test MUST call this at the end to ensure proper CRUD lifecycle cleanup.
  */
 async function cleanupProfile(client: ApolloClient<any>, profileId: string): Promise<void> {
   try {
-    // 1. Delete all invites for the profile via direct DynamoDB
+    // 1. Delete all invites for the profile (recordType begins with INVITE#)
     const inviteResult = await dynamoClient.send(new QueryCommand({
-      TableName: TABLE_NAME,
-      KeyConditionExpression: 'PK = :pk AND begins_with(SK, :sk)',
+      TableName: TABLE_NAMES.profiles,
+      KeyConditionExpression: 'profileId = :pid AND begins_with(recordType, :rt)',
       ExpressionAttributeValues: {
-        ':pk': { S: profileId },
-        ':sk': { S: 'INVITE#' },
+        ':pid': { S: profileId },
+        ':rt': { S: 'INVITE#' },
       },
-      ProjectionExpression: 'PK, SK',
+      ProjectionExpression: 'profileId, recordType',
     }));
     
     for (const item of inviteResult.Items || []) {
       await dynamoClient.send(new DeleteItemCommand({
-        TableName: TABLE_NAME,
-        Key: { PK: item.PK, SK: item.SK },
+        TableName: TABLE_NAMES.profiles,
+        Key: { profileId: item.profileId, recordType: item.recordType },
       }));
     }
     
-    // 2. Delete all shares for the profile via direct DynamoDB
+    // 2. Delete all shares for the profile (recordType begins with SHARE#)
     const shareResult = await dynamoClient.send(new QueryCommand({
-      TableName: TABLE_NAME,
-      KeyConditionExpression: 'PK = :pk AND begins_with(SK, :sk)',
+      TableName: TABLE_NAMES.profiles,
+      KeyConditionExpression: 'profileId = :pid AND begins_with(recordType, :rt)',
       ExpressionAttributeValues: {
-        ':pk': { S: profileId },
-        ':sk': { S: 'SHARE#' },
+        ':pid': { S: profileId },
+        ':rt': { S: 'SHARE#' },
       },
-      ProjectionExpression: 'PK, SK',
+      ProjectionExpression: 'profileId, recordType',
     }));
     
     for (const item of shareResult.Items || []) {
       await dynamoClient.send(new DeleteItemCommand({
-        TableName: TABLE_NAME,
-        Key: { PK: item.PK, SK: item.SK },
+        TableName: TABLE_NAMES.profiles,
+        Key: { profileId: item.profileId, recordType: item.recordType },
       }));
     }
     
-    // 3. Delete the profile via GraphQL (deletes PROFILE#xxx|METADATA and ACCOUNT#xxx|PROFILE#xxx)
+    // 3. Delete the profile via GraphQL (handles METADATA and ownership GSI cleanup)
     try {
       await client.mutate({
         mutation: gql`mutation DeleteProfile($profileId: ID!) { deleteSellerProfile(profileId: $profileId) }`,
@@ -62,32 +62,10 @@ async function cleanupProfile(client: ApolloClient<any>, profileId: string): Pro
       // Delete profile metadata
       try {
         await dynamoClient.send(new DeleteItemCommand({
-          TableName: TABLE_NAME,
-          Key: { PK: { S: profileId }, SK: { S: 'METADATA' } },
+          TableName: TABLE_NAMES.profiles,
+          Key: { profileId: { S: profileId }, recordType: { S: 'METADATA' } },
         }));
       } catch (e2) { /* may not exist */ }
-      
-      // Delete ownership record (need to query GSI to find it, or scan ACCOUNT# records)
-      // Since we know the owner is the owner account, query for it
-      const ownershipResult = await dynamoClient.send(new QueryCommand({
-        TableName: TABLE_NAME,
-        IndexName: 'GSI1',
-        KeyConditionExpression: 'GSI1PK = :pk',
-        ExpressionAttributeValues: {
-          ':pk': { S: profileId },
-        },
-        ProjectionExpression: 'PK, SK',
-      }));
-      
-      for (const item of ownershipResult.Items || []) {
-        const pk = item.PK?.S || '';
-        if (pk.startsWith('ACCOUNT#')) {
-          await dynamoClient.send(new DeleteItemCommand({
-            TableName: TABLE_NAME,
-            Key: { PK: item.PK, SK: item.SK },
-          }));
-        }
-      }
     }
   } catch (error) {
     console.error(`Error cleaning up profile ${profileId}:`, error);

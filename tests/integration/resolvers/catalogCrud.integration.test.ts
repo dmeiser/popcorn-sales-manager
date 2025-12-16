@@ -17,7 +17,7 @@ import '../setup.ts'; // Load environment variables and setup
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { ApolloClient, gql } from '@apollo/client';
 import { createAuthenticatedClient, AuthenticatedClientResult } from '../setup/apolloClient';
-import { deleteTestAccounts } from '../setup/testData';
+import { deleteTestAccounts, TABLE_NAMES } from '../setup/testData';
 
 // GraphQL Mutations
 const CREATE_CATALOG = gql`
@@ -977,17 +977,14 @@ describe('Catalog CRUD Integration Tests', () => {
         // ADMIN_MANAGED catalogs have no ownerAccountId and cannot be created via GraphQL
         const { DynamoDBClient, PutItemCommand, DeleteItemCommand } = await import('@aws-sdk/client-dynamodb');
         const dynamoClient = new DynamoDBClient({ region: 'us-east-1' });
-        const tableName = process.env.TABLE_NAME || 'kernelworx-app-dev';
         
-        const catalogId = `CATALOG#admin-managed-test-${Date.now()}`;
+        const catalogId = `admin-managed-test-${Date.now()}`;
         const now = new Date().toISOString();
         
-        // Insert ADMIN_MANAGED catalog directly into DynamoDB
+        // Insert ADMIN_MANAGED catalog directly into DynamoDB (catalogs table uses catalogId as PK)
         await dynamoClient.send(new PutItemCommand({
-          TableName: tableName,
+          TableName: TABLE_NAMES.catalogs,
           Item: {
-            PK: { S: 'CATALOG' },
-            SK: { S: catalogId },
             catalogId: { S: catalogId },
             catalogName: { S: 'Official 2024 Popcorn Catalog' },
             catalogType: { S: 'ADMIN_MANAGED' },
@@ -1005,8 +1002,6 @@ describe('Catalog CRUD Integration Tests', () => {
             ]},
             createdAt: { S: now },
             updatedAt: { S: now },
-            GSI3PK: { S: 'PUBLIC' },
-            GSI3SK: { S: catalogId },
           },
         }));
 
@@ -1033,10 +1028,9 @@ describe('Catalog CRUD Integration Tests', () => {
         } finally {
           // Cleanup: Direct DynamoDB delete
           await dynamoClient.send(new DeleteItemCommand({
-            TableName: tableName,
+            TableName: TABLE_NAMES.catalogs,
             Key: {
-              PK: { S: 'CATALOG' },
-              SK: { S: catalogId },
+              catalogId: { S: catalogId },
             },
           }));
         }
@@ -1047,17 +1041,14 @@ describe('Catalog CRUD Integration Tests', () => {
         // The owner test user is an admin, so they should be able to delete it
         const { DynamoDBClient, PutItemCommand } = await import('@aws-sdk/client-dynamodb');
         const dynamoClient = new DynamoDBClient({ region: 'us-east-1' });
-        const tableName = process.env.TABLE_NAME || 'kernelworx-app-dev';
         
-        const catalogId = `CATALOG#admin-managed-admin-delete-${Date.now()}`;
+        const catalogId = `admin-managed-admin-delete-${Date.now()}`;
         const now = new Date().toISOString();
         
-        // Insert ADMIN_MANAGED catalog directly into DynamoDB
+        // Insert ADMIN_MANAGED catalog directly into DynamoDB (catalogs table uses catalogId as PK)
         await dynamoClient.send(new PutItemCommand({
-          TableName: tableName,
+          TableName: TABLE_NAMES.catalogs,
           Item: {
-            PK: { S: 'CATALOG' },
-            SK: { S: catalogId },
             catalogId: { S: catalogId },
             catalogName: { S: 'Admin Deletable Catalog' },
             catalogType: { S: 'ADMIN_MANAGED' },
@@ -1075,8 +1066,6 @@ describe('Catalog CRUD Integration Tests', () => {
             ]},
             createdAt: { S: now },
             updatedAt: { S: now },
-            GSI3PK: { S: 'PUBLIC' },
-            GSI3SK: { S: catalogId },
           },
         }));
 

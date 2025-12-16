@@ -2,7 +2,18 @@ import { ApolloClient, gql } from '@apollo/client';
 import { DynamoDBClient, DeleteItemCommand, QueryCommand } from '@aws-sdk/client-dynamodb';
 
 const dynamoClient = new DynamoDBClient({ region: 'us-east-1' });
-const tableName = process.env.TABLE_NAME || 'PsmApp-dev';
+
+// Multi-table configuration for the new schema design
+export const TABLE_NAMES = {
+  profiles: process.env.PROFILES_TABLE_NAME || 'kernelworx-profiles-ue1-dev',
+  seasons: process.env.SEASONS_TABLE_NAME || 'kernelworx-seasons-ue1-dev',
+  orders: process.env.ORDERS_TABLE_NAME || 'kernelworx-orders-ue1-dev',
+  catalogs: process.env.CATALOGS_TABLE_NAME || 'kernelworx-catalogs-ue1-dev',
+  accounts: process.env.ACCOUNTS_TABLE_NAME || 'kernelworx-accounts-ue1-dev',
+};
+
+// Legacy single-table name (deprecated, kept for backward compatibility)
+const tableName = process.env.TABLE_NAME || 'kernelworx-app-dev';
 
 interface TestResource {
   profileId?: string;
@@ -15,41 +26,45 @@ interface TestResource {
 /**
  * Clean up test data from DynamoDB.
  * Deletes resources in proper order to avoid orphaned data.
+ * Uses the new multi-table schema design.
  */
 export async function cleanupTestData(resources: TestResource): Promise<void> {
   const { profileId, seasonId, orderId, shareAccountId, catalogIds } = resources;
 
   try {
-    // Delete shares first
+    // Delete orders from orders table
+    if (orderId) {
+      await deleteFromTable(TABLE_NAMES.orders, 'orderId', orderId);
+    }
+
+    // Delete seasons from seasons table
+    if (seasonId) {
+      await deleteFromTable(TABLE_NAMES.seasons, 'seasonId', seasonId);
+    }
+
+    // Delete shares from profiles table (recordType = SHARE#ACCOUNT#<accountId>)
     if (profileId && shareAccountId) {
-      await deleteItem(profileId, `SHARE#${shareAccountId}`);
+      const recordType = shareAccountId.startsWith('ACCOUNT#') 
+        ? `SHARE#${shareAccountId}` 
+        : `SHARE#ACCOUNT#${shareAccountId}`;
+      await deleteProfileRecord(profileId, recordType);
     }
 
-    // Delete orders
-    if (profileId && orderId) {
-      await deleteItem(profileId, orderId);
-    }
-
-    // Delete invites (query for all invites on profile)
+    // Delete invites from profiles table (recordType = INVITE#xxx)
     if (profileId) {
       await deleteInvites(profileId);
     }
 
-    // Delete seasons
-    if (profileId && seasonId) {
-      await deleteItem(profileId, seasonId);
-    }
-
-    // Delete catalogs
+    // Delete catalogs from catalogs table
     if (catalogIds && catalogIds.length > 0) {
       for (const catalogId of catalogIds) {
-        await deleteCatalog(catalogId);
+        await deleteFromTable(TABLE_NAMES.catalogs, 'catalogId', catalogId);
       }
     }
 
-    // Delete profile metadata
+    // Delete profile metadata from profiles table
     if (profileId) {
-      await deleteItem(profileId, 'METADATA');
+      await deleteProfileRecord(profileId, 'METADATA');
     }
   } catch (error) {
     console.error('Cleanup error:', error);
@@ -58,15 +73,16 @@ export async function cleanupTestData(resources: TestResource): Promise<void> {
 }
 
 /**
- * Delete all invites for a profile (they have random codes).
+ * Delete all invites for a profile from the profiles table.
+ * Invites have recordType = INVITE#<code>
  */
 async function deleteInvites(profileId: string): Promise<void> {
   const queryCommand = new QueryCommand({
-    TableName: tableName,
-    KeyConditionExpression: 'PK = :pk AND begins_with(SK, :sk)',
+    TableName: TABLE_NAMES.profiles,
+    KeyConditionExpression: 'profileId = :pid AND begins_with(recordType, :rt)',
     ExpressionAttributeValues: {
-      ':pk': { S: profileId },
-      ':sk': { S: 'INVITE#' },
+      ':pid': { S: profileId },
+      ':rt': { S: 'INVITE#' },
     },
   });
 
@@ -74,48 +90,35 @@ async function deleteInvites(profileId: string): Promise<void> {
   
   if (result.Items) {
     for (const item of result.Items) {
-      const sk = item.SK.S!;
-      await deleteItem(profileId, sk);
+      const recordType = item.recordType.S!;
+      await deleteProfileRecord(profileId, recordType);
     }
   }
 }
 
 /**
- * Delete catalog and its products from DynamoDB.
+ * Delete a record from the profiles table.
  */
-async function deleteCatalog(catalogId: string): Promise<void> {
-  // Catalogs use PK=CATALOG#{catalogId}, SK=METADATA
-  await deleteItem(catalogId, 'METADATA');
-  
-  // Also delete all products (they use SK=PRODUCT#{productId})
-  const queryCommand = new QueryCommand({
-    TableName: tableName,
-    KeyConditionExpression: 'PK = :pk AND begins_with(SK, :sk)',
-    ExpressionAttributeValues: {
-      ':pk': { S: catalogId },
-      ':sk': { S: 'PRODUCT#' },
+async function deleteProfileRecord(profileId: string, recordType: string): Promise<void> {
+  const command = new DeleteItemCommand({
+    TableName: TABLE_NAMES.profiles,
+    Key: {
+      profileId: { S: profileId },
+      recordType: { S: recordType },
     },
   });
 
-  const result = await dynamoClient.send(queryCommand);
-  
-  if (result.Items) {
-    for (const item of result.Items) {
-      const sk = item.SK.S!;
-      await deleteItem(catalogId, sk);
-    }
-  }
+  await dynamoClient.send(command);
 }
 
 /**
- * Delete single item from DynamoDB.
+ * Delete item from any table by its primary key.
  */
-async function deleteItem(pk: string, sk: string): Promise<void> {
+async function deleteFromTable(tableName: string, keyName: string, keyValue: string): Promise<void> {
   const command = new DeleteItemCommand({
     TableName: tableName,
     Key: {
-      PK: { S: pk },
-      SK: { S: sk },
+      [keyName]: { S: keyValue },
     },
   });
 
@@ -134,9 +137,16 @@ async function deleteItem(pk: string, sk: string): Promise<void> {
  */
 export async function deleteTestAccounts(accountIds: string[]): Promise<void> {
   for (const accountId of accountIds) {
+    // Accounts table uses accountId as PK, which includes ACCOUNT# prefix
     const pk = accountId.startsWith('ACCOUNT#') ? accountId : `ACCOUNT#${accountId}`;
     try {
-      await deleteItem(pk, 'METADATA');
+      const command = new DeleteItemCommand({
+        TableName: TABLE_NAMES.accounts,
+        Key: {
+          accountId: { S: pk },
+        },
+      });
+      await dynamoClient.send(command);
       console.log(`Deleted account: ${pk}`);
     } catch (error) {
       console.warn(`Failed to delete account ${pk}:`, error);

@@ -65,13 +65,16 @@ def check_profile_access(
     profile = response["Item"]
 
     # Check if caller is owner
-    if profile.get("ownerAccountId") == caller_account_id:  # pragma: no branch
+    # ownerAccountId in storage includes ACCOUNT# prefix
+    stored_owner = profile.get("ownerAccountId", "")
+    # Handle both with and without prefix for backward compatibility
+    if stored_owner == caller_account_id or stored_owner == f"ACCOUNT#{caller_account_id}":
         return True
 
-    # Check if caller has appropriate share (multi-table design: SK=SHARE#accountId)
-    share_response = table.get_item(
-        Key={"profileId": profile_id, "recordType": f"SHARE#{caller_account_id}"}
-    )
+    # Check if caller has appropriate share (multi-table design)
+    # Shares are stored with recordType=SHARE#ACCOUNT#{caller_account_id}
+    share_key = f"SHARE#ACCOUNT#{caller_account_id}"
+    share_response = table.get_item(Key={"profileId": profile_id, "recordType": share_key})
 
     if "Item" in share_response:
         share = share_response["Item"]
