@@ -341,6 +341,15 @@ class CdkStack(Stack):
             projection_type=dynamodb.ProjectionType.ALL,
         )
 
+        # GSI for seasons by catalog (for checking catalog in-use before deletion)
+        self.seasons_table.add_global_secondary_index(
+            index_name="catalogId-index",
+            partition_key=dynamodb.Attribute(
+                name="catalogId", type=dynamodb.AttributeType.STRING
+            ),
+            projection_type=dynamodb.ProjectionType.KEYS_ONLY,
+        )
+
         # Orders Table
         self.orders_table = dynamodb.Table(
             self,
@@ -3801,6 +3810,32 @@ $total
                 ),
             )
 
+            # SellerProfile.ownerAccountId - Strip ACCOUNT# prefix from stored value
+            # Returns clean account ID for API consumers
+            self.none_datasource.create_resolver(
+                "SellerProfileOwnerAccountIdResolver",
+                type_name="SellerProfile",
+                field_name="ownerAccountId",
+                runtime=appsync.FunctionRuntime.JS_1_0_0,
+                code=appsync.Code.from_inline(
+                    """
+export function request(ctx) {
+    return {};
+}
+
+export function response(ctx) {
+    const ownerAccountId = ctx.source.ownerAccountId;
+    if (!ownerAccountId) return null;
+    // Strip ACCOUNT# prefix if present
+    if (ownerAccountId.startsWith('ACCOUNT#')) {
+        return ownerAccountId.substring(8);
+    }
+    return ownerAccountId;
+}
+                """
+                ),
+            )
+
             # SellerProfile.isOwner - Compute if caller is the owner
             # Now accounts for ACCOUNT# prefix in ownerAccountId
             self.none_datasource.create_resolver(
@@ -4665,9 +4700,9 @@ export function response(ctx) {
     "operation": "Query",
     "index": "isPublic-createdAt-index",
     "query": {
-        "expression": "isPublic = :isPublic",
+        "expression": "isPublicStr = :isPublicStr",
         "expressionValues": {
-            ":isPublic": $util.dynamodb.toDynamoDBJson("true")
+            ":isPublicStr": $util.dynamodb.toDynamoDBJson("true")
         }
     },
     "scanIndexForward": false
@@ -5160,6 +5195,32 @@ export function response(ctx) {
                 ),
             )
 
+            # Catalog.ownerAccountId - Strip ACCOUNT# prefix from stored value
+            # Returns clean account ID for API consumers
+            self.none_datasource.create_resolver(
+                "CatalogOwnerAccountIdResolver",
+                type_name="Catalog",
+                field_name="ownerAccountId",
+                runtime=appsync.FunctionRuntime.JS_1_0_0,
+                code=appsync.Code.from_inline(
+                    """
+export function request(ctx) {
+    return {};
+}
+
+export function response(ctx) {
+    const ownerAccountId = ctx.source.ownerAccountId;
+    if (!ownerAccountId) return null;
+    // Strip ACCOUNT# prefix if present
+    if (ownerAccountId.startsWith('ACCOUNT#')) {
+        return ownerAccountId.substring(8);
+    }
+    return ownerAccountId;
+}
+                """
+                ),
+            )
+
             # createCatalog - Create a new catalog (uses catalogs table)
             self.catalogs_datasource.create_resolver(
                 "CreateCatalogResolver",
@@ -5205,6 +5266,7 @@ export function response(ctx) {
         "catalogType": $util.dynamodb.toDynamoDBJson("USER_CREATED"),
         "ownerAccountId": $util.dynamodb.toDynamoDBJson("ACCOUNT#$ctx.identity.sub"),
         "isPublic": $util.dynamodb.toDynamoDBJson($isPublicStr),
+        "isPublicStr": $util.dynamodb.toDynamoDBJson($isPublicStr),
         "products": $util.dynamodb.toDynamoDBJson($productsWithIds),
         "createdAt": $util.dynamodb.toDynamoDBJson($now),
         "updatedAt": $util.dynamodb.toDynamoDBJson($now)
@@ -5256,6 +5318,7 @@ $util.toJson($ctx.result)
 #else
     #set($isPublicStr = "false")
 #end
+#set($ownerWithPrefix = "ACCOUNT#$ctx.identity.sub")
 {
     "version": "2017-02-28",
     "operation": "UpdateItem",
@@ -5263,18 +5326,19 @@ $util.toJson($ctx.result)
         "catalogId": $util.dynamodb.toDynamoDBJson($ctx.args.catalogId)
     },
     "update": {
-        "expression": "SET catalogName = :catalogName, isPublic = :isPublic, products = :products, updatedAt = :updatedAt",
+        "expression": "SET catalogName = :catalogName, isPublic = :isPublic, isPublicStr = :isPublicStr, products = :products, updatedAt = :updatedAt",
         "expressionValues": {
             ":catalogName": $util.dynamodb.toDynamoDBJson($ctx.args.input.catalogName),
             ":isPublic": $util.dynamodb.toDynamoDBJson($isPublicStr),
+            ":isPublicStr": $util.dynamodb.toDynamoDBJson($isPublicStr),
             ":products": $util.dynamodb.toDynamoDBJson($productsWithIds),
             ":updatedAt": $util.dynamodb.toDynamoDBJson($now)
         }
     },
     "condition": {
-        "expression": "attribute_exists(PK) AND ownerAccountId = :ownerId",
+        "expression": "attribute_exists(catalogId) AND ownerAccountId = :ownerId",
         "expressionValues": {
-            ":ownerId": $util.dynamodb.toDynamoDBJson($ctx.identity.sub)
+            ":ownerId": $util.dynamodb.toDynamoDBJson($ownerWithPrefix)
         }
     }
 }
@@ -5338,8 +5402,16 @@ export function response(ctx) {
     const callerId = ctx.stash.callerId;
     
     // Check admin status from JWT cognito:groups claim (source of truth)
-    const groups = ctx.identity.claims['cognito:groups'] || [];
-    const isAdmin = groups.includes('ADMIN');
+    // Handle both array and string format for groups
+    const groupsClaim = ctx.identity.claims['cognito:groups'];
+    let groups = [];
+    if (Array.isArray(groupsClaim)) {
+        groups = groupsClaim;
+    } else if (typeof groupsClaim === 'string') {
+        groups = [groupsClaim];
+    }
+    // Check for 'admin' (lowercase) - standard Cognito group name
+    const isAdmin = groups.includes('admin') || groups.includes('ADMIN');
     // ownerAccountId now has 'ACCOUNT#' prefix
     const isOwner = catalog.ownerAccountId === 'ACCOUNT#' + callerId;
     
@@ -5359,7 +5431,7 @@ export function response(ctx) {
                 ),
             )
 
-            # Step 3: Check if catalog is in use by any seasons - uses seasons table
+            # Step 3: Check if catalog is in use by any seasons - uses seasons table GSI
             check_catalog_usage_fn = appsync.AppsyncFunction(
                 self,
                 "CheckCatalogUsageFn",
@@ -5373,44 +5445,33 @@ import { util } from '@aws-appsync/utils';
 
 export function request(ctx) {
     const catalogId = ctx.args.catalogId;
-    console.log('CheckCatalogUsageFn request - catalogId:', catalogId);
-    // Scan seasons table to find seasons using this catalog
-    // Since catalogId is not indexed, we must use Scan with FilterExpression
-    const scanRequest = {
-        operation: 'Scan',
-        consistentRead: true,  // CRITICAL: Ensure we see recently created seasons
-        filter: {
+    // Use GSI query instead of Scan for efficiency and consistency
+    return {
+        operation: 'Query',
+        index: 'catalogId-index',
+        query: {
             expression: 'catalogId = :catalogId',
             expressionValues: util.dynamodb.toMapValues({
                 ':catalogId': catalogId
             })
         },
-        limit: 5  // Only need a few examples
+        limit: 5  // Only need a few to confirm usage
     };
-    console.log('Scan request:', JSON.stringify(scanRequest));
-    return scanRequest;
 }
 
 export function response(ctx) {
     if (ctx.error) {
-        console.error('CheckCatalogUsageFn error:', JSON.stringify(ctx.error));
         return util.error(ctx.error.message, ctx.error.type);
     }
     
-    console.log('CheckCatalogUsageFn response:', JSON.stringify(ctx.result));
-    
     const seasons = ctx.result.items || [];
-    console.log('Found seasons count:', seasons.length);
     
     if (seasons.length > 0) {
-        // Catalog is in use - return error with details
-        const seasonNames = seasons.map(s => s.seasonName || 'Unknown').slice(0, 3).join(', ');
-        const message = `Cannot delete catalog: ${seasons.length} season(s) are using it (e.g., ${seasonNames}). Please update or delete those seasons first.`;
-        console.error('Blocking deletion:', message);
+        // Catalog is in use - return error
+        const message = 'Cannot delete catalog: ' + seasons.length + ' season(s) are using it. Please update or delete those seasons first.';
         return util.error(message, 'CatalogInUse');
     }
     
-    console.log('Catalog not in use, proceeding with deletion');
     return ctx.prev.result;  // Pass through catalog from previous step
 }
                     """
