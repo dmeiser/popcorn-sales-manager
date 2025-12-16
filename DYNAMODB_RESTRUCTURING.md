@@ -370,19 +370,19 @@ Create a second attribute `createdAt` on all catalogs for sorting in owner queri
 ## Implementation Checklist
 
 ### Pre-Work: Create Feature Branch
-- [ ] Create branch `feature/dynamodb-restructure` from `fix/share-resolver-improvements`
-- [ ] Ensure all 369 current tests pass before starting
+- [x] Create branch `feature/dynamodb-restructure` from `fix/share-resolver-improvements`
+- [x] Ensure all 369 current tests pass before starting
 
 ### Pre-Work: Remove isAdmin Field
 The `isAdmin` field is no longer used. Admin checks now use Cognito groups directly.
 
-- [ ] Remove `isAdmin: Boolean!` from `schema.graphql`
-- [ ] Remove `AccountIsAdminResolver` from `cdk_stack.py`
-- [ ] Remove `isAdmin` from `account_operations.py` return values
-- [ ] Remove `isAdmin` handling from `migrate_to_multi_table.py`
-- [ ] Update `getMyAccount.integration.test.ts` to not check `isAdmin`
-- [ ] Update `test_auth.py` to remove `TestIsAdmin` class if applicable
-- [ ] Remove any `isAdmin` data from accounts table
+- [x] Remove `isAdmin: Boolean!` from `schema.graphql`
+- [x] Remove `AccountIsAdminResolver` from `cdk_stack.py`
+- [x] Remove `isAdmin` from `account_operations.py` return values
+- [x] Remove `isAdmin` handling from `migrate_to_multi_table.py`
+- [x] Update `getMyAccount.integration.test.ts` to not check `isAdmin`
+- [x] Update `test_auth.py` to remove `TestIsAdmin` class if applicable
+- [x] Remove any `isAdmin` data from accounts table
 
 ---
 

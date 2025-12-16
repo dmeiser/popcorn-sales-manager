@@ -3186,35 +3186,6 @@ $util.toJson($ctx.result)
                 ),
             )
 
-            # Account.isAdmin - Field resolver to compute isAdmin from Cognito groups
-            # Returns true if user is in "admin" Cognito group
-            self.none_datasource.create_resolver(
-                "AccountIsAdminResolver",
-                type_name="Account",
-                field_name="isAdmin",
-                runtime=appsync.FunctionRuntime.JS_1_0_0,
-                code=appsync.Code.from_inline(
-                    """
-export function request(ctx) {
-    return {};
-}
-
-export function response(ctx) {
-    // Check if user is in admin Cognito group
-    const groups = ctx.identity.claims ? ctx.identity.claims['cognito:groups'] : null;
-    if (groups && Array.isArray(groups)) {
-        return groups.includes('admin');
-    }
-    // For single group, it may be returned as a string
-    if (groups && typeof groups === 'string') {
-        return groups === 'admin';
-    }
-    return false;
-}
-                """
-                ),
-            )
-
             # getProfile - Get a specific profile by ID with authorization
             # Pipeline: FetchProfileFn -> CheckProfileReadAuthFn
             

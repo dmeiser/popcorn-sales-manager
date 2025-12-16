@@ -18,7 +18,6 @@ const GET_MY_ACCOUNT = gql`
     getMyAccount {
       accountId
       email
-      isAdmin
       createdAt
       updatedAt
     }
@@ -67,7 +66,6 @@ describe('getMyAccount Resolver Integration Tests', () => {
       expect(data.getMyAccount).toBeDefined();
       expect(data.getMyAccount.accountId).toBeDefined();
       expect(data.getMyAccount.email).toContain('@');
-      expect(typeof data.getMyAccount.isAdmin).toBe('boolean');
       expect(data.getMyAccount.createdAt).toBeDefined();
       expect(data.getMyAccount.updatedAt).toBeDefined();
     });
@@ -81,7 +79,6 @@ describe('getMyAccount Resolver Integration Tests', () => {
       expect(data.getMyAccount).toBeDefined();
       expect(data.getMyAccount.accountId).toBeDefined();
       expect(data.getMyAccount.email).toContain('@');
-      expect(typeof data.getMyAccount.isAdmin).toBe('boolean');
     });
 
     it('should return current user account for readonly user', async () => {
@@ -93,21 +90,10 @@ describe('getMyAccount Resolver Integration Tests', () => {
       expect(data.getMyAccount).toBeDefined();
       expect(data.getMyAccount.accountId).toBeDefined();
       expect(data.getMyAccount.email).toContain('@');
-      expect(typeof data.getMyAccount.isAdmin).toBe('boolean');
     });
   });
 
   describe('Account Attributes', () => {
-    it('should return isAdmin flag as boolean', async () => {
-      const { data } = await ownerClient.query({
-        query: GET_MY_ACCOUNT,
-        fetchPolicy: 'network-only',
-      });
-
-      // isAdmin can be true or false, just verify it's a boolean
-      expect(typeof data.getMyAccount.isAdmin).toBe('boolean');
-    });
-
     it('should include valid timestamps', async () => {
       const { data } = await ownerClient.query({
         query: GET_MY_ACCOUNT,

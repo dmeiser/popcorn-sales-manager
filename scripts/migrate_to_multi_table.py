@@ -77,8 +77,6 @@ def migrate_accounts(dry_run: bool = False) -> int:
         # Optional fields
         if "lastLoginAt" in item:
             new_item["lastLoginAt"] = item["lastLoginAt"]
-        if "isAdmin" in item:
-            new_item["isAdmin"] = item["isAdmin"]
         if "givenName" in item:
             new_item["givenName"] = item["givenName"]
         if "familyName" in item:
