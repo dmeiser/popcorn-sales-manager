@@ -3571,7 +3571,7 @@ export function request(ctx) {
 
 export function response(ctx) {
     if (ctx.error) {
-        return util.error(ctx.error.message, ctx.error.type);
+        util.error(ctx.error.message, ctx.error.type);
     }
     const shares = ctx.result.items || [];
     
@@ -3632,7 +3632,7 @@ export function request(ctx) {{
 
 export function response(ctx) {{
     if (ctx.error) {{
-        return util.error(ctx.error.message, ctx.error.type);
+        util.error(ctx.error.message, ctx.error.type);
     }}
     
     if (!ctx.result || !ctx.result.data) {{
@@ -5643,10 +5643,10 @@ export function request(ctx) {
 
 export function response(ctx) {
     if (ctx.error) {
-        return util.error(ctx.error.message, ctx.error.type);
+        util.error(ctx.error.message, ctx.error.type);
     }
     if (!ctx.result) {
-        return util.error('Catalog not found', 'NotFound');
+        util.error('Catalog not found', 'NotFound');
     }
     
     const catalog = ctx.result;
@@ -5672,7 +5672,7 @@ export function response(ctx) {
     if (isOwner || isAdmin) {
         ctx.stash.authorized = true;
     } else {
-        return util.error('Not authorized to delete this catalog', 'Forbidden');
+        util.error('Not authorized to delete this catalog', 'Forbidden');
     }
     
     ctx.stash.catalog = catalog;
@@ -5712,7 +5712,7 @@ export function request(ctx) {
 
 export function response(ctx) {
     if (ctx.error) {
-        return util.error(ctx.error.message, ctx.error.type);
+        util.error(ctx.error.message, ctx.error.type);
     }
     
     const seasons = ctx.result.items || [];
@@ -5720,7 +5720,7 @@ export function response(ctx) {
     if (seasons.length > 0) {
         // Catalog is in use - return error
         const message = 'Cannot delete catalog: ' + seasons.length + ' season(s) are using it. Please update or delete those seasons first.';
-        return util.error(message, 'CatalogInUse');
+        util.error(message, 'CatalogInUse');
     }
     
     return ctx.prev.result;  // Pass through catalog from previous step
@@ -5743,7 +5743,7 @@ import { util } from '@aws-appsync/utils';
 
 export function request(ctx) {
     if (!ctx.stash.authorized) {
-        return util.error('Not authorized', 'Forbidden');
+        util.error('Not authorized', 'Forbidden');
     }
     
     const catalogId = ctx.args.catalogId;
@@ -5758,7 +5758,7 @@ export function request(ctx) {
 
 export function response(ctx) {
     if (ctx.error) {
-        return util.error(ctx.error.message, ctx.error.type);
+        util.error(ctx.error.message, ctx.error.type);
     }
     return true;
 }
@@ -5787,7 +5787,7 @@ export function request(ctx) {
 
 export function response(ctx) {
     if (ctx.error) {
-        return util.error(ctx.error.message, ctx.error.type);
+        util.error(ctx.error.message, ctx.error.type);
     }
     return ctx.result;
 }
