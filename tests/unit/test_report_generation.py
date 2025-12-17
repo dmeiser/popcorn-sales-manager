@@ -19,7 +19,7 @@ from src.handlers.report_generation import request_season_report
 def get_orders_table() -> Any:
     """Get orders table for testing."""
     dynamodb = boto3.resource("dynamodb", region_name="us-east-1")
-    return dynamodb.Table("kernelworx-orders-ue1-dev")
+    return dynamodb.Table("kernelworx-orders-v2-ue1-dev")
 
 
 @pytest.fixture

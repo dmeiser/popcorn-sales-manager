@@ -162,9 +162,10 @@ def _get_season(table: Any, season_id: str) -> Dict[str, Any] | None:
 
 
 def _get_season_orders(table: Any, season_id: str) -> list[Dict[str, Any]]:
-    """Get all orders for a season using seasonId GSI (multi-table design)."""
+    """Get all orders for a season (V2: Direct PK query since PK=seasonId)."""
+    # V2 schema: Orders table has PK=seasonId, SK=orderId
+    # No GSI needed - direct query on the partition key
     response = table.query(
-        IndexName="seasonId-index",
         KeyConditionExpression="seasonId = :season_id",
         ExpressionAttributeValues={
             ":season_id": season_id,

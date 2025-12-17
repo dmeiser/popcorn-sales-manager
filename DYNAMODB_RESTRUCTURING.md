@@ -482,35 +482,35 @@ The `isAdmin` field is no longer used. Admin checks now use Cognito groups direc
 **Estimated: 2-3 hours**
 
 #### 3.1 CDK Changes
-- [ ] Modify `orders` table: PK=seasonId, SK=orderId
-- [ ] Add orderId-index GSI (sparse, for direct getOrder)
-- [ ] Keep profileId-index GSI (for cross-season queries)
-- [ ] Remove seasonId-index GSI (now PK)
+- [x] Modify `orders` table: PK=seasonId, SK=orderId
+- [x] Add orderId-index GSI (sparse, for direct getOrder)
+- [x] Keep profileId-index GSI (for cross-season queries)
+- [x] Remove seasonId-index GSI (now PK)
 
 #### 3.2 Resolver Updates
-- [ ] Update `createOrder` resolver - use new key structure
-- [ ] Update `getOrder` resolver - query orderId-index GSI
-- [ ] Update `listOrdersBySeason` resolver - direct PK query
-- [ ] Update `listOrdersByProfile` resolver - uses profileId-index
-- [ ] Update `updateOrder` resolver - use new key structure
-- [ ] Update `deleteOrder` resolver - use new key structure
-- [ ] Update `DeleteSeasonOrdersFn` - query by PK (seasonId)
+- [x] Update `createOrder` resolver - use new key structure
+- [x] Update `getOrder` resolver - query orderId-index GSI
+- [x] Update `listOrdersBySeason` resolver - direct PK query
+- [x] Update `listOrdersByProfile` resolver - uses profileId-index
+- [x] Update `updateOrder` resolver - use new key structure
+- [x] Update `deleteOrder` resolver - use new key structure
+- [x] Update `DeleteSeasonOrdersFn` - query by PK (seasonId)
 
 #### 3.3 Lambda Updates
-- [ ] Update `order_operations.py` if applicable
-- [ ] Update `report_generation.py` for new key structure
+- [x] Update `order_operations.py` if applicable - N/A: No order_operations.py exists
+- [x] Update `report_generation.py` for new key structure
 
 #### 3.4 Data Migration - Orders
-- [ ] Export existing orders
-- [ ] Transform: orderId→SK, seasonId→PK
-- [ ] Import to new orders table
+- [x] Export existing orders - SKIPPED: 0 records in old table
+- [x] Transform: orderId→SK, seasonId→PK - SKIPPED: No data to migrate
+- [x] Import to new orders table - SKIPPED: No data to migrate
 
 #### 3.5 Integration Tests - Phase 3
-- [ ] Update `orderQueries.integration.test.ts` for new structure
-- [ ] Update `orderOperations.integration.test.ts` for new structure
-- [ ] Update `requestSeasonReport.integration.test.ts` for new structure
-- [ ] Run order tests: `npx vitest run --testPathPattern="order|report"`
-- [ ] All order tests pass before proceeding
+- [x] Update `orderQueries.integration.test.ts` for new structure
+- [x] Update `orderOperations.integration.test.ts` for new structure
+- [x] Update `requestSeasonReport.integration.test.ts` for new structure
+- [x] Run order tests: `npx vitest run --testPathPattern="order|report"`
+- [x] All order tests pass before proceeding
 
 ---
 

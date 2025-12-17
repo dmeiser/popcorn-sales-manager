@@ -28,7 +28,7 @@ def aws_credentials() -> None:
     os.environ["CATALOGS_TABLE_NAME"] = "kernelworx-catalogs-ue1-dev"
     os.environ["PROFILES_TABLE_NAME"] = "kernelworx-profiles-v2-ue1-dev"
     os.environ["SEASONS_TABLE_NAME"] = "kernelworx-seasons-v2-ue1-dev"
-    os.environ["ORDERS_TABLE_NAME"] = "kernelworx-orders-ue1-dev"
+    os.environ["ORDERS_TABLE_NAME"] = "kernelworx-orders-v2-ue1-dev"
     os.environ["SHARES_TABLE_NAME"] = "kernelworx-shares-ue1-dev"
     os.environ["INVITES_TABLE_NAME"] = "kernelworx-invites-ue1-dev"
 
@@ -159,23 +159,24 @@ def dynamodb_table(aws_credentials: None) -> Generator[Any, None, None]:
         )
 
         # ================================================================
-        # Orders Table
+        # Orders Table V2: PK=seasonId, SK=orderId
         # ================================================================
         orders_table = dynamodb.create_table(
-            TableName="kernelworx-orders-ue1-dev",
+            TableName="kernelworx-orders-v2-ue1-dev",
             KeySchema=[
-                {"AttributeName": "orderId", "KeyType": "HASH"},
+                {"AttributeName": "seasonId", "KeyType": "HASH"},
+                {"AttributeName": "orderId", "KeyType": "RANGE"},
             ],
             AttributeDefinitions=[
-                {"AttributeName": "orderId", "AttributeType": "S"},
                 {"AttributeName": "seasonId", "AttributeType": "S"},
+                {"AttributeName": "orderId", "AttributeType": "S"},
                 {"AttributeName": "profileId", "AttributeType": "S"},
             ],
             GlobalSecondaryIndexes=[
                 {
-                    "IndexName": "seasonId-index",
+                    "IndexName": "orderId-index",
                     "KeySchema": [
-                        {"AttributeName": "seasonId", "KeyType": "HASH"},
+                        {"AttributeName": "orderId", "KeyType": "HASH"},
                     ],
                     "Projection": {"ProjectionType": "ALL"},
                 },
@@ -384,10 +385,10 @@ def sample_order_id() -> str:  # pragma: no cover
 def sample_order(  # pragma: no cover
     dynamodb_table: Any, sample_profile_id: str, sample_season_id: str, sample_order_id: str
 ) -> Dict[str, Any]:
-    """Create sample order in DynamoDB (multi-table design)."""
+    """Create sample order in DynamoDB (multi-table design V2: PK=seasonId, SK=orderId)."""
     # Multi-table design: need to access orders table directly
     dynamodb = boto3.resource("dynamodb", region_name="us-east-1")
-    orders_table = dynamodb.Table("kernelworx-orders-ue1-dev")
+    orders_table = dynamodb.Table("kernelworx-orders-v2-ue1-dev")
 
     order = {
         "orderId": sample_order_id,

@@ -1096,16 +1096,18 @@ describe('Profile Operations Integration Tests', () => {
       expect(data.deleteSellerProfile).toBe(true);
 
       // Assert: Seasons should be cleaned up (no orphaned records)
-      // We verify via direct DynamoDB check that the season record is deleted
-      const { DynamoDBClient, GetItemCommand, DeleteItemCommand } = await import('@aws-sdk/client-dynamodb');
+      // V2 schema: Query seasonId-index GSI to check if season still exists
+      const { DynamoDBClient, QueryCommand, DeleteItemCommand } = await import('@aws-sdk/client-dynamodb');
       const dynamoClient = new DynamoDBClient({ region: 'us-east-1' });
-      const result = await dynamoClient.send(new GetItemCommand({
+      const result = await dynamoClient.send(new QueryCommand({
         TableName: TABLE_NAMES.seasons,
-        Key: {
-          seasonId: { S: seasonId },
+        IndexName: 'seasonId-index',
+        KeyConditionExpression: 'seasonId = :sid',
+        ExpressionAttributeValues: {
+          ':sid': { S: seasonId },
         },
       }));
-      expect(result.Item).toBeUndefined();
+      expect(result.Items?.length || 0).toBe(0);
 
       // Cleanup: Delete the catalog (not owned by profile, so must be deleted separately)
       const DELETE_CATALOG = gql`

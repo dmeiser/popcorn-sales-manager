@@ -364,11 +364,14 @@ class CdkStack(Stack):
         )
 
         # Orders Table
+        # Orders Table V2: PK=seasonId, SK=orderId for efficient season-based queries
+        # Direct order lookups use orderId-index GSI
         self.orders_table = dynamodb.Table(
             self,
-            "OrdersTable",
-            table_name=f"kernelworx-orders-ue1-{env_name}",
-            partition_key=dynamodb.Attribute(name="orderId", type=dynamodb.AttributeType.STRING),
+            "OrdersTableV2",
+            table_name=f"kernelworx-orders-v2-ue1-{env_name}",
+            partition_key=dynamodb.Attribute(name="seasonId", type=dynamodb.AttributeType.STRING),
+            sort_key=dynamodb.Attribute(name="orderId", type=dynamodb.AttributeType.STRING),
             billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
             point_in_time_recovery_specification=dynamodb.PointInTimeRecoverySpecification(
                 point_in_time_recovery_enabled=True
@@ -376,11 +379,10 @@ class CdkStack(Stack):
             removal_policy=RemovalPolicy.RETAIN,
         )
 
-        # GSI for orders by season
+        # GSI for direct order lookup by orderId (for getOrder, updateOrder, deleteOrder)
         self.orders_table.add_global_secondary_index(
-            index_name="seasonId-index",
-            partition_key=dynamodb.Attribute(name="seasonId", type=dynamodb.AttributeType.STRING),
-            sort_key=dynamodb.Attribute(name="createdAt", type=dynamodb.AttributeType.STRING),
+            index_name="orderId-index",
+            partition_key=dynamodb.Attribute(name="orderId", type=dynamodb.AttributeType.STRING),
             projection_type=dynamodb.ProjectionType.ALL,
         )
 
@@ -2103,7 +2105,7 @@ export function response(ctx) {
             )
 
             # Query orders for the season to delete (for cleanup)
-            # Uses orders table with seasonId-index GSI
+            # V2 schema: Direct PK query since PK=seasonId
             query_season_orders_for_delete_fn = appsync.AppsyncFunction(
                 self,
                 "QuerySeasonOrdersForDeleteFn",
@@ -2123,17 +2125,19 @@ export function request(ctx) {
         ctx.stash.ordersToDelete = [];
         ctx.stash.skipOrderQuery = true;
         return {
-            operation: 'GetItem',
-            key: util.dynamodb.toMapValues({ orderId: 'NOOP' })
+            operation: 'Query',
+            query: {
+                expression: 'seasonId = :seasonId',
+                expressionValues: util.dynamodb.toMapValues({ ':seasonId': 'NOOP' })
+            }
         };
     }
     
     const seasonId = season.seasonId;
     
-    // Query orders table using seasonId-index GSI
+    // V2 schema: Direct PK query since PK=seasonId
     return {
         operation: 'Query',
-        index: 'seasonId-index',
         query: {
             expression: 'seasonId = :seasonId',
             expressionValues: util.dynamodb.toMapValues({ ':seasonId': seasonId })
@@ -2151,7 +2155,7 @@ export function response(ctx) {
         util.error(ctx.error.message, ctx.error.type);
     }
     
-    // Store orders to delete in stash (just need orderId for orders table)
+    // Store orders to delete in stash (need seasonId and orderId for V2 schema)
     const orders = ctx.result.items || [];
     ctx.stash.ordersToDelete = orders;
     
@@ -2162,7 +2166,7 @@ export function response(ctx) {
             )
 
             # Delete orders associated with the season
-            # Uses orders_datasource with orderId key
+            # V2 schema: Uses composite key (seasonId, orderId)
             delete_season_orders_fn = appsync.AppsyncFunction(
                 self,
                 "DeleteSeasonOrdersFn",
@@ -2185,9 +2189,10 @@ export function request(ctx) {
     // Delete first order only - simple approach for now
     const firstOrder = ordersToDelete[0];
     
+    // V2 schema: composite key (seasonId, orderId)
     return {
         operation: 'DeleteItem',
-        key: util.dynamodb.toMapValues({ orderId: firstOrder.orderId })
+        key: util.dynamodb.toMapValues({ seasonId: firstOrder.seasonId, orderId: firstOrder.orderId })
     };
 }
 
@@ -2272,8 +2277,8 @@ export function response(ctx) {
                 ),
             )
 
-            # updateOrder Pipeline: Direct GetItem → UpdateItem
-            # Now uses orders_datasource with direct orderId key
+            # updateOrder Pipeline: Query GSI → UpdateItem (V2 schema)
+            # Uses orderId-index GSI since V2 schema has PK=seasonId, SK=orderId
             lookup_order_fn = appsync.AppsyncFunction(
                 self,
                 "LookupOrderFn",
@@ -2287,11 +2292,15 @@ import { util } from '@aws-appsync/utils';
 
 export function request(ctx) {
     const orderId = ctx.args.orderId || ctx.args.input.orderId;
-    // Direct GetItem on orders table using orderId as primary key
+    // Query orderId-index GSI (V2 schema: PK=seasonId, SK=orderId)
     return {
-        operation: 'GetItem',
-        key: util.dynamodb.toMapValues({ orderId: orderId }),
-        consistentRead: true
+        operation: 'Query',
+        index: 'orderId-index',
+        query: {
+            expression: 'orderId = :orderId',
+            expressionValues: util.dynamodb.toMapValues({ ':orderId': orderId })
+        },
+        limit: 1
     };
 }
 
@@ -2299,12 +2308,13 @@ export function response(ctx) {
     if (ctx.error) {
         util.error(ctx.error.message, ctx.error.type);
     }
-    if (!ctx.result) {
+    const items = ctx.result.items || [];
+    if (items.length === 0) {
         util.error('Order not found', 'NotFound');
     }
     // Store order in stash for next function
-    ctx.stash.order = ctx.result;
-    return ctx.result;
+    ctx.stash.order = items[0];
+    return items[0];
 }
                 """
                 ),
@@ -2546,9 +2556,10 @@ export function request(ctx) {
     
     const updateExpression = 'SET ' + updates.join(', ');
     
+    // V2 schema: composite key (seasonId, orderId)
     return {
         operation: 'UpdateItem',
-        key: util.dynamodb.toMapValues({ orderId: order.orderId }),
+        key: util.dynamodb.toMapValues({ seasonId: order.seasonId, orderId: order.orderId }),
         update: {
             expression: updateExpression,
             expressionNames: Object.keys(exprNames).length > 0 ? exprNames : undefined,
@@ -2594,9 +2605,9 @@ export function response(ctx) {
                 ),
             )
 
-            # deleteOrder Pipeline: Direct GetItem → DeleteItem
+            # deleteOrder Pipeline: Query GSI → DeleteItem (V2 schema)
             # Separate lookup for delete - doesn't error on missing order (idempotent)
-            # Now uses orders_datasource with direct orderId key
+            # Uses orderId-index GSI since V2 schema has PK=seasonId, SK=orderId
             lookup_order_for_delete_fn = appsync.AppsyncFunction(
                 self,
                 "LookupOrderForDeleteFn",
@@ -2610,11 +2621,15 @@ import { util } from '@aws-appsync/utils';
 
 export function request(ctx) {
     const orderId = ctx.args.orderId;
-    // Direct GetItem on orders table using orderId as primary key
+    // Query orderId-index GSI (V2 schema: PK=seasonId, SK=orderId)
     return {
-        operation: 'GetItem',
-        key: util.dynamodb.toMapValues({ orderId: orderId }),
-        consistentRead: true
+        operation: 'Query',
+        index: 'orderId-index',
+        query: {
+            expression: 'orderId = :orderId',
+            expressionValues: util.dynamodb.toMapValues({ ':orderId': orderId })
+        },
+        limit: 1
     };
 }
 
@@ -2623,21 +2638,22 @@ export function response(ctx) {
         util.error(ctx.error.message, ctx.error.type);
     }
     
+    const items = ctx.result.items || [];
     // For delete, if order not found, that's OK (idempotent)
     // Just store null in stash and let delete function handle it
-    if (!ctx.result) {
+    if (items.length === 0) {
         ctx.stash.order = null;
         return null;
     }
     
-    ctx.stash.order = ctx.result;
-    return ctx.result;
+    ctx.stash.order = items[0];
+    return items[0];
 }
                 """
                 ),
             )
 
-            # Delete order from orders table
+            # Delete order from orders table (V2 schema: composite key)
             delete_order_fn = appsync.AppsyncFunction(
                 self,
                 "DeleteOrderFn",
@@ -2658,14 +2674,20 @@ export function request(ctx) {
         // Return a no-op - just set a flag in stash
         ctx.stash.skipDelete = true;
         return {
-            operation: 'GetItem',
-            key: util.dynamodb.toMapValues({ orderId: 'NOOP' })
+            operation: 'Query',
+            index: 'orderId-index',
+            query: {
+                expression: 'orderId = :orderId',
+                expressionValues: util.dynamodb.toMapValues({ ':orderId': 'NOOP' })
+            },
+            limit: 1
         };
     }
     
+    // V2 schema: composite key (seasonId, orderId)
     return {
         operation: 'DeleteItem',
-        key: util.dynamodb.toMapValues({ orderId: order.orderId })
+        key: util.dynamodb.toMapValues({ seasonId: order.seasonId, orderId: order.orderId })
     };
 }
 
@@ -2895,9 +2917,10 @@ export function request(ctx) {
         orderItem.notes = input.notes;
     }
     
+    // V2 schema: composite key (seasonId, orderId)
     return {
         operation: 'PutItem',
-        key: util.dynamodb.toMapValues({ orderId: orderId }),
+        key: util.dynamodb.toMapValues({ seasonId: input.seasonId, orderId: orderId }),
         attributeValues: util.dynamodb.toMapValues(orderItem)
     };
 }
@@ -3876,7 +3899,7 @@ $util.toJson($ctx.result)
             )
 
             # Season.totalOrders - Count orders for this season
-            # Uses orders table with seasonId-index GSI
+            # V2 schema: Direct PK query since PK=seasonId
             self.orders_datasource.create_resolver(
                 "SeasonTotalOrdersResolver",
                 type_name="Season",
@@ -3886,7 +3909,6 @@ $util.toJson($ctx.result)
 {
     "version": "2017-02-28",
     "operation": "Query",
-    "index": "seasonId-index",
     "query": {
         "expression": "seasonId = :seasonId",
         "expressionValues": {
@@ -3907,7 +3929,7 @@ $ctx.result.items.size()
             )
 
             # Season.totalRevenue - Sum order totals for this season
-            # Uses orders table with seasonId-index GSI
+            # V2 schema: Direct PK query since PK=seasonId
             self.orders_datasource.create_resolver(
                 "SeasonTotalRevenueResolver",
                 type_name="Season",
@@ -3917,7 +3939,6 @@ $ctx.result.items.size()
 {
     "version": "2017-02-28",
     "operation": "Query",
-    "index": "seasonId-index",
     "query": {
         "expression": "seasonId = :seasonId",
         "expressionValues": {
@@ -4063,7 +4084,7 @@ export function response(ctx) {
             # getOrder - Get a specific order by ID with authorization (Pipeline Resolver)
             # Pipeline: QueryOrderFn → VerifyProfileReadAccessFn → CheckShareReadPermissionsFn → ReturnOrderFn
 
-            # Step 1: Get order from orders table directly
+            # Step 1: Get order from orders table via orderId-index GSI (V2 schema)
             query_order_fn = appsync.AppsyncFunction(
                 self,
                 "QueryOrderFn",
@@ -4077,11 +4098,15 @@ import { util } from '@aws-appsync/utils';
 
 export function request(ctx) {
     const orderId = ctx.args.orderId;
-    // Direct GetItem on orders table
+    // Query orderId-index GSI (V2 schema: PK=seasonId, SK=orderId)
     return {
-        operation: 'GetItem',
-        key: util.dynamodb.toMapValues({ orderId: orderId }),
-        consistentRead: true
+        operation: 'Query',
+        index: 'orderId-index',
+        query: {
+            expression: 'orderId = :orderId',
+            expressionValues: util.dynamodb.toMapValues({ ':orderId': orderId })
+        },
+        limit: 1
     };
 }
 
@@ -4090,16 +4115,17 @@ export function response(ctx) {
         util.error(ctx.error.message, ctx.error.type);
     }
     
-    if (!ctx.result) {
+    const items = ctx.result.items || [];
+    if (items.length === 0) {
         // Order not found - return null (auth check will be skipped)
         ctx.stash.orderNotFound = true;
         return null;
     }
     
-    const order = ctx.result;
+    const order = items[0];
     ctx.stash.order = order;
     
-    // profileId is now stored directly on the order
+    // profileId is stored directly on the order
     ctx.stash.profileId = order.profileId;
     
     return order;
@@ -4227,7 +4253,7 @@ export function response(ctx) {
                 ),
             )
 
-            # Step 4: Query orders (only if authorized) - uses orders table
+            # Step 4: Query orders (only if authorized) - direct PK query (V2 schema)
             query_orders_by_season_fn = appsync.AppsyncFunction(
                 self,
                 "QueryOrdersBySeasonFn",
@@ -4244,7 +4270,6 @@ export function request(ctx) {
     if (ctx.stash.seasonNotFound || !ctx.stash.authorized) {
         return {
             operation: 'Query',
-            index: 'seasonId-index',
             query: {
                 expression: 'seasonId = :seasonId',
                 expressionValues: util.dynamodb.toMapValues({ 
@@ -4255,10 +4280,9 @@ export function request(ctx) {
     }
     
     const seasonId = ctx.args.seasonId;
-    // Query orders table using seasonId-index GSI
+    // Direct PK query on orders table (V2 schema: PK=seasonId)
     return {
         operation: 'Query',
-        index: 'seasonId-index',
         query: {
             expression: 'seasonId = :seasonId',
             expressionValues: util.dynamodb.toMapValues({ 

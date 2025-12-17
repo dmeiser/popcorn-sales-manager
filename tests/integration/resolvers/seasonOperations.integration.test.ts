@@ -732,19 +732,21 @@ describe('Season Operations Integration Tests', () => {
       expect(deleteData.deleteSeason).toBe(true);
 
       // Assert: Orders should be cleaned up (no orphaned records)
-      // Verify via direct DynamoDB check that the order record is deleted
-      const { DynamoDBClient, GetItemCommand } = await import('@aws-sdk/client-dynamodb');
+      // V2 schema: Query orderId-index GSI to check if order still exists
+      const { DynamoDBClient, QueryCommand } = await import('@aws-sdk/client-dynamodb');
       const dynamoClient = new DynamoDBClient({ region: 'us-east-1' });
       
-      const result = await dynamoClient.send(new GetItemCommand({
+      const result = await dynamoClient.send(new QueryCommand({
         TableName: TABLE_NAMES.orders,
-        Key: {
-          orderId: { S: orderId },
+        IndexName: 'orderId-index',
+        KeyConditionExpression: 'orderId = :oid',
+        ExpressionAttributeValues: {
+          ':oid': { S: orderId },
         },
       }));
       
       // Order should be deleted when season is deleted
-      expect(result.Item).toBeUndefined();
+      expect(result.Items?.length || 0).toBe(0);
     }, 15000);
 
     it('Updating season to reference non-existent catalog succeeds (no foreign key validation)', async () => {
