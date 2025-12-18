@@ -219,7 +219,9 @@ export const OrderEditorDialog: React.FC<OrderEditorDialogProps> = ({
     if (field === "productId") {
       newLineItems[index].productId = value as string;
     } else {
-      newLineItems[index].quantity = Math.max(1, Number(value));
+      const parsed = parseInt(String(value), 10) || 1;
+      // Limit to reasonable max (GraphQL Int max is 2,147,483,647)
+      newLineItems[index].quantity = Math.min(Math.max(1, parsed), 99999);
     }
     setLineItems(newLineItems);
   };
@@ -538,7 +540,7 @@ export const OrderEditorDialog: React.FC<OrderEditorDialogProps> = ({
                                 disabled={loading}
                                 size="small"
                                 sx={{ width: 80 }}
-                                inputProps={{ min: 1 }}
+                                inputProps={{ min: 1, max: 99999, step: 1 }}
                               />
                             </TableCell>
                             <TableCell align="right">

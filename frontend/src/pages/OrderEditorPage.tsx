@@ -146,7 +146,9 @@ export const OrderEditorPage: React.FC = () => {
   ) => {
     const newItems = [...lineItems];
     if (field === "quantity") {
-      newItems[index][field] = parseInt(value) || 1;
+      const parsed = parseInt(value) || 1;
+      // Limit to reasonable max (GraphQL Int max is 2,147,483,647)
+      newItems[index][field] = Math.min(Math.max(1, parsed), 99999);
     } else {
       newItems[index][field] = value;
     }
@@ -452,7 +454,7 @@ export const OrderEditorPage: React.FC = () => {
                       disabled={loading}
                       size="small"
                       sx={{ width: 80 }}
-                      inputProps={{ min: 1 }}
+                      inputProps={{ min: 1, max: 99999, step: 1 }}
                     />
                   </TableCell>
                   <TableCell align="right">

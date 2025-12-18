@@ -87,16 +87,11 @@ def get_unit_report(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         accessible_profiles: List[Dict[str, Any]] = []
         for profile in unit_profiles:
             profile_id = profile["profileId"]
-            owner_account_id = profile["ownerAccountId"]
-
             # Check access: owner or has share
             has_access = check_profile_access(
                 caller_account_id=caller_account_id,
                 profile_id=profile_id,
-                owner_account_id=owner_account_id,
-                action="read",
-                profiles_table=profiles_table,
-                accounts_table=accounts_table,
+                required_permission="READ",
             )
 
             if has_access:
