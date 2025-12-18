@@ -341,6 +341,15 @@ class CdkStack(Stack):
             projection_type=dynamodb.ProjectionType.ALL,
         )
 
+        # GSI for seasons by catalog (for checking catalog in-use before deletion)
+        self.seasons_table.add_global_secondary_index(
+            index_name="catalogId-index",
+            partition_key=dynamodb.Attribute(
+                name="catalogId", type=dynamodb.AttributeType.STRING
+            ),
+            projection_type=dynamodb.ProjectionType.KEYS_ONLY,
+        )
+
         # Orders Table
         self.orders_table = dynamodb.Table(
             self,
@@ -2072,13 +2081,14 @@ export function response(ctx) {
                 runtime=appsync.FunctionRuntime.JS_1_0_0,
                 code=appsync.Code.from_inline(
                     """
-import { util } from '@aws-appsync/utils';
+import { util, runtime } from '@aws-appsync/utils';
 
 export function request(ctx) {
     const ordersToDelete = ctx.stash.ordersToDelete || [];
     
     if (ordersToDelete.length === 0) {
-        return { payload: null };
+        // No orders to delete - use early return to skip this step
+        return runtime.earlyReturn(true);
     }
     
     // Delete first order only - simple approach for now
@@ -2878,6 +2888,57 @@ export function response(ctx) {
                 ),
             )
 
+            # Check if share already exists (to prevent duplicates and support idempotent upsert)
+            check_existing_share_fn = appsync.AppsyncFunction(
+                self,
+                "CheckExistingShareFn",
+                name=f"CheckExistingShareFn_{env_name}",
+                api=self.api,
+                data_source=self.profiles_datasource,
+                runtime=appsync.FunctionRuntime.JS_1_0_0,
+                code=appsync.Code.from_inline(
+                    """
+import { util } from '@aws-appsync/utils';
+
+export function request(ctx) {
+    const profileId = ctx.args.input.profileId || ctx.stash.invite?.profileId;
+    var targetAccountId = ctx.stash.targetAccountId;
+    
+    // Strip ACCOUNT# prefix if present
+    if (targetAccountId && targetAccountId.startsWith('ACCOUNT#')) {
+        targetAccountId = targetAccountId.substring(8);
+    }
+    
+    // Store clean ID for later use by CreateShareFn
+    ctx.stash.cleanTargetAccountId = targetAccountId;
+    
+    // Query for existing share with SHARE#ACCOUNT# prefix
+    return {
+        operation: 'GetItem',
+        key: util.dynamodb.toMapValues({ 
+            profileId: profileId, 
+            recordType: 'SHARE#ACCOUNT#' + targetAccountId 
+        }),
+        consistentRead: true
+    };
+}
+
+export function response(ctx) {
+    if (ctx.error) {
+        util.error(ctx.error.message, ctx.error.type);
+    }
+    
+    // Store existing share info (if any) for CreateShareFn to reference
+    if (ctx.result && ctx.result.profileId) {
+        ctx.stash.existingShare = ctx.result;
+    }
+    
+    return ctx.result;
+}
+                """
+                ),
+            )
+
             # Create share in profiles table
             create_share_fn = appsync.AppsyncFunction(
                 self,
@@ -2892,25 +2953,38 @@ import { util } from '@aws-appsync/utils';
 
 export function request(ctx) {
     const input = ctx.args.input;
-    const targetAccountId = ctx.stash.targetAccountId;
+    var targetAccountId = ctx.stash.targetAccountId;
     const profileId = input.profileId || ctx.stash.invite.profileId;
     const permissions = input.permissions || ctx.stash.invite.permissions;
     const now = util.time.nowISO8601();
     
-    // Share in profiles table: profileId + recordType: SHARE#targetAccountId
+    // Strip ACCOUNT# prefix if present - store clean ID for GSI queries
+    if (targetAccountId && targetAccountId.startsWith('ACCOUNT#')) {
+        targetAccountId = targetAccountId.substring(8);
+    }
+    
+    // Share in profiles table: profileId + recordType: SHARE#ACCOUNT#targetAccountId
+    // Use SHARE#ACCOUNT# prefix for consistency with old data
+    const recordType = 'SHARE#ACCOUNT#' + targetAccountId;
+    // shareId is the recordType (SHARE#ACCOUNT#xxx) to match test expectations
+    const shareId = recordType;
     const shareItem = {
         profileId: profileId,
-        recordType: 'SHARE#' + targetAccountId,
+        recordType: recordType,
+        shareId: shareId,
         targetAccountId: targetAccountId,
         permissions: permissions,
         createdByAccountId: ctx.identity.sub,
         createdAt: now
     };
     
+    // Store full share item in stash for response
+    ctx.stash.shareItem = shareItem;
+    
     // Use PutItem without condition to support both create and update (upsert)
     return {
         operation: 'PutItem',
-        key: util.dynamodb.toMapValues({ profileId: profileId, recordType: 'SHARE#' + targetAccountId }),
+        key: util.dynamodb.toMapValues({ profileId: profileId, recordType: recordType }),
         attributeValues: util.dynamodb.toMapValues(shareItem)
     };
 }
@@ -2919,7 +2993,8 @@ export function response(ctx) {
     if (ctx.error) {
         util.error(ctx.error.message, ctx.error.type);
     }
-    return ctx.result;
+    // Return the full share item from stash since PutItem doesn't return attributes by default
+    return ctx.stash.shareItem;
 }
                 """
                 ),
@@ -2934,6 +3009,7 @@ export function response(ctx) {
                 pipeline_config=[
                     verify_profile_owner_for_share_fn,
                     lookup_account_by_email_fn,
+                    check_existing_share_fn,
                     create_share_fn,
                 ],
                 code=appsync.Code.from_inline(
@@ -3058,7 +3134,12 @@ export function response(ctx) {
                 type_name="Mutation",
                 field_name="redeemProfileInvite",
                 runtime=appsync.FunctionRuntime.JS_1_0_0,
-                pipeline_config=[lookup_invite_fn, create_share_fn, mark_invite_used_fn],
+                pipeline_config=[
+                    lookup_invite_fn,
+                    check_existing_share_fn,
+                    create_share_fn,
+                    mark_invite_used_fn,
+                ],
                 code=appsync.Code.from_inline(
                     """
 export function request(ctx) {
@@ -3082,11 +3163,12 @@ export function response(ctx) {
                 field_name="getMyAccount",
                 request_mapping_template=appsync.MappingTemplate.from_string(
                     """
+#set($accountId = "ACCOUNT#$ctx.identity.sub")
 {
     "version": "2017-02-28",
     "operation": "GetItem",
     "key": {
-        "accountId": $util.dynamodb.toDynamoDBJson("ACCOUNT#" + $ctx.identity.sub)
+        "accountId": $util.dynamodb.toDynamoDBJson($accountId)
     }
 }
                 """
@@ -3100,6 +3182,35 @@ export function response(ctx) {
     $util.error("Account not found", "NotFound")
 #end
 $util.toJson($ctx.result)
+                """
+                ),
+            )
+
+            # Account.isAdmin - Field resolver to compute isAdmin from Cognito groups
+            # Returns true if user is in "admin" Cognito group
+            self.none_datasource.create_resolver(
+                "AccountIsAdminResolver",
+                type_name="Account",
+                field_name="isAdmin",
+                runtime=appsync.FunctionRuntime.JS_1_0_0,
+                code=appsync.Code.from_inline(
+                    """
+export function request(ctx) {
+    return {};
+}
+
+export function response(ctx) {
+    // Check if user is in admin Cognito group
+    const groups = ctx.identity.claims ? ctx.identity.claims['cognito:groups'] : null;
+    if (groups && Array.isArray(groups)) {
+        return groups.includes('admin');
+    }
+    // For single group, it may be returned as a string
+    if (groups && typeof groups === 'string') {
+        return groups === 'admin';
+    }
+    return false;
+}
                 """
                 ),
             )
@@ -3273,7 +3384,14 @@ export function response(ctx) {
             ":ownerAccountId": $util.dynamodb.toDynamoDBJson("ACCOUNT#$ctx.identity.sub")
         }
     },
-    "index": "ownerAccountId-index"
+    "index": "ownerAccountId-index",
+    "filter": {
+        "expression": "recordType = :recordType",
+        "expressionValues": {
+            ":recordType": $util.dynamodb.toDynamoDBJson("METADATA")
+        }
+    },
+    "limit": 100
 }
                 """
                 ),
@@ -3282,14 +3400,7 @@ export function response(ctx) {
 #if($ctx.error)
     $util.error($ctx.error.message, $ctx.error.type)
 #end
-## Filter to only return METADATA records (not OWNER# records)
-#set($profiles = [])
-#foreach($item in $ctx.result.items)
-    #if($item.recordType == "METADATA")
-        $util.qr($profiles.add($item))
-    #end
-#end
-$util.toJson($profiles)
+$util.toJson($ctx.result.items)
                 """
                 ),
             )
@@ -3308,7 +3419,8 @@ $util.toJson($profiles)
 import { util } from '@aws-appsync/utils';
 
 export function request(ctx) {
-    const accountId = 'ACCOUNT#' + ctx.identity.sub;
+    // Query with clean accountId - CreateShareFn stores targetAccountId without ACCOUNT# prefix
+    const accountId = ctx.identity.sub;
     return {
         operation: 'Query',
         index: 'targetAccountId-index',
@@ -3698,6 +3810,32 @@ $total
                 ),
             )
 
+            # SellerProfile.ownerAccountId - Strip ACCOUNT# prefix from stored value
+            # Returns clean account ID for API consumers
+            self.none_datasource.create_resolver(
+                "SellerProfileOwnerAccountIdResolver",
+                type_name="SellerProfile",
+                field_name="ownerAccountId",
+                runtime=appsync.FunctionRuntime.JS_1_0_0,
+                code=appsync.Code.from_inline(
+                    """
+export function request(ctx) {
+    return {};
+}
+
+export function response(ctx) {
+    const ownerAccountId = ctx.source.ownerAccountId;
+    if (!ownerAccountId) return null;
+    // Strip ACCOUNT# prefix if present
+    if (ownerAccountId.startsWith('ACCOUNT#')) {
+        return ownerAccountId.substring(8);
+    }
+    return ownerAccountId;
+}
+                """
+                ),
+            )
+
             # SellerProfile.isOwner - Compute if caller is the owner
             # Now accounts for ACCOUNT# prefix in ownerAccountId
             self.none_datasource.create_resolver(
@@ -3712,9 +3850,11 @@ export function request(ctx) {
 }
 
 export function response(ctx) {
-    const callerAccountId = 'ACCOUNT#' + ctx.identity.sub;
+    const callerAccountId = ctx.identity.sub;
     const ownerAccountId = ctx.source.ownerAccountId;
-    return callerAccountId === ownerAccountId;
+    // Handle both prefixed (ACCOUNT#xxx) and clean (xxx) ownerAccountId
+    const expectedOwnerPrefixed = 'ACCOUNT#' + callerAccountId;
+    return expectedOwnerPrefixed === ownerAccountId || callerAccountId === ownerAccountId;
 }
                 """
                 ),
@@ -3737,9 +3877,9 @@ export function request(ctx) {
     const ownerAccountId = ctx.source.ownerAccountId;
     const profileId = ctx.source.profileId;
     
-    // If caller is owner (ownerAccountId now uses ACCOUNT# prefix), no need to query
-    const expectedOwner = 'ACCOUNT#' + callerAccountId;
-    if (expectedOwner === ownerAccountId) {
+    // Check ownership - handle both prefixed (ACCOUNT#xxx) and clean (xxx) ownerAccountId
+    const expectedOwnerPrefixed = 'ACCOUNT#' + callerAccountId;
+    if (expectedOwnerPrefixed === ownerAccountId || callerAccountId === ownerAccountId) {
         ctx.stash.isOwner = true;
         // Return a no-op query
         return {
@@ -3749,11 +3889,12 @@ export function request(ctx) {
     }
     
     // Query for share record in profiles table
+    // recordType uses SHARE#ACCOUNT# prefix
     return {
         operation: 'GetItem',
         key: util.dynamodb.toMapValues({ 
             profileId: profileId, 
-            recordType: 'SHARE#' + callerAccountId 
+            recordType: 'SHARE#ACCOUNT#' + callerAccountId 
         }),
         consistentRead: true
     };
@@ -4559,9 +4700,9 @@ export function response(ctx) {
     "operation": "Query",
     "index": "isPublic-createdAt-index",
     "query": {
-        "expression": "isPublic = :isPublic",
+        "expression": "isPublicStr = :isPublicStr",
         "expressionValues": {
-            ":isPublic": $util.dynamodb.toDynamoDBJson("true")
+            ":isPublicStr": $util.dynamodb.toDynamoDBJson("true")
         }
     },
     "scanIndexForward": false
@@ -5054,6 +5195,32 @@ export function response(ctx) {
                 ),
             )
 
+            # Catalog.ownerAccountId - Strip ACCOUNT# prefix from stored value
+            # Returns clean account ID for API consumers
+            self.none_datasource.create_resolver(
+                "CatalogOwnerAccountIdResolver",
+                type_name="Catalog",
+                field_name="ownerAccountId",
+                runtime=appsync.FunctionRuntime.JS_1_0_0,
+                code=appsync.Code.from_inline(
+                    """
+export function request(ctx) {
+    return {};
+}
+
+export function response(ctx) {
+    const ownerAccountId = ctx.source.ownerAccountId;
+    if (!ownerAccountId) return null;
+    // Strip ACCOUNT# prefix if present
+    if (ownerAccountId.startsWith('ACCOUNT#')) {
+        return ownerAccountId.substring(8);
+    }
+    return ownerAccountId;
+}
+                """
+                ),
+            )
+
             # createCatalog - Create a new catalog (uses catalogs table)
             self.catalogs_datasource.create_resolver(
                 "CreateCatalogResolver",
@@ -5099,6 +5266,7 @@ export function response(ctx) {
         "catalogType": $util.dynamodb.toDynamoDBJson("USER_CREATED"),
         "ownerAccountId": $util.dynamodb.toDynamoDBJson("ACCOUNT#$ctx.identity.sub"),
         "isPublic": $util.dynamodb.toDynamoDBJson($isPublicStr),
+        "isPublicStr": $util.dynamodb.toDynamoDBJson($isPublicStr),
         "products": $util.dynamodb.toDynamoDBJson($productsWithIds),
         "createdAt": $util.dynamodb.toDynamoDBJson($now),
         "updatedAt": $util.dynamodb.toDynamoDBJson($now)
@@ -5150,6 +5318,7 @@ $util.toJson($ctx.result)
 #else
     #set($isPublicStr = "false")
 #end
+#set($ownerWithPrefix = "ACCOUNT#$ctx.identity.sub")
 {
     "version": "2017-02-28",
     "operation": "UpdateItem",
@@ -5157,18 +5326,19 @@ $util.toJson($ctx.result)
         "catalogId": $util.dynamodb.toDynamoDBJson($ctx.args.catalogId)
     },
     "update": {
-        "expression": "SET catalogName = :catalogName, isPublic = :isPublic, products = :products, updatedAt = :updatedAt",
+        "expression": "SET catalogName = :catalogName, isPublic = :isPublic, isPublicStr = :isPublicStr, products = :products, updatedAt = :updatedAt",
         "expressionValues": {
             ":catalogName": $util.dynamodb.toDynamoDBJson($ctx.args.input.catalogName),
             ":isPublic": $util.dynamodb.toDynamoDBJson($isPublicStr),
+            ":isPublicStr": $util.dynamodb.toDynamoDBJson($isPublicStr),
             ":products": $util.dynamodb.toDynamoDBJson($productsWithIds),
             ":updatedAt": $util.dynamodb.toDynamoDBJson($now)
         }
     },
     "condition": {
-        "expression": "attribute_exists(PK) AND ownerAccountId = :ownerId",
+        "expression": "attribute_exists(catalogId) AND ownerAccountId = :ownerId",
         "expressionValues": {
-            ":ownerId": $util.dynamodb.toDynamoDBJson($ctx.identity.sub)
+            ":ownerId": $util.dynamodb.toDynamoDBJson($ownerWithPrefix)
         }
     }
 }
@@ -5232,8 +5402,16 @@ export function response(ctx) {
     const callerId = ctx.stash.callerId;
     
     // Check admin status from JWT cognito:groups claim (source of truth)
-    const groups = ctx.identity.claims['cognito:groups'] || [];
-    const isAdmin = groups.includes('ADMIN');
+    // Handle both array and string format for groups
+    const groupsClaim = ctx.identity.claims['cognito:groups'];
+    let groups = [];
+    if (Array.isArray(groupsClaim)) {
+        groups = groupsClaim;
+    } else if (typeof groupsClaim === 'string') {
+        groups = [groupsClaim];
+    }
+    // Check for 'admin' (lowercase) - standard Cognito group name
+    const isAdmin = groups.includes('admin') || groups.includes('ADMIN');
     // ownerAccountId now has 'ACCOUNT#' prefix
     const isOwner = catalog.ownerAccountId === 'ACCOUNT#' + callerId;
     
@@ -5253,7 +5431,7 @@ export function response(ctx) {
                 ),
             )
 
-            # Step 3: Check if catalog is in use by any seasons - uses seasons table
+            # Step 3: Check if catalog is in use by any seasons - uses seasons table GSI
             check_catalog_usage_fn = appsync.AppsyncFunction(
                 self,
                 "CheckCatalogUsageFn",
@@ -5267,44 +5445,33 @@ import { util } from '@aws-appsync/utils';
 
 export function request(ctx) {
     const catalogId = ctx.args.catalogId;
-    console.log('CheckCatalogUsageFn request - catalogId:', catalogId);
-    // Scan seasons table to find seasons using this catalog
-    // Since catalogId is not indexed, we must use Scan with FilterExpression
-    const scanRequest = {
-        operation: 'Scan',
-        consistentRead: true,  // CRITICAL: Ensure we see recently created seasons
-        filter: {
+    // Use GSI query instead of Scan for efficiency and consistency
+    return {
+        operation: 'Query',
+        index: 'catalogId-index',
+        query: {
             expression: 'catalogId = :catalogId',
             expressionValues: util.dynamodb.toMapValues({
                 ':catalogId': catalogId
             })
         },
-        limit: 5  // Only need a few examples
+        limit: 5  // Only need a few to confirm usage
     };
-    console.log('Scan request:', JSON.stringify(scanRequest));
-    return scanRequest;
 }
 
 export function response(ctx) {
     if (ctx.error) {
-        console.error('CheckCatalogUsageFn error:', JSON.stringify(ctx.error));
         return util.error(ctx.error.message, ctx.error.type);
     }
     
-    console.log('CheckCatalogUsageFn response:', JSON.stringify(ctx.result));
-    
     const seasons = ctx.result.items || [];
-    console.log('Found seasons count:', seasons.length);
     
     if (seasons.length > 0) {
-        // Catalog is in use - return error with details
-        const seasonNames = seasons.map(s => s.seasonName || 'Unknown').slice(0, 3).join(', ');
-        const message = `Cannot delete catalog: ${seasons.length} season(s) are using it (e.g., ${seasonNames}). Please update or delete those seasons first.`;
-        console.error('Blocking deletion:', message);
+        // Catalog is in use - return error
+        const message = 'Cannot delete catalog: ' + seasons.length + ' season(s) are using it. Please update or delete those seasons first.';
         return util.error(message, 'CatalogInUse');
     }
     
-    console.log('Catalog not in use, proceeding with deletion');
     return ctx.prev.result;  // Pass through catalog from previous step
 }
                     """

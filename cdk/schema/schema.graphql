@@ -43,6 +43,7 @@ type Account {
   city: String
   state: String
   unitNumber: String
+  isAdmin: Boolean!
   # Note: isAdmin is determined from JWT cognito:groups claim, not stored in DynamoDB
   createdAt: AWSDateTime!
   updatedAt: AWSDateTime!
