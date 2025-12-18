@@ -37,6 +37,7 @@ import {
   Settings as SettingsIcon,
 } from "@mui/icons-material";
 import { OrdersPage } from "./OrdersPage";
+import { OrderEditorPage } from "./OrderEditorPage";
 import { ReportsPage } from "./ReportsPage";
 import { SeasonSettingsPage } from "./SeasonSettingsPage";
 import { GET_SEASON, GET_PROFILE } from "../lib/graphql";
@@ -221,6 +222,8 @@ export const SeasonLayout: React.FC = () => {
 
       {/* Tab Content */}
       <Routes>
+        <Route path="orders/new" element={<OrderEditorPage />} />
+        <Route path="orders/:orderId/edit" element={<OrderEditorPage />} />
         <Route path="orders" element={<OrdersPage />} />
         <Route path="reports" element={<ReportsPage />} />
         <Route path="settings" element={<SeasonSettingsPage />} />

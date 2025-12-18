@@ -60,7 +60,14 @@ export const CreateSeasonDialog: React.FC<CreateSeasonDialogProps> = ({
 
   const publicCatalogs = publicCatalogsData?.listPublicCatalogs || [];
   const myCatalogs = myCatalogsData?.listMyCatalogs || [];
-  const allCatalogs = [...publicCatalogs, ...myCatalogs];
+  
+  // Deduplicate by catalogId and separate into sections
+  // Catalogs that appear in both lists (user owns a public catalog) go to "My Catalogs"
+  const myIdSet = new Set(myCatalogs.map(c => c.catalogId));
+  const filteredPublicCatalogs = publicCatalogs.filter(
+    c => !myIdSet.has(c.catalogId)
+  );
+  
   const catalogsLoading = publicLoading || myLoading;
 
   // Set default start date to today
@@ -154,6 +161,15 @@ export const CreateSeasonDialog: React.FC<CreateSeasonDialogProps> = ({
               value={catalogId}
               onChange={(e) => setCatalogId(e.target.value)}
               label="Product Catalog"
+              MenuProps={{
+                slotProps: {
+                  paper: {
+                    sx: {
+                      maxHeight: 300,
+                    },
+                  },
+                },
+              }}
             >
               {catalogsLoading && (
                 <MenuItem disabled>
@@ -161,19 +177,39 @@ export const CreateSeasonDialog: React.FC<CreateSeasonDialogProps> = ({
                   Loading catalogs...
                 </MenuItem>
               )}
-              {!catalogsLoading && allCatalogs.length === 0 && (
+              {!catalogsLoading && myCatalogs.length === 0 && filteredPublicCatalogs.length === 0 && (
                 <MenuItem disabled>No catalogs available</MenuItem>
               )}
-              {allCatalogs.map((catalog) => (
-                <MenuItem key={catalog.catalogId} value={catalog.catalogId}>
-                  {catalog.catalogName}
-                  {catalog.catalogType === "ADMIN_MANAGED" && " (Official)"}
-                </MenuItem>
-              ))}
+              
+              {/* My Catalogs Section */}
+              {myCatalogs.length > 0 && [
+                <MenuItem key="my-header" disabled sx={{ fontWeight: 600, backgroundColor: "#f5f5f5", opacity: 1 }}>
+                  My Catalogs
+                </MenuItem>,
+                ...myCatalogs.map((catalog) => (
+                  <MenuItem key={catalog.catalogId} value={catalog.catalogId}>
+                    {catalog.catalogName}
+                    {catalog.catalogType === "ADMIN_MANAGED" && " (Official)"}
+                  </MenuItem>
+                ))
+              ]}
+              
+              {/* Public Catalogs Section */}
+              {filteredPublicCatalogs.length > 0 && [
+                <MenuItem key="public-header" disabled sx={{ fontWeight: 600, backgroundColor: "#f5f5f5", opacity: 1 }}>
+                  Public Catalogs
+                </MenuItem>,
+                ...filteredPublicCatalogs.map((catalog) => (
+                  <MenuItem key={catalog.catalogId} value={catalog.catalogId}>
+                    {catalog.catalogName}
+                    {catalog.catalogType === "ADMIN_MANAGED" && " (Official)"}
+                  </MenuItem>
+                ))
+              ]}
             </Select>
           </FormControl>
 
-          {allCatalogs.length === 0 && !catalogsLoading && (
+          {myCatalogs.length === 0 && filteredPublicCatalogs.length === 0 && !catalogsLoading && (
             <Alert severity="warning">
               No product catalogs are available. You'll need a catalog to create
               a season.
