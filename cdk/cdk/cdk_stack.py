@@ -666,6 +666,20 @@ class CdkStack(Stack):
             environment=lambda_env,
         )
 
+        self.unit_reporting_fn = lambda_.Function(
+            self,
+            "UnitReportingFnV2",
+            function_name=rn("kernelworx-unit-reporting"),
+            runtime=lambda_.Runtime.PYTHON_3_13,
+            handler="handlers.unit_reporting.get_unit_report",
+            code=lambda_code,
+            layers=[self.shared_layer],
+            timeout=Duration.seconds(60),  # May need time for large units
+            memory_size=512,  # More memory for aggregation
+            role=self.lambda_execution_role,
+            environment=lambda_env,
+        )
+
         # Account Operations Lambda Functions
         self.update_my_account_fn = lambda_.Function(
             self,
@@ -1173,6 +1187,11 @@ class CdkStack(Stack):
             self.request_season_report_ds = self.api.add_lambda_data_source(
                 "RequestSeasonReportDS",
                 lambda_function=self.request_season_report_fn,
+            )
+
+            self.unit_reporting_ds = self.api.add_lambda_data_source(
+                "UnitReportingDS",
+                lambda_function=self.unit_reporting_fn,
             )
 
             # Lambda data sources for account operations
@@ -5986,6 +6005,13 @@ export function response(ctx) {
                 "RequestSeasonReportResolver",
                 type_name="Mutation",
                 field_name="requestSeasonReport",
+            )
+
+            # getUnitReport - Generate unit-level sales report (Lambda resolver)
+            self.unit_reporting_ds.create_resolver(
+                "GetUnitReportResolver",
+                type_name="Query",
+                field_name="getUnitReport",
             )
 
             # updateMyAccount - Update user metadata in DynamoDB (Lambda resolver)

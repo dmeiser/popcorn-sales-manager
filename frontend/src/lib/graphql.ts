@@ -451,3 +451,42 @@ export const DELETE_PROFILE_INVITE = gql`
     deleteProfileInvite(profileId: $profileId, inviteCode: $inviteCode)
   }
 `;
+
+export const GET_UNIT_REPORT = gql`
+  query GetUnitReport(
+    $unitType: String!
+    $unitNumber: Int!
+    $seasonYear: Int!
+  ) {
+    getUnitReport(
+      unitType: $unitType
+      unitNumber: $unitNumber
+      seasonYear: $seasonYear
+    ) {
+      unitType
+      unitNumber
+      seasonYear
+      totalSales
+      totalOrders
+      sellers {
+        profileId
+        sellerName
+        totalSales
+        orderCount
+        orders {
+          orderId
+          customerName
+          orderDate
+          totalAmount
+          lineItems {
+            productId
+            productName
+            quantity
+            pricePerUnit
+            subtotal
+          }
+        }
+      }
+    }
+  }
+`;

@@ -144,6 +144,31 @@ type ProfileInvite {
   createdByAccountId: ID!
 }
 
+type UnitReport {
+  unitType: String!
+  unitNumber: Int!
+  seasonYear: Int!
+  sellers: [UnitSellerSummary!]!
+  totalSales: Float!
+  totalOrders: Int!
+}
+
+type UnitSellerSummary {
+  profileId: ID!
+  sellerName: String!
+  totalSales: Float!
+  orderCount: Int!
+  orders: [UnitOrderDetail!]!
+}
+
+type UnitOrderDetail {
+  orderId: ID!
+  customerName: String!
+  orderDate: AWSDateTime!
+  totalAmount: Float!
+  lineItems: [LineItem!]!
+}
+
 type SeasonReport {
   reportId: ID!
   seasonId: ID!
@@ -300,6 +325,9 @@ type Query {
   # Share queries
   listSharesByProfile(profileId: ID!): [Share!]!
   listInvitesByProfile(profileId: ID!): [ProfileInvite!]!
+  
+  # Unit reporting
+  getUnitReport(unitType: String!, unitNumber: Int!, seasonYear: Int!): UnitReport
 }
 
 # ============================================================================

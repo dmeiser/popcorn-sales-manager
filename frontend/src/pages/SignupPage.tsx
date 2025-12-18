@@ -32,9 +32,11 @@ import {
 } from "aws-amplify/auth";
 import { useMutation } from "@apollo/client/react";
 import { UPDATE_MY_ACCOUNT } from "../lib/graphql";
+import { useAuth } from "../contexts/AuthContext";
 
 export const SignupPage: React.FC = () => {
   const navigate = useNavigate();
+  const { refreshSession } = useAuth();
   const [updateMyAccount] = useMutation(UPDATE_MY_ACCOUNT);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -164,7 +166,14 @@ export const SignupPage: React.FC = () => {
           await autoSignIn();
 
           // Store optional fields if provided
-          if (givenName || familyName || city || state || unitType || unitNumber) {
+          if (
+            givenName ||
+            familyName ||
+            city ||
+            state ||
+            unitType ||
+            unitNumber
+          ) {
             try {
               const parsedUnitNumber = unitNumber.trim()
                 ? parseInt(unitNumber.trim(), 10)
@@ -188,7 +197,8 @@ export const SignupPage: React.FC = () => {
             }
           }
 
-          // Auto sign-in successful, redirect to profiles
+          // Auto sign-in successful, refresh auth context and redirect
+          await refreshSession();
           navigate("/profiles");
         } catch (autoSignInError) {
           // Auto sign-in API call failed, but user might still be authenticated
@@ -201,8 +211,9 @@ export const SignupPage: React.FC = () => {
           try {
             // Check if user is actually authenticated
             await fetchAuthSession();
-            // User is authenticated, proceed to profiles
+            // User is authenticated, refresh context and proceed to profiles
             console.log("User is authenticated despite autoSignIn failure");
+            await refreshSession();
             navigate("/profiles");
           } catch (sessionError) {
             // User is not authenticated, redirect to login

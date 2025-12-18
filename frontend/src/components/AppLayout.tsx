@@ -25,6 +25,7 @@ import InventoryIcon from "@mui/icons-material/Inventory";
 import AccountCircleIcon from "@mui/icons-material/AccountCircle";
 import LogoutIcon from "@mui/icons-material/Logout";
 import CardGiftcardIcon from "@mui/icons-material/CardGiftcard";
+import AssessmentIcon from "@mui/icons-material/Assessment";
 import { useAuth } from "../contexts/AuthContext";
 import { Toast } from "./Toast";
 import { Outlet } from "react-router-dom";
@@ -103,6 +104,15 @@ export const AppLayout: React.FC<{ children?: React.ReactNode }> = ({
             <InventoryIcon />
           </ListItemIcon>
           <ListItemText primary="Catalogs" />
+        </ListItemButton>
+        <ListItemButton
+          onClick={() => handleNavigation("/unit-reports")}
+          selected={isActive("/unit-reports")}
+        >
+          <ListItemIcon>
+            <AssessmentIcon />
+          </ListItemIcon>
+          <ListItemText primary="Unit Reports" />
         </ListItemButton>
         <ListItemButton
           onClick={() => handleNavigation("/settings")}

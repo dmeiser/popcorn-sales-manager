@@ -96,7 +96,7 @@ export const EditProfileDialog: React.FC<EditProfileDialogProps> = ({
     if (!loading) {
       setSellerName(currentName);
       setUnitType(currentUnitType);
-      setUnitNumber(currentUnitNumber);
+      setUnitNumber(currentUnitNumber ? String(currentUnitNumber) : "");
       onClose();
     }
   };

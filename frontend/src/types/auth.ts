@@ -9,6 +9,7 @@ export interface Account {
   familyName?: string;
   city?: string;
   state?: string;
+  unitType?: string;
   unitNumber?: string;
   isAdmin: boolean;
   createdAt: string;

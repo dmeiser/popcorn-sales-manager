@@ -38,6 +38,8 @@ import {
 interface Profile {
   profileId: string;
   sellerName: string;
+  unitType?: string;
+  unitNumber?: number;
   isOwner: boolean;
   permissions: string[];
 }
@@ -45,6 +47,8 @@ interface Profile {
 interface EditingProfile {
   profileId: string;
   sellerName: string;
+  unitType?: string;
+  unitNumber?: number;
 }
 
 export const ProfilesPage: React.FC = () => {

@@ -22,6 +22,7 @@ import { UserSettingsPage } from "./pages/UserSettingsPage";
 import { AcceptInvitePage } from "./pages/AcceptInvitePage";
 import { AdminPage } from "./pages/AdminPage";
 import { CatalogsPage } from "./pages/CatalogsPage";
+import { UnitReportsPage } from "./pages/UnitReportsPage";
 import { apolloClient } from "./lib/apollo";
 import { theme } from "./lib/theme";
 import { AppLayout } from "./components/AppLayout";
@@ -122,6 +123,17 @@ function App() {
                   <ProtectedRoute>
                     <AppLayout>
                       <CatalogsPage />
+                    </AppLayout>
+                  </ProtectedRoute>
+                }
+              />
+
+              <Route
+                path="/unit-reports"
+                element={
+                  <ProtectedRoute>
+                    <AppLayout>
+                      <UnitReportsPage />
                     </AppLayout>
                   </ProtectedRoute>
                 }
