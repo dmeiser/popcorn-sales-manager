@@ -2,8 +2,8 @@
  * OrdersPage - List and manage orders for a season
  */
 
-import React, { useState } from "react";
-import { useParams } from "react-router-dom";
+import React from "react";
+import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation } from "@apollo/client/react";
 import {
   Box,
@@ -27,7 +27,6 @@ import {
   Edit as EditIcon,
   Delete as DeleteIcon,
 } from "@mui/icons-material";
-import { OrderEditorDialog } from "../components/OrderEditorDialog";
 import { SeasonSummaryTiles } from "../components/SeasonSummaryTiles";
 import {
   LIST_ORDERS_BY_SEASON,
@@ -65,8 +64,7 @@ export const OrdersPage: React.FC = () => {
   const { profileId: encodedProfileId, seasonId: encodedSeasonId } = useParams<{ profileId: string; seasonId: string }>();
   const profileId = encodedProfileId ? decodeURIComponent(encodedProfileId) : "";
   const seasonId = encodedSeasonId ? decodeURIComponent(encodedSeasonId) : "";
-  const [editorOpen, setEditorOpen] = useState(false);
-  const [editingOrder, setEditingOrder] = useState<Order | null>(null);
+  const navigate = useNavigate();
 
   // Fetch profile (for permissions check)
   const { data: profileData } = useQuery<{ getProfile: any }>(GET_PROFILE, {
@@ -103,20 +101,12 @@ export const OrdersPage: React.FC = () => {
   const profile = profileData?.getProfile;
   const hasWritePermission = profile?.isOwner || profile?.permissions?.includes('WRITE');
 
-  console.log("[OrdersPage] seasonId:", seasonId);
-  console.log("[OrdersPage] getSeason:", seasonData?.getSeason);
-  console.log("[OrdersPage] catalog:", seasonData?.getSeason?.catalog);
-  console.log("[OrdersPage] products:", products);
-  console.log("[OrdersPage] products.length:", products.length);
-
   const handleCreateOrder = () => {
-    setEditingOrder(null);
-    setEditorOpen(true);
+    navigate(`/profiles/${encodeURIComponent(profileId)}/seasons/${encodeURIComponent(seasonId)}/orders/new`);
   };
 
-  const handleEditOrder = (order: Order) => {
-    setEditingOrder(order);
-    setEditorOpen(true);
+  const handleEditOrder = (orderId: string) => {
+    navigate(`/profiles/${encodeURIComponent(profileId)}/seasons/${encodeURIComponent(seasonId)}/orders/${encodeURIComponent(orderId)}/edit`);
   };
 
   const handleDeleteOrder = async (orderId: string) => {
@@ -264,7 +254,7 @@ export const OrdersPage: React.FC = () => {
                       <>
                         <IconButton
                           size="small"
-                          onClick={() => handleEditOrder(order)}
+                          onClick={() => handleEditOrder(order.orderId)}
                           color="primary"
                         >
                           <EditIcon fontSize="small" />
@@ -289,23 +279,6 @@ export const OrdersPage: React.FC = () => {
           No orders yet. Click "New Order" to add your first customer order!
         </Alert>
       )}
-
-      {/* Order Editor Dialog */}
-      <OrderEditorDialog
-        open={editorOpen}
-        onClose={() => {
-          setEditorOpen(false);
-          setEditingOrder(null);
-        }}
-        onComplete={() => {
-          refetchOrders();
-          setEditorOpen(false);
-          setEditingOrder(null);
-        }}
-        order={editingOrder}
-        seasonId={seasonId!}
-        products={products}
-      />
     </Box>
   );
 };
