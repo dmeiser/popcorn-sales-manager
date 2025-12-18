@@ -3145,6 +3145,11 @@ export function request(ctx) {
         ownerAccountId = ctx.stash.invite.ownerAccountId;
     }
     
+    // Validate that ownerAccountId was found
+    if (!ownerAccountId) {
+        util.error('Failed to determine profile owner', 'InternalServerError');
+    }
+    
     // Strip ACCOUNT# prefix if present - store clean ID
     if (targetAccountId && targetAccountId.startsWith('ACCOUNT#')) {
         targetAccountId = targetAccountId.substring(8);
@@ -3598,7 +3603,8 @@ export function response(ctx) {
     const profileKeys = [];
     const seenProfileIds = {};
     for (const share of shares) {
-        if (!seenProfileIds[share.profileId] && share.ownerAccountId) {
+        // Validate that share has required fields before adding
+        if (share.profileId && share.ownerAccountId && !seenProfileIds[share.profileId]) {
             seenProfileIds[share.profileId] = true;
             profileKeys.push({
                 profileId: share.profileId,
@@ -3645,8 +3651,28 @@ export function request(ctx) {{
     
     const keys = [];
     for (const pk of profileKeys) {{
-        // NEW STRUCTURE: PK=ownerAccountId, SK=profileId
-        keys.push(util.dynamodb.toMapValues({{ ownerAccountId: pk.ownerAccountId, profileId: pk.profileId }}));
+        // Strict validation: ensure both keys exist and are non-empty strings
+        const ownerId = pk.ownerAccountId;
+        const profId = pk.profileId;
+        
+        if (ownerId && profId && 
+            typeof ownerId === 'string' && typeof profId === 'string' &&
+            ownerId.length > 0 && profId.length > 0) {{
+            // NEW STRUCTURE: PK=ownerAccountId, SK=profileId
+            keys.push(util.dynamodb.toMapValues({{ ownerAccountId: ownerId, profileId: profId }}));
+        }}
+    }}
+    
+    // Check if we have any valid keys after filtering
+    if (keys.length === 0) {{
+        ctx.stash.skipBatchGet = true;
+        return {{
+            operation: 'Query',
+            query: {{
+                expression: 'ownerAccountId = :noop',
+                expressionValues: util.dynamodb.toMapValues({{ ':noop': 'NOOP' }})
+            }}
+        }};
     }}
     
     return {{
@@ -3663,7 +3689,10 @@ export function response(ctx) {{
     }}
     
     if (ctx.error) {{
-        util.error(ctx.error.message, ctx.error.type);
+        // Log the error but return empty results rather than failing the whole query
+        // This handles edge cases with malformed keys or timing issues
+        console.error('BatchGetItem error:', JSON.stringify(ctx.error));
+        return [];
     }}
     
     if (!ctx.result || !ctx.result.data) {{
@@ -4697,7 +4726,7 @@ export function response(ctx) {
                 type_name="Share",
                 field_name="targetAccount",
                 runtime=appsync.FunctionRuntime.JS_1_0_0,
-                data_source=self.profiles_datasource,
+                data_source=self.accounts_datasource,
                 code=appsync.Code.from_inline(
                     """
 import { util } from '@aws-appsync/utils';
@@ -4708,8 +4737,7 @@ export function request(ctx) {
     return {
         operation: 'GetItem',
         key: util.dynamodb.toMapValues({
-            PK: 'ACCOUNT#' + targetAccountId,
-            SK: 'METADATA'
+            accountId: 'ACCOUNT#' + targetAccountId
         })
     };
 }
@@ -5067,6 +5095,25 @@ export function request(ctx) {
     const input = ctx.args.input;
     const now = util.time.nowISO8601();
     
+    // Build update expression dynamically to include optional unit fields
+    const expressionParts = ['sellerName = :sellerName', 'updatedAt = :updatedAt'];
+    const expressionValues = {
+        ':sellerName': input.sellerName,
+        ':updatedAt': now
+    };
+    
+    // Add unitType if provided
+    if (input.unitType !== undefined && input.unitType !== null) {
+        expressionParts.push('unitType = :unitType');
+        expressionValues[':unitType'] = input.unitType;
+    }
+    
+    // Add unitNumber if provided
+    if (input.unitNumber !== undefined && input.unitNumber !== null) {
+        expressionParts.push('unitNumber = :unitNumber');
+        expressionValues[':unitNumber'] = input.unitNumber;
+    }
+    
     // NEW STRUCTURE: Update using ownerAccountId + profileId keys
     return {
         operation: 'UpdateItem',
@@ -5075,11 +5122,8 @@ export function request(ctx) {
             profileId: input.profileId 
         }),
         update: {
-            expression: 'SET sellerName = :sellerName, updatedAt = :updatedAt',
-            expressionValues: util.dynamodb.toMapValues({
-                ':sellerName': input.sellerName,
-                ':updatedAt': now
-            })
+            expression: 'SET ' + expressionParts.join(', '),
+            expressionValues: util.dynamodb.toMapValues(expressionValues)
         }
     };
 }
@@ -5949,6 +5993,51 @@ export function response(ctx) {
                 "UpdateMyAccountResolver",
                 type_name="Mutation",
                 field_name="updateMyAccount",
+            )
+
+            # updateMyPreferences - Update user preferences in DynamoDB
+            self.accounts_datasource.create_resolver(
+                "UpdateMyPreferencesResolver",
+                type_name="Mutation",
+                field_name="updateMyPreferences",
+                runtime=appsync.FunctionRuntime.JS_1_0_0,
+                code=appsync.Code.from_inline(
+                    """
+import { util } from '@aws-appsync/utils';
+
+export function request(ctx) {
+    const accountId = 'ACCOUNT#' + ctx.identity.sub;
+    const preferences = ctx.args.preferences;
+    const now = util.time.nowISO8601();
+    
+    // Use UpdateItem with attribute_exists condition to ensure account exists
+    return {
+        operation: 'UpdateItem',
+        key: util.dynamodb.toMapValues({ accountId: accountId }),
+        update: {
+            expression: 'SET preferences = :preferences, updatedAt = :updatedAt',
+            expressionValues: util.dynamodb.toMapValues({
+                ':preferences': preferences,
+                ':updatedAt': now
+            })
+        },
+        condition: {
+            expression: 'attribute_exists(accountId)'
+        }
+    };
+}
+
+export function response(ctx) {
+    if (ctx.error) {
+        if (ctx.error.type === 'DynamoDB:ConditionalCheckFailedException') {
+            util.error('Account not found. Please sign out and sign in again.', 'NotFound');
+        }
+        util.error(ctx.error.message, ctx.error.type);
+    }
+    return ctx.result;
+}
+                    """
+                ),
             )
 
             # Custom domain for AppSync API

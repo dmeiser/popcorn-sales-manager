@@ -64,7 +64,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       if (session.tokens?.idToken) {
         // User has valid tokens
         setHasValidTokens(true);
-        
+
         // Get user info and account data
         const user = await getCurrentUser();
         const accountData = await fetchAccountData(user.userId);
@@ -72,9 +72,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         if (accountData) {
           // Check admin status from JWT token claims, NOT from DynamoDB
           // The cognito:groups claim is the source of truth for permissions
-          const groups = (session.tokens.idToken.payload['cognito:groups'] as string[]) || [];
-          const isAdminFromToken = groups.includes('ADMIN');
-          
+          const groups =
+            (session.tokens.idToken.payload["cognito:groups"] as string[]) ||
+            [];
+          const isAdminFromToken = groups.includes("ADMIN");
+
           // Set account with admin status from JWT token
           setAccount({
             ...accountData,

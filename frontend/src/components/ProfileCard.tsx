@@ -36,6 +36,8 @@ interface Season {
 interface ProfileCardProps {
   profileId: string;
   sellerName: string;
+  unitType?: string;
+  unitNumber?: number;
   isOwner: boolean;
   permissions: string[];
 }
@@ -43,6 +45,8 @@ interface ProfileCardProps {
 export const ProfileCard: React.FC<ProfileCardProps> = ({
   profileId,
   sellerName,
+  unitType,
+  unitNumber,
   isOwner,
   permissions,
 }) => {
@@ -104,13 +108,20 @@ export const ProfileCard: React.FC<ProfileCardProps> = ({
             >
               {sellerName}
             </Typography>
+            {(unitType || unitNumber) && (
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                {unitType && unitNumber
+                  ? `${unitType} ${unitNumber}`
+                  : unitType || `Unit ${unitNumber}`}
+              </Typography>
+            )}
             <Stack direction="row" spacing={1} flexWrap="wrap" sx={{ mb: 2 }}>
               {isOwner && <Chip label="Owner" color="primary" size="small" />}
               {!isOwner && permissions.includes("WRITE") && (
                 <Chip label="Editor" color="secondary" size="small" />
               )}
               {!isOwner && !permissions.includes("WRITE") && (
-                <Chip label="Viewer" color="default" size="small" />
+                <Chip label="Read-only" color="default" size="small" />
               )}
             </Stack>
           </Box>

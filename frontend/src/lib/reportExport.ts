@@ -96,7 +96,7 @@ function prepareReportData(orders: Order[]) {
     // Product quantities (sum duplicates)
     const lineItemsByProduct: Record<string, number> = {};
     for (const item of order.lineItems) {
-      lineItemsByProduct[item.productName] = 
+      lineItemsByProduct[item.productName] =
         (lineItemsByProduct[item.productName] || 0) + item.quantity;
     }
 

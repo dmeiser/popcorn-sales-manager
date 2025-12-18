@@ -59,13 +59,18 @@ interface Order {
 }
 
 export const OrdersPage: React.FC = () => {
-  const { profileId: encodedProfileId, seasonId: encodedSeasonId } = useParams<{ profileId: string; seasonId: string }>();
-  const profileId = encodedProfileId ? decodeURIComponent(encodedProfileId) : "";
+  const { profileId: encodedProfileId, seasonId: encodedSeasonId } = useParams<{
+    profileId: string;
+    seasonId: string;
+  }>();
+  const profileId = encodedProfileId
+    ? decodeURIComponent(encodedProfileId)
+    : "";
   const seasonId = encodedSeasonId ? decodeURIComponent(encodedSeasonId) : "";
   const navigate = useNavigate();
   const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
-  
+  const isMobile = useMediaQuery(theme.breakpoints.down("md"));
+
   // Summary collapse state - collapsed on mobile by default, expanded on desktop
   const [summaryExpanded, setSummaryExpanded] = React.useState(!isMobile);
 
@@ -100,14 +105,19 @@ export const OrdersPage: React.FC = () => {
 
   const orders = ordersData?.listOrdersBySeason || [];
   const profile = profileData?.getProfile;
-  const hasWritePermission = profile?.isOwner || profile?.permissions?.includes('WRITE');
+  const hasWritePermission =
+    profile?.isOwner || profile?.permissions?.includes("WRITE");
 
   const handleCreateOrder = () => {
-    navigate(`/profiles/${encodeURIComponent(profileId)}/seasons/${encodeURIComponent(seasonId)}/orders/new`);
+    navigate(
+      `/profiles/${encodeURIComponent(profileId)}/seasons/${encodeURIComponent(seasonId)}/orders/new`,
+    );
   };
 
   const handleEditOrder = (orderId: string) => {
-    navigate(`/profiles/${encodeURIComponent(profileId)}/seasons/${encodeURIComponent(seasonId)}/orders/${encodeURIComponent(orderId)}/edit`);
+    navigate(
+      `/profiles/${encodeURIComponent(profileId)}/seasons/${encodeURIComponent(seasonId)}/orders/${encodeURIComponent(orderId)}/edit`,
+    );
   };
 
   const handleDeleteOrder = async (orderId: string) => {
@@ -195,9 +205,9 @@ export const OrdersPage: React.FC = () => {
 
       {/* Header */}
       <Stack
-        direction={{ xs: 'column', sm: 'row' }}
+        direction={{ xs: "column", sm: "row" }}
         justifyContent="space-between"
-        alignItems={{ xs: 'stretch', sm: 'center' }}
+        alignItems={{ xs: "stretch", sm: "center" }}
         spacing={2}
         mb={3}
       >
@@ -216,20 +226,24 @@ export const OrdersPage: React.FC = () => {
       {/* Orders Table */}
       {orders.length > 0 ? (
         <TableContainer component={Paper}>
-          <Table 
-            size="small" 
-            sx={{ 
-              '& .MuiTableCell-root': { 
+          <Table
+            size="small"
+            sx={{
+              "& .MuiTableCell-root": {
                 px: { xs: 1, sm: 2 },
-                py: { xs: 0.75, sm: 1.5 }
-              }
+                py: { xs: 0.75, sm: 1.5 },
+              },
             }}
           >
             <TableHead>
               <TableRow>
-                <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>Date</TableCell>
+                <TableCell sx={{ display: { xs: "none", sm: "table-cell" } }}>
+                  Date
+                </TableCell>
                 <TableCell>Customer</TableCell>
-                <TableCell sx={{ display: { xs: 'none', md: 'table-cell' } }}>Phone</TableCell>
+                <TableCell sx={{ display: { xs: "none", md: "table-cell" } }}>
+                  Phone
+                </TableCell>
                 <TableCell>Items</TableCell>
                 <TableCell>Payment</TableCell>
                 <TableCell align="right">Total</TableCell>
@@ -241,13 +255,15 @@ export const OrdersPage: React.FC = () => {
             <TableBody>
               {orders.map((order) => (
                 <TableRow key={order.orderId} hover>
-                  <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>{formatDate(order.orderDate)}</TableCell>
+                  <TableCell sx={{ display: { xs: "none", sm: "table-cell" } }}>
+                    {formatDate(order.orderDate)}
+                  </TableCell>
                   <TableCell>
                     <Typography variant="body2" fontWeight="medium">
                       {order.customerName}
                     </Typography>
                   </TableCell>
-                  <TableCell sx={{ display: { xs: 'none', md: 'table-cell' } }}>
+                  <TableCell sx={{ display: { xs: "none", md: "table-cell" } }}>
                     <Typography variant="body2" color="text.secondary">
                       {order.customerPhone
                         ? formatPhoneNumber(order.customerPhone)
@@ -276,7 +292,10 @@ export const OrdersPage: React.FC = () => {
                   </TableCell>
                   {hasWritePermission && (
                     <TableCell align="right">
-                      <Stack direction={{ xs: 'column', sm: 'row' }} spacing={0.5}>
+                      <Stack
+                        direction={{ xs: "column", sm: "row" }}
+                        spacing={0.5}
+                      >
                         <IconButton
                           size="small"
                           onClick={() => handleEditOrder(order.orderId)}

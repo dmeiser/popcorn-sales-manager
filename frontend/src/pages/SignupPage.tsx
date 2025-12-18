@@ -21,6 +21,7 @@ import {
   Link as MuiLink,
   Checkbox,
   FormControlLabel,
+  MenuItem,
 } from "@mui/material";
 import { useNavigate } from "react-router-dom";
 import {
@@ -42,6 +43,7 @@ export const SignupPage: React.FC = () => {
   const [familyName, setFamilyName] = useState("");
   const [city, setCity] = useState("");
   const [state, setState] = useState("");
+  const [unitType, setUnitType] = useState("");
   const [unitNumber, setUnitNumber] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -162,8 +164,11 @@ export const SignupPage: React.FC = () => {
           await autoSignIn();
 
           // Store optional fields if provided
-          if (givenName || familyName || city || state || unitNumber) {
+          if (givenName || familyName || city || state || unitType || unitNumber) {
             try {
+              const parsedUnitNumber = unitNumber.trim()
+                ? parseInt(unitNumber.trim(), 10)
+                : undefined;
               await updateMyAccount({
                 variables: {
                   input: {
@@ -171,7 +176,8 @@ export const SignupPage: React.FC = () => {
                     ...(familyName && { familyName }),
                     ...(city && { city }),
                     ...(state && { state }),
-                    ...(unitNumber && { unitNumber }),
+                    ...(unitType && { unitType }),
+                    ...(parsedUnitNumber && { unitNumber: parsedUnitNumber }),
                   },
                 },
               });
@@ -438,11 +444,36 @@ export const SignupPage: React.FC = () => {
 
           <TextField
             fullWidth
-            label="Unit/Pack/Troop Number"
+            select
+            label="Unit Type (Optional)"
+            value={unitType}
+            onChange={(e) => setUnitType(e.target.value)}
+            margin="normal"
+            helperText="Select the type of Scouting unit"
+          >
+            <MenuItem value="">None</MenuItem>
+            <MenuItem value="Pack">Pack (Cub Scouts)</MenuItem>
+            <MenuItem value="Troop">Troop (Scouts BSA)</MenuItem>
+            <MenuItem value="Crew">Crew (Venturing)</MenuItem>
+            <MenuItem value="Ship">Ship (Sea Scouts)</MenuItem>
+            <MenuItem value="Post">Post (Exploring)</MenuItem>
+            <MenuItem value="Club">Club (Exploring)</MenuItem>
+          </TextField>
+
+          <TextField
+            fullWidth
+            type="number"
+            label="Unit Number (Optional)"
             value={unitNumber}
             onChange={(e) => setUnitNumber(e.target.value)}
             margin="normal"
-            helperText="Optional (e.g., Pack 123, Troop 456)"
+            helperText="Optional (e.g., 123, 456)"
+            slotProps={{
+              htmlInput: {
+                min: 1,
+                step: 1,
+              },
+            }}
           />
 
           <TextField

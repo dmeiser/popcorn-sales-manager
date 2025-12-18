@@ -58,7 +58,9 @@ export const OrderEditorPage: React.FC = () => {
     seasonId: encodedSeasonId,
     orderId: encodedOrderId,
   } = useParams<{ profileId: string; seasonId: string; orderId?: string }>();
-  const profileId = encodedProfileId ? decodeURIComponent(encodedProfileId) : "";
+  const profileId = encodedProfileId
+    ? decodeURIComponent(encodedProfileId)
+    : "";
   const seasonId = encodedSeasonId ? decodeURIComponent(encodedSeasonId) : "";
   const orderId = encodedOrderId ? decodeURIComponent(encodedOrderId) : null;
   const navigate = useNavigate();
@@ -120,7 +122,7 @@ export const OrderEditorPage: React.FC = () => {
         order.lineItems.map((item: any) => ({
           productId: item.productId,
           quantity: item.quantity,
-        }))
+        })),
       );
     }
   }, [orderData]);
@@ -140,7 +142,7 @@ export const OrderEditorPage: React.FC = () => {
   const handleLineItemChange = (
     index: number,
     field: "productId" | "quantity",
-    value: string
+    value: string,
   ) => {
     const newItems = [...lineItems];
     if (field === "quantity") {
@@ -168,7 +170,7 @@ export const OrderEditorPage: React.FC = () => {
     }
 
     const validLineItems = lineItems.filter(
-      (item) => item.productId && item.quantity > 0
+      (item) => item.productId && item.quantity > 0,
     );
     if (validLineItems.length === 0) {
       setError("At least one product is required");
@@ -226,7 +228,7 @@ export const OrderEditorPage: React.FC = () => {
 
       // Navigate back to orders page
       navigate(
-        `/profiles/${encodeURIComponent(profileId)}/seasons/${encodeURIComponent(seasonId)}/orders`
+        `/profiles/${encodeURIComponent(profileId)}/seasons/${encodeURIComponent(seasonId)}/orders`,
       );
     } catch (err: any) {
       setError(err.message || "Failed to save order");
@@ -236,7 +238,7 @@ export const OrderEditorPage: React.FC = () => {
 
   const handleCancel = () => {
     navigate(
-      `/profiles/${encodeURIComponent(profileId)}/seasons/${encodeURIComponent(seasonId)}/orders`
+      `/profiles/${encodeURIComponent(profileId)}/seasons/${encodeURIComponent(seasonId)}/orders`,
     );
   };
 
@@ -274,7 +276,9 @@ export const OrderEditorPage: React.FC = () => {
   }
 
   if (!hasWritePermission) {
-    return <Alert severity="error">You don't have permission to edit orders</Alert>;
+    return (
+      <Alert severity="error">You don't have permission to edit orders</Alert>
+    );
   }
 
   return (
@@ -292,9 +296,7 @@ export const OrderEditorPage: React.FC = () => {
         <Link
           component="button"
           variant="body2"
-          onClick={() =>
-            navigate(`/profiles/${encodeURIComponent(profileId)}`)
-          }
+          onClick={() => navigate(`/profiles/${encodeURIComponent(profileId)}`)}
           sx={{ textDecoration: "none", cursor: "pointer" }}
         >
           Seasons
@@ -313,12 +315,7 @@ export const OrderEditorPage: React.FC = () => {
       </Breadcrumbs>
 
       {/* Header */}
-      <Stack
-        direction="row"
-        alignItems="center"
-        spacing={2}
-        mb={3}
-      >
+      <Stack direction="row" alignItems="center" spacing={2} mb={3}>
         <IconButton onClick={handleCancel} edge="start">
           <ArrowBackIcon />
         </IconButton>
@@ -422,7 +419,9 @@ export const OrderEditorPage: React.FC = () => {
           </TableHead>
           <TableBody>
             {lineItems.map((item, index) => {
-              const product = products.find((p) => p.productId === item.productId);
+              const product = products.find(
+                (p) => p.productId === item.productId,
+              );
               const subtotal = product ? product.price * item.quantity : 0;
               return (
                 <TableRow key={index}>

@@ -30,6 +30,7 @@ import {
   DialogContent,
   DialogActions,
   Chip,
+  MenuItem,
 } from "@mui/material";
 import {
   ArrowBack as BackIcon,
@@ -107,10 +108,12 @@ export const UserSettingsPage: React.FC = () => {
   );
 
   // Merge GraphQL account data with AuthContext account (which has isAdmin from JWT token)
-  const account = authAccount ? {
-    ...accountData?.getMyAccount,
-    isAdmin: authAccount.isAdmin, // Always use isAdmin from JWT token, not GraphQL
-  } : accountData?.getMyAccount;
+  const account = authAccount
+    ? {
+        ...accountData?.getMyAccount,
+        isAdmin: authAccount.isAdmin, // Always use isAdmin from JWT token, not GraphQL
+      }
+    : accountData?.getMyAccount;
 
   // Edit profile state
   const [editDialogOpen, setEditDialogOpen] = useState(false);
@@ -118,6 +121,7 @@ export const UserSettingsPage: React.FC = () => {
   const [familyName, setFamilyName] = useState("");
   const [city, setCity] = useState("");
   const [state, setState] = useState("");
+  const [unitType, setUnitType] = useState("");
   const [unitNumber, setUnitNumber] = useState("");
   const [updateSuccess, setUpdateSuccess] = useState(false);
   const [updateError, setUpdateError] = useState<string | null>(null);
@@ -401,7 +405,8 @@ export const UserSettingsPage: React.FC = () => {
     setFamilyName(account?.familyName || "");
     setCity(account?.city || "");
     setState(account?.state || "");
-    setUnitNumber(account?.unitNumber || "");
+    setUnitType(account?.unitType || "");
+    setUnitNumber(account?.unitNumber?.toString() || "");
     setEditDialogOpen(true);
   };
 
@@ -413,7 +418,8 @@ export const UserSettingsPage: React.FC = () => {
           familyName: familyName || null,
           city: city || null,
           state: state || null,
-          unitNumber: unitNumber || null,
+          unitType: unitType || null,
+          unitNumber: unitNumber ? parseInt(unitNumber, 10) : null,
         },
       },
     });
@@ -641,15 +647,15 @@ export const UserSettingsPage: React.FC = () => {
               <Divider component="li" />
             </>
           )}
-          {account?.unitNumber && (
+          {account?.unitType && account?.unitNumber && (
             <>
               <ListItem>
                 <ListItemIcon>
                   <PersonIcon color="primary" />
                 </ListItemIcon>
                 <ListItemText
-                  primary="Unit/Pack/Troop Number"
-                  secondary={account.unitNumber}
+                  primary="Scouting Unit"
+                  secondary={`${account.unitType} ${account.unitNumber}`}
                 />
               </ListItem>
               <Divider component="li" />
@@ -1131,11 +1137,29 @@ export const UserSettingsPage: React.FC = () => {
               inputProps={{ maxLength: 2 }}
             />
             <TextField
-              label="Unit/Pack/Troop Number"
+              select
+              label="Unit Type"
+              value={unitType}
+              onChange={(e) => setUnitType(e.target.value)}
+              fullWidth
+              helperText="Optional"
+            >
+              <MenuItem value="">None</MenuItem>
+              <MenuItem value="Pack">Pack (Cub Scouts)</MenuItem>
+              <MenuItem value="Troop">Troop (Scouts BSA)</MenuItem>
+              <MenuItem value="Crew">Crew (Venturing)</MenuItem>
+              <MenuItem value="Ship">Ship (Sea Scouts)</MenuItem>
+              <MenuItem value="Post">Post (Exploring)</MenuItem>
+              <MenuItem value="Club">Club (Exploring)</MenuItem>
+            </TextField>
+            <TextField
+              label="Unit Number"
+              type="number"
               value={unitNumber}
               onChange={(e) => setUnitNumber(e.target.value)}
               fullWidth
-              helperText="Optional (e.g., Pack 123, Troop 456)"
+              helperText="Optional"
+              inputProps={{ min: 1, step: 1 }}
             />
           </Stack>
         </DialogContent>

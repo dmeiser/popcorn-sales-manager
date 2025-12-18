@@ -21,7 +21,7 @@ import {
   useMediaQuery,
   useTheme,
 } from "@mui/material";
-import { 
+import {
   Download as DownloadIcon,
   ExpandMore as ExpandMoreIcon,
   ExpandLess as ExpandLessIcon,
@@ -63,8 +63,8 @@ export const ReportsPage: React.FC = () => {
   const { seasonId: encodedSeasonId } = useParams<{ seasonId: string }>();
   const seasonId = encodedSeasonId ? decodeURIComponent(encodedSeasonId) : "";
   const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
-  
+  const isMobile = useMediaQuery(theme.breakpoints.down("md"));
+
   // About Reports collapse state - collapsed on mobile by default, expanded on desktop
   const [aboutExpanded, setAboutExpanded] = React.useState(!isMobile);
 
@@ -118,15 +118,15 @@ export const ReportsPage: React.FC = () => {
   };
 
   return (
-    <Box sx={{ width: '100%' }}>
+    <Box sx={{ width: "100%" }}>
       <Typography variant="h5" gutterBottom>
         Reports & Exports
       </Typography>
 
       {/* Report Info - Always Visible */}
-      <Paper 
-        sx={{ 
-          p: { xs: 1, sm: 3 }, 
+      <Paper
+        sx={{
+          p: { xs: 1, sm: 3 },
           mb: 3,
         }}
       >
@@ -138,36 +138,37 @@ export const ReportsPage: React.FC = () => {
           sx={{
             m: 0,
             pl: { xs: 2.5, sm: 3 },
-            '& li': {
-              typography: 'body2',
+            "& li": {
+              typography: "body2",
               mb: 1,
-            }
+            },
           }}
         >
           <li>
-            <strong>Excel (XLSX):</strong> Formatted spreadsheet with product columns, suitable for further analysis and pivot tables.
+            <strong>Excel (XLSX):</strong> Formatted spreadsheet with product
+            columns, suitable for further analysis and pivot tables.
           </li>
           <li>
-            <strong>CSV:</strong> Plain text file, compatible with all spreadsheet programs and databases.
+            <strong>CSV:</strong> Plain text file, compatible with all
+            spreadsheet programs and databases.
           </li>
         </Box>
       </Paper>
 
       {/* Mobile Warning */}
       {isMobile && (
-        <Box 
-          mb={3} 
-          sx={{ 
-            p: { xs: 1, sm: 2 }, 
-            bgcolor: '#e3f2fd', 
+        <Box
+          mb={3}
+          sx={{
+            p: { xs: 1, sm: 2 },
+            bgcolor: "#e3f2fd",
             borderRadius: 1,
           }}
         >
-          <Typography 
-            variant="body2" 
-            sx={{ color: '#1976d2' }}
-          >
-            💡 <strong>Note:</strong> The order table below is designed for desktop viewing. For the best experience viewing and editing detailed order data, please use a larger screen.
+          <Typography variant="body2" sx={{ color: "#1976d2" }}>
+            💡 <strong>Note:</strong> The order table below is designed for
+            desktop viewing. For the best experience viewing and editing
+            detailed order data, please use a larger screen.
           </Typography>
         </Box>
       )}
@@ -183,134 +184,140 @@ export const ReportsPage: React.FC = () => {
           {aboutExpanded ? "Hide Order Table" : "Show Order Table"}
         </Button>
         {aboutExpanded && (
-          <Box sx={{ width: '100%', overflowX: 'auto' }}>
-          {/* Complete Order Table */}
-      <Paper sx={{ p: { xs: 1.5, sm: 3 }, mt: 3 }}>
-        <Stack
-          direction="row"
-          justifyContent="space-between"
-          alignItems="center"
-          mb={2}
-        >
-          <Typography variant="h6">All Orders</Typography>
-          {orders.length > 0 && (
-            <Stack direction="row" spacing={1}>
-              <Button
-                size="small"
-                startIcon={<DownloadIcon />}
-                onClick={() => downloadAsCSV(orders, seasonId)}
-                variant="outlined"
+          <Box sx={{ width: "100%", overflowX: "auto" }}>
+            {/* Complete Order Table */}
+            <Paper sx={{ p: { xs: 1.5, sm: 3 }, mt: 3 }}>
+              <Stack
+                direction="row"
+                justifyContent="space-between"
+                alignItems="center"
+                mb={2}
               >
-                CSV
-              </Button>
-              <Button
-                size="small"
-                startIcon={<DownloadIcon />}
-                onClick={() => downloadAsXLSX(orders, seasonId)}
-                variant="outlined"
-              >
-                XLSX
-              </Button>
-            </Stack>
-          )}
-        </Stack>
+                <Typography variant="h6">All Orders</Typography>
+                {orders.length > 0 && (
+                  <Stack direction="row" spacing={1}>
+                    <Button
+                      size="small"
+                      startIcon={<DownloadIcon />}
+                      onClick={() => downloadAsCSV(orders, seasonId)}
+                      variant="outlined"
+                    >
+                      CSV
+                    </Button>
+                    <Button
+                      size="small"
+                      startIcon={<DownloadIcon />}
+                      onClick={() => downloadAsXLSX(orders, seasonId)}
+                      variant="outlined"
+                    >
+                      XLSX
+                    </Button>
+                  </Stack>
+                )}
+              </Stack>
 
-        {ordersLoading ? (
-          <Box display="flex" justifyContent="center" py={4}>
-            <CircularProgress />
-          </Box>
-        ) : orders.length === 0 ? (
-          <Typography variant="body2" color="text.secondary">
-            No orders found for this season.
-          </Typography>
-        ) : (
-          (() => {
-            // Get all unique products
-            const allProducts = Array.from(
-              new Set(
-                orders.flatMap((order) =>
-                  order.lineItems.map((item) => item.productName),
-                ),
-              ),
-            ).sort();
+              {ordersLoading ? (
+                <Box display="flex" justifyContent="center" py={4}>
+                  <CircularProgress />
+                </Box>
+              ) : orders.length === 0 ? (
+                <Typography variant="body2" color="text.secondary">
+                  No orders found for this season.
+                </Typography>
+              ) : (
+                (() => {
+                  // Get all unique products
+                  const allProducts = Array.from(
+                    new Set(
+                      orders.flatMap((order) =>
+                        order.lineItems.map((item) => item.productName),
+                      ),
+                    ),
+                  ).sort();
 
-            return (
-              <TableContainer sx={{ overflowX: "auto" }}>
-                <Table size="small">
-                  <TableHead>
-                    <TableRow sx={{ bgcolor: "action.hover" }}>
-                      <TableCell>
-                        <strong>Name</strong>
-                      </TableCell>
-                      <TableCell>
-                        <strong>Phone</strong>
-                      </TableCell>
-                      <TableCell>
-                        <strong>Address</strong>
-                      </TableCell>
-                      {allProducts.map((product) => (
-                        <TableCell key={product} align="center">
-                          <strong>{product}</strong>
-                        </TableCell>
-                      ))}
-                      <TableCell align="right">
-                        <strong>Total</strong>
-                      </TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {orders.map((order) => (
-                      <TableRow key={order.orderId}>
-                        <TableCell>{order.customerName}</TableCell>
-                        <TableCell>
-                          {formatPhone(order.customerPhone)}
-                        </TableCell>
-                        <TableCell>
-                          {order.customerAddress ? (
-                            <Box sx={{ fontSize: "0.875rem" }}>
-                              {order.customerAddress.street && (
-                                <div>{order.customerAddress.street}</div>
-                              )}
-                              {(order.customerAddress.city ||
-                                order.customerAddress.state ||
-                                order.customerAddress.zipCode) && (
-                                <div>
-                                  {[
-                                    order.customerAddress.city,
-                                    order.customerAddress.state,
-                                    order.customerAddress.zipCode,
-                                  ]
-                                    .filter(Boolean)
-                                    .join(" ")}
-                                </div>
-                              )}
-                            </Box>
-                          ) : (
-                            "-"
-                          )}
-                        </TableCell>
-                        {allProducts.map((product) => {
-                          const totalQuantity = order.lineItems
-                            .filter((li) => li.productName === product)
-                            .reduce((sum, item) => sum + item.quantity, 0);
-                          return (
-                            <TableCell key={product} align="center">
-                              {totalQuantity > 0 ? totalQuantity : "-"}
+                  return (
+                    <TableContainer sx={{ overflowX: "auto" }}>
+                      <Table size="small">
+                        <TableHead>
+                          <TableRow sx={{ bgcolor: "action.hover" }}>
+                            <TableCell>
+                              <strong>Name</strong>
                             </TableCell>
-                          );
-                        })}
-                        <TableCell align="right" sx={{ fontWeight: "bold" }}>
-                          {formatCurrency(order.totalAmount)}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </TableContainer>
-            );
-          })()
-        )}
-      </Paper>
+                            <TableCell>
+                              <strong>Phone</strong>
+                            </TableCell>
+                            <TableCell>
+                              <strong>Address</strong>
+                            </TableCell>
+                            {allProducts.map((product) => (
+                              <TableCell key={product} align="center">
+                                <strong>{product}</strong>
+                              </TableCell>
+                            ))}
+                            <TableCell align="right">
+                              <strong>Total</strong>
+                            </TableCell>
+                          </TableRow>
+                        </TableHead>
+                        <TableBody>
+                          {orders.map((order) => (
+                            <TableRow key={order.orderId}>
+                              <TableCell>{order.customerName}</TableCell>
+                              <TableCell>
+                                {formatPhone(order.customerPhone)}
+                              </TableCell>
+                              <TableCell>
+                                {order.customerAddress ? (
+                                  <Box sx={{ fontSize: "0.875rem" }}>
+                                    {order.customerAddress.street && (
+                                      <div>{order.customerAddress.street}</div>
+                                    )}
+                                    {(order.customerAddress.city ||
+                                      order.customerAddress.state ||
+                                      order.customerAddress.zipCode) && (
+                                      <div>
+                                        {[
+                                          order.customerAddress.city,
+                                          order.customerAddress.state,
+                                          order.customerAddress.zipCode,
+                                        ]
+                                          .filter(Boolean)
+                                          .join(" ")}
+                                      </div>
+                                    )}
+                                  </Box>
+                                ) : (
+                                  "-"
+                                )}
+                              </TableCell>
+                              {allProducts.map((product) => {
+                                const totalQuantity = order.lineItems
+                                  .filter((li) => li.productName === product)
+                                  .reduce(
+                                    (sum, item) => sum + item.quantity,
+                                    0,
+                                  );
+                                return (
+                                  <TableCell key={product} align="center">
+                                    {totalQuantity > 0 ? totalQuantity : "-"}
+                                  </TableCell>
+                                );
+                              })}
+                              <TableCell
+                                align="right"
+                                sx={{ fontWeight: "bold" }}
+                              >
+                                {formatCurrency(order.totalAmount)}
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </TableContainer>
+                  );
+                })()
+              )}
+            </Paper>
           </Box>
         )}
       </Box>

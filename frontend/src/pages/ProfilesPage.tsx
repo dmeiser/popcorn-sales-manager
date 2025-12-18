@@ -2,7 +2,7 @@
  * Profiles page - List of owned and shared seller profiles
  */
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@apollo/client/react";
 import { useNavigate } from "react-router-dom";
 import {
@@ -18,6 +18,8 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
+  FormControlLabel,
+  Switch,
 } from "@mui/material";
 import { Add as AddIcon, CardGiftcard as GiftIcon } from "@mui/icons-material";
 import { ProfileCard } from "../components/ProfileCard";
@@ -29,6 +31,8 @@ import {
   CREATE_SELLER_PROFILE,
   UPDATE_SELLER_PROFILE,
   DELETE_SELLER_PROFILE,
+  GET_MY_ACCOUNT,
+  UPDATE_MY_PREFERENCES,
 } from "../lib/graphql";
 
 interface Profile {
@@ -53,6 +57,58 @@ export const ProfilesPage: React.FC = () => {
   const [deletingProfileId, setDeletingProfileId] = useState<string | null>(
     null,
   );
+
+  // Fetch account preferences
+  const { data: accountData, loading: accountLoading } = useQuery<{
+    getMyAccount: { accountId: string; preferences?: string };
+  }>(GET_MY_ACCOUNT);
+
+  // Parse preferences from account data
+  const preferences = React.useMemo(() => {
+    if (!accountData?.getMyAccount) {
+      return { showReadOnlyProfiles: true };
+    }
+    try {
+      const prefs = accountData.getMyAccount.preferences;
+      if (!prefs || prefs === "") {
+        return { showReadOnlyProfiles: true };
+      }
+      return JSON.parse(prefs);
+    } catch (error) {
+      console.warn("Failed to parse preferences:", error);
+      return { showReadOnlyProfiles: true };
+    }
+  }, [accountData]);
+
+  // Show read-only profiles preference
+  const [showReadOnlyProfiles, setShowReadOnlyProfiles] = useState(true);
+
+  // Update local state when preferences load
+  useEffect(() => {
+    setShowReadOnlyProfiles(preferences.showReadOnlyProfiles ?? true);
+  }, [preferences]);
+
+  // Update preferences mutation
+  const [updatePreferences] = useMutation(UPDATE_MY_PREFERENCES);
+
+  // Save preference to DynamoDB when it changes
+  const handleToggleReadOnly = async (checked: boolean) => {
+    setShowReadOnlyProfiles(checked);
+    try {
+      await updatePreferences({
+        variables: {
+          preferences: JSON.stringify({
+            ...preferences,
+            showReadOnlyProfiles: checked,
+          }),
+        },
+      });
+    } catch (error) {
+      console.error("Failed to update preferences:", error);
+      // Revert on error
+      setShowReadOnlyProfiles(!checked);
+    }
+  };
 
   // Fetch owned profiles
   const {
@@ -94,12 +150,23 @@ export const ProfilesPage: React.FC = () => {
     },
   });
 
-  const handleCreateProfile = async (sellerName: string) => {
-    await createProfile({ variables: { sellerName } });
+  const handleCreateProfile = async (
+    sellerName: string,
+    unitType?: string,
+    unitNumber?: number,
+  ) => {
+    await createProfile({ variables: { sellerName, unitType, unitNumber } });
   };
 
-  const handleUpdateProfile = async (profileId: string, sellerName: string) => {
-    await updateProfile({ variables: { profileId, sellerName } });
+  const handleUpdateProfile = async (
+    profileId: string,
+    sellerName: string,
+    unitType?: string,
+    unitNumber?: number,
+  ) => {
+    await updateProfile({
+      variables: { profileId, sellerName, unitType, unitNumber },
+    });
   };
 
   const handleDeleteProfile = async () => {
@@ -108,10 +175,13 @@ export const ProfilesPage: React.FC = () => {
   };
 
   const myProfiles: Profile[] = myProfilesData?.listMyProfiles || [];
-  const sharedProfiles: Profile[] =
+  const allSharedProfiles: Profile[] =
     sharedProfilesData?.listSharedProfiles || [];
+  const sharedProfiles = allSharedProfiles.filter(
+    (profile) => showReadOnlyProfiles || profile.permissions.includes("WRITE"),
+  );
 
-  const loading = myProfilesLoading || sharedProfilesLoading;
+  const loading = myProfilesLoading || sharedProfilesLoading || accountLoading;
   const error = myProfilesError || sharedProfilesError;
 
   if (loading && myProfiles.length === 0 && sharedProfiles.length === 0) {
@@ -136,9 +206,25 @@ export const ProfilesPage: React.FC = () => {
         alignItems="center"
         mb={3}
       >
-        <Typography variant="h4" component="h1">
-          My Seller Profiles
-        </Typography>
+        <Stack direction="row" alignItems="center" spacing={2}>
+          <Typography variant="h4" component="h1">
+            My Seller Profiles
+          </Typography>
+          <FormControlLabel
+            control={
+              <Switch
+                checked={showReadOnlyProfiles}
+                onChange={(e) => handleToggleReadOnly(e.target.checked)}
+                size="small"
+              />
+            }
+            label={
+              <Typography variant="body2" color="text.secondary">
+                Show read-only
+              </Typography>
+            }
+          />
+        </Stack>
         <Stack direction="row" spacing={2}>
           <Button
             variant="outlined"
@@ -175,6 +261,8 @@ export const ProfilesPage: React.FC = () => {
                 <ProfileCard
                   profileId={profile.profileId}
                   sellerName={profile.sellerName}
+                  unitType={profile.unitType}
+                  unitNumber={profile.unitNumber}
                   isOwner={profile.isOwner}
                   permissions={profile.permissions}
                 />
@@ -197,6 +285,8 @@ export const ProfilesPage: React.FC = () => {
                 <ProfileCard
                   profileId={profile.profileId}
                   sellerName={profile.sellerName}
+                  unitType={profile.unitType}
+                  unitNumber={profile.unitNumber}
                   isOwner={profile.isOwner}
                   permissions={profile.permissions}
                 />
@@ -226,6 +316,8 @@ export const ProfilesPage: React.FC = () => {
           open={true}
           profileId={editingProfile.profileId}
           currentName={editingProfile.sellerName}
+          currentUnitType={editingProfile.unitType}
+          currentUnitNumber={editingProfile.unitNumber}
           onClose={() => setEditingProfile(null)}
           onSubmit={handleUpdateProfile}
         />

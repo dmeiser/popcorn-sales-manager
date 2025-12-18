@@ -46,7 +46,10 @@ def create_seller_profile(event: Dict[str, Any], context: Any) -> Dict[str, Any]
     """
     try:
         # Extract parameters
-        seller_name = event["arguments"]["input"]["sellerName"]
+        input_data = event["arguments"]["input"]
+        seller_name = input_data["sellerName"]
+        unit_type = input_data.get("unitType")
+        unit_number = input_data.get("unitNumber")
         caller_account_id = event["identity"]["sub"]
 
         logger.info(
@@ -69,6 +72,12 @@ def create_seller_profile(event: Dict[str, Any], context: Any) -> Dict[str, Any]
             "updatedAt": now,
         }
 
+        # Add optional unit fields if provided
+        if unit_type:
+            profile_data["unitType"] = unit_type
+        if unit_number:
+            profile_data["unitNumber"] = unit_number
+
         # In multi-table design V2, profiles table uses:
         # - PK: ownerAccountId (ACCOUNT#sub) - enables listMyProfiles via PK query
         # - SK: profileId (PROFILE#uuid) - unique profile identifier
@@ -84,6 +93,8 @@ def create_seller_profile(event: Dict[str, Any], context: Any) -> Dict[str, Any]
                             "ownerAccountId": {"S": owner_account_id_stored},  # PK
                             "profileId": {"S": profile_id},  # SK
                             "sellerName": {"S": seller_name},
+                            **({"unitType": {"S": unit_type}} if unit_type else {}),
+                            **({"unitNumber": {"N": str(unit_number)}} if unit_number else {}),
                             "createdAt": {"S": now},
                             "updatedAt": {"S": now},
                         },

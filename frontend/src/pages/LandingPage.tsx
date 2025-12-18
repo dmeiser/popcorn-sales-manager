@@ -135,7 +135,7 @@ export const LandingPage: React.FC = () => {
                 </Typography>
                 <Typography variant="body1" color="text.secondary">
                   Share seller profiles with parents, den leaders, or unit
-                  volunteers. Set read-only or edit permissions.
+                  volunteers. Set read-only or write permissions.
                 </Typography>
               </Box>
 

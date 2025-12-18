@@ -42,7 +42,9 @@ type Account {
   familyName: String
   city: String
   state: String
-  unitNumber: String
+  unitType: String
+  unitNumber: Int
+  preferences: AWSJSON
   createdAt: AWSDateTime!
   updatedAt: AWSDateTime!
 }
@@ -51,6 +53,8 @@ type SellerProfile {
   profileId: ID!
   ownerAccountId: ID!
   sellerName: String!
+  unitType: String
+  unitNumber: Int
   createdAt: AWSDateTime!
   updatedAt: AWSDateTime!
   isOwner: Boolean!
@@ -156,11 +160,15 @@ type SeasonReport {
 
 input CreateSellerProfileInput {
   sellerName: String!
+  unitType: String
+  unitNumber: Int
 }
 
 input UpdateSellerProfileInput {
   profileId: ID!
   sellerName: String!
+  unitType: String
+  unitNumber: Int
 }
 
 input CreateSeasonInput {
@@ -253,7 +261,8 @@ input UpdateMyAccountInput {
   familyName: String
   city: String
   state: String
-  unitNumber: String
+  unitType: String
+  unitNumber: Int
 }
 
 input RequestSeasonReportInput {
@@ -300,6 +309,7 @@ type Query {
 type Mutation {
   # Account mutations
   updateMyAccount(input: UpdateMyAccountInput!): Account!
+  updateMyPreferences(preferences: AWSJSON!): Account!
   
   # Profile mutations
   createSellerProfile(input: CreateSellerProfileInput!): SellerProfile!

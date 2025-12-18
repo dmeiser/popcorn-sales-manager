@@ -35,7 +35,7 @@ def update_my_account(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     """
     Update the authenticated user's account metadata in DynamoDB.
 
-    Updates optional user attributes: givenName, familyName, city, state, unitNumber.
+    Updates optional user attributes: givenName, familyName, city, state, unitType, unitNumber.
     Email cannot be changed (stored in Cognito, immutable via this API).
 
     Args:
@@ -60,6 +60,7 @@ def update_my_account(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     family_name = input_data.get("familyName")
     city = input_data.get("city")
     state = input_data.get("state")
+    unit_type = input_data.get("unitType")
     unit_number = input_data.get("unitNumber")
 
     # Build DynamoDB update expression
@@ -87,6 +88,11 @@ def update_my_account(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         expression_attribute_names["#state"] = "state"
         expression_attribute_values[":state"] = state
 
+    if unit_type is not None:
+        update_expressions.append("#unitType = :unitType")
+        expression_attribute_names["#unitType"] = "unitType"
+        expression_attribute_values[":unitType"] = unit_type
+
     if unit_number is not None:
         update_expressions.append("#unitNumber = :unitNumber")
         expression_attribute_names["#unitNumber"] = "unitNumber"
@@ -101,7 +107,7 @@ def update_my_account(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     if len(update_expressions) == 1:  # Only updatedAt
         raise AppError(
             ErrorCode.INVALID_INPUT,
-            "At least one field must be provided (givenName, familyName, city, state, or unitNumber)",
+            "At least one field must be provided (givenName, familyName, city, state, unitType, or unitNumber)",
         )
 
     # Update DynamoDB account record (multi-table design: accountId is the only key)

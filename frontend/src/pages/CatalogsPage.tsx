@@ -124,7 +124,10 @@ export const CatalogsPage: React.FC = () => {
               }
             });
           } catch (error) {
-            console.error(`Failed to fetch seasons for profile ${profile.profileId}:`, error);
+            console.error(
+              `Failed to fetch seasons for profile ${profile.profileId}:`,
+              error,
+            );
           }
         }
       }
@@ -256,7 +259,9 @@ export const CatalogsPage: React.FC = () => {
               <TableCell>Type</TableCell>
               <TableCell>Products</TableCell>
               <TableCell>Created</TableCell>
-              {showActionsColumn && <TableCell align="right">Actions</TableCell>}
+              {showActionsColumn && (
+                <TableCell align="right">Actions</TableCell>
+              )}
             </TableRow>
           </TableHead>
           <TableBody>

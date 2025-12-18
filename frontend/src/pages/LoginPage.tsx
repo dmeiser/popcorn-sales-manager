@@ -65,17 +65,23 @@ export const LoginPage: React.FC = () => {
       if (result.isSignedIn) {
         // Login successful, navigate to destination
         navigate(from, { replace: true });
-      } else if (result.nextStep?.signInStep === "CONFIRM_SIGN_IN_WITH_TOTP_CODE") {
+      } else if (
+        result.nextStep?.signInStep === "CONFIRM_SIGN_IN_WITH_TOTP_CODE"
+      ) {
         // TOTP MFA required - show MFA form
         setShowMfa(true);
         setMfaCode("");
         setLoading(false);
-      } else if (result.nextStep?.signInStep === "CONFIRM_SIGN_IN_WITH_SMS_CODE") {
+      } else if (
+        result.nextStep?.signInStep === "CONFIRM_SIGN_IN_WITH_SMS_CODE"
+      ) {
         // SMS MFA required - show MFA form
         setShowMfa(true);
         setMfaCode("");
         setLoading(false);
-      } else if (result.nextStep?.signInStep === "CONFIRM_SIGN_IN_WITH_EMAIL_CODE") {
+      } else if (
+        result.nextStep?.signInStep === "CONFIRM_SIGN_IN_WITH_EMAIL_CODE"
+      ) {
         // Email MFA required - show MFA form
         setShowMfa(true);
         setMfaCode("");
@@ -83,7 +89,9 @@ export const LoginPage: React.FC = () => {
       } else if (result.nextStep) {
         // Other challenge types
         console.log("Unexpected next step:", result.nextStep);
-        setError(`Unexpected authentication step: ${result.nextStep.signInStep}`);
+        setError(
+          `Unexpected authentication step: ${result.nextStep.signInStep}`,
+        );
         setLoading(false);
       } else {
         // No nextStep and not signed in - unclear state

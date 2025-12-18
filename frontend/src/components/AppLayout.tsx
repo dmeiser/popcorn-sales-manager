@@ -305,7 +305,10 @@ export const AppLayout: React.FC<{ children?: React.ReactNode }> = ({
         }}
       >
         <Toolbar />
-        <Container maxWidth="lg" sx={{ py: { xs: 2, sm: 3, md: 4 }, px: { xs: 1, sm: 2, md: 3 } }}>
+        <Container
+          maxWidth="lg"
+          sx={{ py: { xs: 2, sm: 3, md: 4 }, px: { xs: 1, sm: 2, md: 3 } }}
+        >
           {children}
           <Outlet />
         </Container>

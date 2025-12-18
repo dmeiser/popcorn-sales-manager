@@ -107,7 +107,8 @@ export const SeasonLayout: React.FC = () => {
 
   const season = seasonData?.getSeason;
   const profile = profileData?.getProfile;
-  const hasWritePermission = profile && (profile.isOwner || profile.permissions?.includes('WRITE'));
+  const hasWritePermission =
+    profile && (profile.isOwner || profile.permissions?.includes("WRITE"));
   const loading = seasonLoading || profileLoading;
 
   const handleTabChange = (_event: React.SyntheticEvent, newValue: string) => {

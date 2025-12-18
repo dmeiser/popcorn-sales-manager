@@ -13,6 +13,8 @@ export const SELLER_PROFILE_FRAGMENT = gql`
     profileId
     ownerAccountId
     sellerName
+    unitType
+    unitNumber
     createdAt
     updatedAt
     isOwner
@@ -96,7 +98,9 @@ export const GET_MY_ACCOUNT = gql`
       familyName
       city
       state
+      unitType
       unitNumber
+      preferences
       createdAt
       updatedAt
     }
@@ -112,9 +116,19 @@ export const UPDATE_MY_ACCOUNT = gql`
       familyName
       city
       state
+      unitType
       unitNumber
       createdAt
       updatedAt
+    }
+  }
+`;
+
+export const UPDATE_MY_PREFERENCES = gql`
+  mutation UpdateMyPreferences($preferences: AWSJSON!) {
+    updateMyPreferences(preferences: $preferences) {
+      accountId
+      preferences
     }
   }
 `;
@@ -257,8 +271,18 @@ export const LIST_SHARES_BY_PROFILE = gql`
 
 export const CREATE_SELLER_PROFILE = gql`
   ${SELLER_PROFILE_FRAGMENT}
-  mutation CreateSellerProfile($sellerName: String!) {
-    createSellerProfile(input: { sellerName: $sellerName }) {
+  mutation CreateSellerProfile(
+    $sellerName: String!
+    $unitType: String
+    $unitNumber: Int
+  ) {
+    createSellerProfile(
+      input: {
+        sellerName: $sellerName
+        unitType: $unitType
+        unitNumber: $unitNumber
+      }
+    ) {
       ...SellerProfileFields
     }
   }
@@ -266,9 +290,19 @@ export const CREATE_SELLER_PROFILE = gql`
 
 export const UPDATE_SELLER_PROFILE = gql`
   ${SELLER_PROFILE_FRAGMENT}
-  mutation UpdateSellerProfile($profileId: ID!, $sellerName: String!) {
+  mutation UpdateSellerProfile(
+    $profileId: ID!
+    $sellerName: String!
+    $unitType: String
+    $unitNumber: Int
+  ) {
     updateSellerProfile(
-      input: { profileId: $profileId, sellerName: $sellerName }
+      input: {
+        profileId: $profileId
+        sellerName: $sellerName
+        unitType: $unitType
+        unitNumber: $unitNumber
+      }
     ) {
       ...SellerProfileFields
     }
