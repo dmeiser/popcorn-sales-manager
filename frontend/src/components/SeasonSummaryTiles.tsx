@@ -103,7 +103,7 @@ export const SeasonSummaryTiles: React.FC<SeasonSummaryTilesProps> = ({
   }
 
   return (
-    <Grid container spacing={3} mb={4}>
+    <Grid container spacing={{ xs: 2, sm: 3 }} mb={{ xs: 2, sm: 4 }}>
       <Grid size={{ xs: 12, sm: 6, md: 3 }}>
         <Paper sx={{ p: 3 }}>
           <Stack direction="row" spacing={2} alignItems="center">

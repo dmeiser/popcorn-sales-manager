@@ -95,25 +95,11 @@ export const theme = createTheme({
     },
   },
   components: {
-    MuiContainer: {
+    MuiCssBaseline: {
       styleOverrides: {
-        root: {
-          "@media (max-width: 600px)": {
-            paddingLeft: "12px",
-            paddingRight: "12px",
-          },
-        },
-      },
-    },
-    MuiPaper: {
-      styleOverrides: {
-        root: {
-          "@media (max-width: 600px)": {
-            // Reduce padding on mobile
-            "&.MuiPaper-root": {
-              // Use data attribute or class for conditional padding
-            },
-          },
+        body: {
+          minWidth: 0,
+          overflowX: 'auto',
         },
       },
     },

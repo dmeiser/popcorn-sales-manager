@@ -39,6 +39,11 @@ export default defineConfig({
         ? fs.readFileSync('.cert/cert-local.pem')
         : fs.readFileSync('.cert/cert.pem'),
     },
+    hmr: {
+      host: 'local.dev.appworx.app',
+      protocol: 'wss',
+      port: 5173,
+    },
   },
   test: {
     globals: true,

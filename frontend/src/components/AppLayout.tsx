@@ -141,7 +141,7 @@ export const AppLayout: React.FC<{ children?: React.ReactNode }> = ({
         position="fixed"
         sx={{ zIndex: (theme) => theme.zIndex.drawer + 1 }}
       >
-        <Container maxWidth="xl">
+        <Container maxWidth="lg">
           <Toolbar disableGutters>
             {!isDesktop && (
               <IconButton
@@ -299,12 +299,13 @@ export const AppLayout: React.FC<{ children?: React.ReactNode }> = ({
         component="main"
         sx={{
           flexGrow: 1,
+          width: 0,
           bgcolor: "background.default",
           minHeight: "100vh",
         }}
       >
         <Toolbar />
-        <Container maxWidth="lg" sx={{ py: { xs: 2, sm: 3, md: 4 }, px: { xs: 2, sm: 3 } }}>
+        <Container maxWidth="lg" sx={{ py: { xs: 2, sm: 3, md: 4 }, px: { xs: 1, sm: 2, md: 3 } }}>
           {children}
           <Outlet />
         </Container>

@@ -125,6 +125,7 @@ type Share {
   shareId: ID!
   profileId: ID!
   targetAccountId: ID!
+  targetAccount: Account
   permissions: [PermissionType!]!
   createdAt: AWSDateTime!
   createdByAccountId: ID!

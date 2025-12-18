@@ -18,8 +18,14 @@ import {
   TableContainer,
   TableHead,
   TableRow,
+  useMediaQuery,
+  useTheme,
 } from "@mui/material";
-import { Download as DownloadIcon } from "@mui/icons-material";
+import { 
+  Download as DownloadIcon,
+  ExpandMore as ExpandMoreIcon,
+  ExpandLess as ExpandLessIcon,
+} from "@mui/icons-material";
 import { REQUEST_SEASON_REPORT, LIST_ORDERS_BY_SEASON } from "../lib/graphql";
 import { downloadAsCSV, downloadAsXLSX } from "../lib/reportExport";
 
@@ -56,6 +62,17 @@ interface ReportResult {
 export const ReportsPage: React.FC = () => {
   const { seasonId: encodedSeasonId } = useParams<{ seasonId: string }>();
   const seasonId = encodedSeasonId ? decodeURIComponent(encodedSeasonId) : "";
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+  
+  // About Reports collapse state - collapsed on mobile by default, expanded on desktop
+  const [aboutExpanded, setAboutExpanded] = React.useState(!isMobile);
+
+  // Update when screen size changes
+  React.useEffect(() => {
+    setAboutExpanded(!isMobile);
+  }, [isMobile]);
+
   // Report format option (currently defaults to XLSX)
   const reportFormat: "CSV" | "XLSX" = "XLSX";
   void reportFormat; // Used for future report format selection
@@ -101,30 +118,74 @@ export const ReportsPage: React.FC = () => {
   };
 
   return (
-    <Box>
+    <Box sx={{ width: '100%' }}>
       <Typography variant="h5" gutterBottom>
         Reports & Exports
       </Typography>
 
-      {/* Report Info */}
-      <Paper sx={{ p: 3 }}>
+      {/* Report Info - Always Visible */}
+      <Paper 
+        sx={{ 
+          p: { xs: 1, sm: 3 }, 
+          mb: 3,
+        }}
+      >
         <Typography variant="h6" gutterBottom>
           About Reports
         </Typography>
-        <Stack spacing={1}>
-          <Typography variant="body2">
-            • <strong>Excel (XLSX):</strong> Formatted spreadsheet with product
-            columns, suitable for further analysis and pivot tables.
-          </Typography>
-          <Typography variant="body2">
-            • <strong>CSV:</strong> Plain text file, compatible with all
-            spreadsheet programs and databases.
-          </Typography>
-        </Stack>
+        <Box
+          component="ul"
+          sx={{
+            m: 0,
+            pl: { xs: 2.5, sm: 3 },
+            '& li': {
+              typography: 'body2',
+              mb: 1,
+            }
+          }}
+        >
+          <li>
+            <strong>Excel (XLSX):</strong> Formatted spreadsheet with product columns, suitable for further analysis and pivot tables.
+          </li>
+          <li>
+            <strong>CSV:</strong> Plain text file, compatible with all spreadsheet programs and databases.
+          </li>
+        </Box>
       </Paper>
 
-      {/* Complete Order Table */}
-      <Paper sx={{ p: 3, mt: 3 }}>
+      {/* Mobile Warning */}
+      {isMobile && (
+        <Box 
+          mb={3} 
+          sx={{ 
+            p: { xs: 1, sm: 2 }, 
+            bgcolor: '#e3f2fd', 
+            borderRadius: 1,
+          }}
+        >
+          <Typography 
+            variant="body2" 
+            sx={{ color: '#1976d2' }}
+          >
+            💡 <strong>Note:</strong> The order table below is designed for desktop viewing. For the best experience viewing and editing detailed order data, please use a larger screen.
+          </Typography>
+        </Box>
+      )}
+
+      {/* Complete Order Table - Collapsible */}
+      <Box mb={3}>
+        <Button
+          onClick={() => setAboutExpanded(!aboutExpanded)}
+          startIcon={aboutExpanded ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+          sx={{ mb: 1 }}
+          size="small"
+        >
+          {aboutExpanded ? "Hide Order Table" : "Show Order Table"}
+        </Button>
+        {aboutExpanded && (
+          <Box sx={{ width: '100%', overflowX: 'auto' }}>
+          {/* Complete Order Table */}
+      <Paper sx={{ p: { xs: 1.5, sm: 3 }, mt: 3 }}>
         <Stack
           direction="row"
           justifyContent="space-between"
@@ -250,6 +311,9 @@ export const ReportsPage: React.FC = () => {
           })()
         )}
       </Paper>
+          </Box>
+        )}
+      </Box>
     </Box>
   );
 };

@@ -239,6 +239,11 @@ export const LIST_SHARES_BY_PROFILE = gql`
       shareId
       profileId
       targetAccountId
+      targetAccount {
+        email
+        givenName
+        familyName
+      }
       permissions
       createdAt
       createdByAccountId

@@ -4691,6 +4691,40 @@ export function response(ctx) {
                 ),
             )
 
+            # Share.targetAccount field resolver - Fetch Account details for targetAccountId
+            self.api.create_resolver(
+                "ShareTargetAccountResolver",
+                type_name="Share",
+                field_name="targetAccount",
+                runtime=appsync.FunctionRuntime.JS_1_0_0,
+                data_source=self.profiles_datasource,
+                code=appsync.Code.from_inline(
+                    """
+import { util } from '@aws-appsync/utils';
+
+export function request(ctx) {
+    const targetAccountId = ctx.source.targetAccountId;
+    
+    return {
+        operation: 'GetItem',
+        key: util.dynamodb.toMapValues({
+            PK: 'ACCOUNT#' + targetAccountId,
+            SK: 'METADATA'
+        })
+    };
+}
+
+export function response(ctx) {
+    if (ctx.error) {
+        return null;  // Return null if account not found
+    }
+    
+    return ctx.result;
+}
+                    """
+                ),
+            )
+
             # listInvitesByProfile - FIXED Bug #29: Added owner-only authorization
             # Pipeline: VerifyProfileOwnerFn -> QueryInvitesFn - uses profiles table
             verify_profile_owner_fn = appsync.AppsyncFunction(

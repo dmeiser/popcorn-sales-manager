@@ -75,6 +75,11 @@ interface Share {
   shareId: string;
   profileId: string;
   targetAccountId: string;
+  targetAccount?: {
+    email: string;
+    givenName?: string;
+    familyName?: string;
+  };
   permissions: string[];
   createdAt: string;
   createdByAccountId: string;
@@ -474,14 +479,14 @@ export const SellerProfileManagementPage: React.FC = () => {
                   {shares.map((share) => (
                     <TableRow key={share.shareId}>
                       <TableCell>
-                        <Typography 
-                          variant="body2" 
-                          fontFamily="monospace"
-                          title={`Account ID: ${share.targetAccountId}`}
-                          sx={{ cursor: "help" }}
-                        >
-                          User {share.targetAccountId.substring(0, 8)}...
+                        <Typography variant="body2">
+                          {share.targetAccount?.email || `User ${share.targetAccountId.substring(0, 8)}...`}
                         </Typography>
+                        {share.targetAccount?.givenName && share.targetAccount?.familyName && (
+                          <Typography variant="caption" color="text.secondary" display="block">
+                            {share.targetAccount.givenName} {share.targetAccount.familyName}
+                          </Typography>
+                        )}
                       </TableCell>
                       <TableCell>
                         <Chip
