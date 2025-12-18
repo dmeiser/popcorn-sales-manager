@@ -15,7 +15,6 @@ import {
   Chip,
 } from "@mui/material";
 import {
-  CalendarToday as CalendarIcon,
   ShoppingCart as OrdersIcon,
   AttachMoney as SalesIcon,
 } from "@mui/icons-material";

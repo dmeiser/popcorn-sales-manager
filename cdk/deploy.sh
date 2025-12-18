@@ -1,42 +1,31 @@
 #!/bin/bash
 # Deployment script for Popcorn Sales Manager CDK stack
-# Uses .env file for configuration
+# Minimal configuration - most values are derived automatically
 
 set -e
 
 # Change to script directory
 cd "$(dirname "$0")"
 
-# Check if .env exists
-if [ ! -f .env ]; then
-    echo "❌ Error: .env file not found!"
-    echo "Please copy .env.example to .env and fill in your values:"
-    echo "  cp .env.example .env"
-    exit 1
+# Load environment variables from .env if it exists
+if [ -f .env ]; then
+    export $(grep -v '^#' .env | grep -v '^$' | xargs)
 fi
 
-# Load environment variables from .env
-export $(grep -v '^#' .env | xargs)
+# Environment defaults to 'dev' if not set
+ENVIRONMENT="${ENVIRONMENT:-dev}"
 
-# Check required variables
-if [ -z "$ENVIRONMENT" ]; then
-    echo "❌ Error: ENVIRONMENT not set in .env"
-    exit 1
-fi
-
-if [ -z "$BASE_DOMAIN" ]; then
-    echo "❌ Error: BASE_DOMAIN not set in .env"
-    exit 1
-fi
+# Region defaults to AWS_REGION env var or us-east-1
+AWS_REGION="${AWS_REGION:-us-east-1}"
+export AWS_REGION
 
 echo "🚀 Deploying Popcorn Sales Manager"
 echo "   Environment: $ENVIRONMENT"
-echo "   Domain: $BASE_DOMAIN"
+echo "   Region: $AWS_REGION"
 echo "   Account: ${AWS_ACCOUNT_ID:-<from AWS profile>}"
-echo "   Region: ${AWS_REGION:-us-east-1}"
 echo ""
 
-# Build context arguments for resource import
+# Build context arguments for resource import (optional, for migrations only)
 CONTEXT_ARGS=""
 if [ -n "$STATIC_BUCKET_NAME" ]; then
     CONTEXT_ARGS="$CONTEXT_ARGS -c static_bucket_name=$STATIC_BUCKET_NAME"
@@ -52,6 +41,13 @@ if [ -n "$USER_POOL_ID" ]; then
 fi
 if [ -n "$APPSYNC_API_ID" ]; then
     CONTEXT_ARGS="$CONTEXT_ARGS -c appsync_api_id=$APPSYNC_API_ID"
+fi
+
+# Support two-stage deployment for fresh installs
+# Phase 1: Skip Cognito custom domain (set CREATE_COGNITO_DOMAIN=false)
+# Phase 2: Add Cognito custom domain after DNS propagates (set CREATE_COGNITO_DOMAIN=true or unset)
+if [ -n "$CREATE_COGNITO_DOMAIN" ]; then
+    CONTEXT_ARGS="$CONTEXT_ARGS -c create_cognito_domain=$CREATE_COGNITO_DOMAIN"
 fi
 
 # Run deployment

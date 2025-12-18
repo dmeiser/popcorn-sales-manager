@@ -27,6 +27,15 @@ Essential knowledge for GitHub Copilot when working on this volunteer-run Scouti
 - ✅ ONLY use read-only AWS CLI commands (describe, list, get) for verification
 - ✅ ASK before running any AWS command that modifies infrastructure outside of CDK
 
+**NEVER modify .env files without explicit permission!**
+
+- ❌ NEVER modify `cdk/.env` or `frontend/.env` without explicit user authorization
+- ❌ NEVER add new environment variables to .env files without permission
+- ❌ NEVER change existing values in .env files
+- ✅ You MAY read .env.example files to understand configuration
+- ✅ You MAY suggest changes to .env files, but ALWAYS ask first
+- ✅ The .env files contain minimal configuration - most values are derived automatically
+
 ## 1. Project Architecture
 
 **Full-stack serverless application**:

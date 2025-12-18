@@ -19,6 +19,28 @@ from aws_cdk import aws_route53_targets as targets
 from aws_cdk import aws_s3 as s3
 from constructs import Construct
 
+# Region abbreviation mapping for resource naming
+# Pattern: {name}-{region_abbrev}-{env} e.g. kernelworx-ue1-dev
+REGION_ABBREVIATIONS = {
+    "us-east-1": "ue1",
+    "us-east-2": "ue2",
+    "us-west-1": "uw1",
+    "us-west-2": "uw2",
+    "eu-west-1": "ew1",
+    "eu-west-2": "ew2",
+    "eu-west-3": "ew3",
+    "eu-central-1": "ec1",
+    "eu-north-1": "en1",
+    "ap-northeast-1": "ane1",   # Tokyo
+    "ap-northeast-2": "ane2",   # Seoul
+    "ap-northeast-3": "ane3",   # Osaka
+    "ap-southeast-1": "ase1",   # Singapore
+    "ap-southeast-2": "ase2",   # Sydney
+    "ap-south-1": "as1",        # Mumbai
+    "sa-east-1": "se1",        # São Paulo
+    "ca-central-1": "cc1",     # Canada
+}
+
 
 class CdkStack(Stack):
     """
@@ -39,6 +61,18 @@ class CdkStack(Stack):
         super().__init__(scope, construct_id, **kwargs)
 
         self.env_name = env_name
+
+        # Get region abbreviation for resource naming
+        # Uses CDK_DEFAULT_REGION or falls back to us-east-1
+        region = os.getenv("AWS_REGION") or os.getenv("CDK_DEFAULT_REGION", "us-east-1")
+        self.region_abbrev = REGION_ABBREVIATIONS.get(region, region[:3])
+
+        # Helper for consistent resource naming: {name}-{region}-{env}
+        def rn(name: str) -> str:
+            """Generate resource name with region and environment suffix."""
+            return f"{name}-{self.region_abbrev}-{env_name}"
+
+        self.resource_name = rn  # Make available to instance methods
 
         # Load configuration from environment variables
         base_domain = os.getenv("BASE_DOMAIN", "kernelworx.app")
@@ -78,11 +112,17 @@ class CdkStack(Stack):
 
         # Separate ACM Certificate for Cognito custom domain
         # Must be in us-east-1 for Cognito
-        self.cognito_certificate = acm.Certificate(
+        # Using DnsValidatedCertificate because it actually WAITS for the certificate
+        # to be issued (ISSUED status) before allowing dependent resources to proceed.
+        # The standard Certificate construct with from_dns() only creates DNS records
+        # but doesn't wait for validation, which causes Cognito UserPoolDomain to fail
+        # with "Invalid request provided" because it requires a fully validated certificate.
+        self.cognito_certificate = acm.DnsValidatedCertificate(
             self,
             "CognitoCertificate",
             domain_name=self.cognito_domain,
-            validation=acm.CertificateValidation.from_dns(self.hosted_zone),
+            hosted_zone=self.hosted_zone,
+            region="us-east-1",  # Cognito custom domains require us-east-1
         )
 
         # ====================================================================
@@ -97,7 +137,7 @@ class CdkStack(Stack):
             self.table = dynamodb.Table(
                 self,
                 "PsmApp",
-                table_name=f"kernelworx-app-{env_name}",
+                table_name=rn("kernelworx-app"),
                 partition_key=dynamodb.Attribute(name="PK", type=dynamodb.AttributeType.STRING),
                 sort_key=dynamodb.Attribute(name="SK", type=dynamodb.AttributeType.STRING),
                 billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
@@ -203,7 +243,7 @@ class CdkStack(Stack):
         self.accounts_table = dynamodb.Table(
             self,
             "AccountsTable",
-            table_name=f"kernelworx-accounts-ue1-{env_name}",
+            table_name=rn("kernelworx-accounts"),
             partition_key=dynamodb.Attribute(name="accountId", type=dynamodb.AttributeType.STRING),
             billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
             point_in_time_recovery_specification=dynamodb.PointInTimeRecoverySpecification(
@@ -223,7 +263,7 @@ class CdkStack(Stack):
         self.catalogs_table = dynamodb.Table(
             self,
             "CatalogsTable",
-            table_name=f"kernelworx-catalogs-ue1-{env_name}",
+            table_name=rn("kernelworx-catalogs"),
             partition_key=dynamodb.Attribute(name="catalogId", type=dynamodb.AttributeType.STRING),
             billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
             point_in_time_recovery_specification=dynamodb.PointInTimeRecoverySpecification(
@@ -258,7 +298,7 @@ class CdkStack(Stack):
         self.profiles_table = dynamodb.Table(
             self,
             "ProfilesTableV2",
-            table_name=f"kernelworx-profiles-v2-ue1-{env_name}",
+            table_name=rn("kernelworx-profiles"),
             partition_key=dynamodb.Attribute(
                 name="ownerAccountId", type=dynamodb.AttributeType.STRING
             ),
@@ -283,7 +323,7 @@ class CdkStack(Stack):
         self.shares_table = dynamodb.Table(
             self,
             "SharesTable",
-            table_name=f"kernelworx-shares-ue1-{env_name}",
+            table_name=rn("kernelworx-shares"),
             partition_key=dynamodb.Attribute(name="profileId", type=dynamodb.AttributeType.STRING),
             sort_key=dynamodb.Attribute(name="targetAccountId", type=dynamodb.AttributeType.STRING),
             billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
@@ -308,7 +348,7 @@ class CdkStack(Stack):
         self.invites_table = dynamodb.Table(
             self,
             "InvitesTable",
-            table_name=f"kernelworx-invites-ue1-{env_name}",
+            table_name=rn("kernelworx-invites"),
             partition_key=dynamodb.Attribute(name="inviteCode", type=dynamodb.AttributeType.STRING),
             billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
             point_in_time_recovery_specification=dynamodb.PointInTimeRecoverySpecification(
@@ -339,7 +379,7 @@ class CdkStack(Stack):
         self.seasons_table = dynamodb.Table(
             self,
             "SeasonsTableV2",
-            table_name=f"kernelworx-seasons-v2-ue1-{env_name}",
+            table_name=rn("kernelworx-seasons"),
             partition_key=dynamodb.Attribute(name="profileId", type=dynamodb.AttributeType.STRING),
             sort_key=dynamodb.Attribute(name="seasonId", type=dynamodb.AttributeType.STRING),
             billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
@@ -369,7 +409,7 @@ class CdkStack(Stack):
         self.orders_table = dynamodb.Table(
             self,
             "OrdersTableV2",
-            table_name=f"kernelworx-orders-v2-ue1-{env_name}",
+            table_name=rn("kernelworx-orders"),
             partition_key=dynamodb.Attribute(name="seasonId", type=dynamodb.AttributeType.STRING),
             sort_key=dynamodb.Attribute(name="orderId", type=dynamodb.AttributeType.STRING),
             billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
@@ -409,7 +449,7 @@ class CdkStack(Stack):
             self.static_assets_bucket = s3.Bucket(
                 self,
                 "StaticAssets",
-                bucket_name=f"kernelworx-static-{env_name}",  # Deterministic name
+                bucket_name=rn("kernelworx-static"),
                 versioned=True,
                 encryption=s3.BucketEncryption.S3_MANAGED,
                 block_public_access=s3.BlockPublicAccess.BLOCK_ALL,
@@ -427,7 +467,7 @@ class CdkStack(Stack):
             self.exports_bucket = s3.Bucket(
                 self,
                 "Exports",
-                bucket_name=f"kernelworx-exports-{env_name}",  # Deterministic name
+                bucket_name=rn("kernelworx-exports"),
                 versioned=False,
                 encryption=s3.BucketEncryption.S3_MANAGED,
                 block_public_access=s3.BlockPublicAccess.BLOCK_ALL,
@@ -442,7 +482,7 @@ class CdkStack(Stack):
         self.lambda_execution_role = iam.Role(
             self,
             "LambdaExecutionRole",
-            role_name=f"kernelworx-lambda-execution-{env_name}",
+            role_name=rn("kernelworx-lambda-exec"),
             assumed_by=iam.ServicePrincipal("lambda.amazonaws.com"),
             managed_policies=[
                 iam.ManagedPolicy.from_aws_managed_policy_name(
@@ -495,7 +535,7 @@ class CdkStack(Stack):
         self.appsync_service_role = iam.Role(
             self,
             "AppSyncServiceRole",
-            role_name=f"kernelworx-appsync-{env_name}",
+            role_name=rn("kernelworx-appsync"),
             assumed_by=iam.ServicePrincipal("appsync.amazonaws.com"),
         )
 
@@ -570,7 +610,7 @@ class CdkStack(Stack):
         self.shared_layer = lambda_.LayerVersion(
             self,
             "SharedDependenciesLayer",
-            layer_version_name=f"kernelworx-shared-deps-{env_name}",
+            layer_version_name=rn("kernelworx-deps"),
             code=lambda_.Code.from_asset(lambda_layer_path),
             compatible_runtimes=[lambda_.Runtime.PYTHON_3_13],
             description="Shared Python dependencies for Lambda functions",
@@ -601,7 +641,7 @@ class CdkStack(Stack):
         self.create_profile_fn = lambda_.Function(
             self,
             "CreateProfileFnV2",
-            function_name=f"kernelworx-create-profile-{env_name}",
+            function_name=rn("kernelworx-create-profile"),
             runtime=lambda_.Runtime.PYTHON_3_13,
             handler="handlers.profile_operations.create_seller_profile",
             code=lambda_code,
@@ -615,7 +655,7 @@ class CdkStack(Stack):
         self.request_season_report_fn = lambda_.Function(
             self,
             "RequestSeasonReportFnV2",
-            function_name=f"kernelworx-request-report-{env_name}",
+            function_name=rn("kernelworx-request-report"),
             runtime=lambda_.Runtime.PYTHON_3_13,
             handler="handlers.report_generation.request_season_report",
             code=lambda_code,
@@ -630,7 +670,7 @@ class CdkStack(Stack):
         self.update_my_account_fn = lambda_.Function(
             self,
             "UpdateMyAccountFnV2",
-            function_name=f"kernelworx-update-account-{env_name}",
+            function_name=rn("kernelworx-update-account"),
             runtime=lambda_.Runtime.PYTHON_3_13,
             handler="handlers.account_operations.update_my_account",
             code=lambda_code,
@@ -645,7 +685,7 @@ class CdkStack(Stack):
         self.post_auth_fn = lambda_.Function(
             self,
             "PostAuthenticationFnV2",
-            function_name=f"kernelworx-post-auth-{env_name}",
+            function_name=rn("kernelworx-post-auth"),
             runtime=lambda_.Runtime.PYTHON_3_13,
             handler="handlers.post_authentication.lambda_handler",
             code=lambda_code,
@@ -723,7 +763,7 @@ class CdkStack(Stack):
             self.user_pool = cognito.UserPool(
                 self,
                 "UserPool",
-                user_pool_name=f"kernelworx-users-{env_name}",
+                user_pool_name=rn("kernelworx-users"),
                 sign_in_aliases=cognito.SignInAliases(email=True, username=False),
                 self_sign_up_enabled=True,
                 auto_verify=cognito.AutoVerifiedAttrs(email=True),
@@ -882,63 +922,36 @@ class CdkStack(Stack):
                 prevent_user_existence_errors=True,
             )
 
+            # Support two-stage deploys: some environments prefer creating the
+            # site distribution and DNS first, then creating the Cognito
+            # custom domain after DNS has propagated. Control this behaviour
+            # with the context key `create_cognito_domain` (default: True).
+            create_cognito_domain_ctx = self.node.try_get_context(
+                "create_cognito_domain"
+            )
+            # Handle string values from CLI (e.g., -c create_cognito_domain=false)
+            if create_cognito_domain_ctx is None:
+                create_cognito_domain = True
+            elif isinstance(create_cognito_domain_ctx, bool):
+                create_cognito_domain = create_cognito_domain_ctx
+            else:
+                create_cognito_domain = str(create_cognito_domain_ctx).lower() != "false"
+
             # Custom domain configuration (login.{env}.kernelworx.app or login.kernelworx.app)
-            self.user_pool_domain = self.user_pool.add_domain(
-                "UserPoolDomain",
-                custom_domain=cognito.CustomDomainOptions(
-                    domain_name=self.cognito_domain,
-                    certificate=self.cognito_certificate,
-                ),
-            )
-
-            # Set domain to use Managed Login (version 2) instead of Hosted UI (classic)
-            # This enables the branding deployed via deploy-cognito-branding.sh
-            cfn_domain = self.user_pool_domain.node.default_child
-            cfn_domain.add_property_override("ManagedLoginVersion", 2)
-
-            # Cognito Hosted UI Customization
-            # Note: CSS must be inline (no external files) and max 100KB
-            # Read logo from assets
-            logo_path = os.path.join(
-                os.path.dirname(__file__), "..", "assets", "cognito-logo-base64.txt"
-            )
-            try:
-                with open(logo_path, "r") as f:
-                    logo_base64 = f.read().strip()
-            except FileNotFoundError:
-                logo_base64 = None  # Deploy without logo if file not found
-
-            # AWS Cognito has a very restrictive whitelist of allowed CSS classes
-            # Only submit button appears to be reliably supported
-            # Other customization (logo, fonts, COPPA warning) must be done via:
-            # 1. Logo: AWS Console or CLI after deployment
-            # 2. Custom fonts: Not supported in basic tier
-            # 3. COPPA warning: Implement in app UI, not in Cognito
-            cognito_ui_css = """
-                .submitButton-customizable {
-                    background-color: #1976d2;
-                }
-            """
-
-            # Apply UI customization
-            ui_customization = cognito.CfnUserPoolUICustomizationAttachment(
-                self,
-                "UserPoolUICustomization",
-                user_pool_id=self.user_pool.user_pool_id,
-                client_id=self.user_pool_client.user_pool_client_id,
-                css=cognito_ui_css,
-            )
-
-            # Note: Logo (ImageFile) must be added via AWS Console or AWS CLI after deployment
-            # CDK L1 construct doesn't expose the ImageFile property correctly
-            # To add logo: aws cognito-idp set-ui-customization --user-pool-id <pool-id> --client-id <client-id> --image-file fileb://cognito-logo.png
-            if logo_base64:
-                CfnOutput(
-                    self,
-                    "CognitoLogoBase64",
-                    value=f"Logo file ready at cdk/assets/cognito-logo-base64.txt ({len(logo_base64)} chars)",
-                    description="Use AWS CLI to upload: aws cognito-idp set-ui-customization",
+            if create_cognito_domain:
+                self.user_pool_domain = self.user_pool.add_domain(
+                    "UserPoolDomain",
+                    custom_domain=cognito.CustomDomainOptions(
+                        domain_name=self.cognito_domain,
+                        certificate=self.cognito_certificate,
+                    ),
                 )
+
+                # Ensure the certificate is fully validated before creating the domain
+                self.user_pool_domain.node.add_dependency(self.cognito_certificate)
+
+            # NOTE: ManagedLoginVersion property removed temporarily - can be added back
+            # after initial deployment if needed for Managed Login v2 branding
 
         # ====================================================================
         # Cognito Custom Domain Configuration (for imported pools only)
@@ -953,8 +966,10 @@ class CdkStack(Stack):
 
         # Route53 record for Cognito custom domain
         # For imported pools, assume the record already exists
-        # For new pools, create the record with RETAIN policy
-        if not existing_user_pool_id:
+        # For new pools, create the record with RETAIN policy. Only create
+        # the record in deploys where we're also creating the Cognito domain
+        # (controlled by `create_cognito_domain` context flag).
+        if not existing_user_pool_id and create_cognito_domain:
             # Create new Route53 record for new pools
             self.cognito_domain_record = route53.ARecord(
                 self,
@@ -999,7 +1014,7 @@ class CdkStack(Stack):
             self.api = appsync.GraphqlApi(
                 self,
                 "Api",
-                name=f"kernelworx-api-{env_name}",
+                name=rn("kernelworx-api"),
                 definition=appsync.Definition.from_file(schema_path),
                 authorization_config=appsync.AuthorizationConfig(
                     default_authorization=appsync.AuthorizationMode(
@@ -5972,10 +5987,17 @@ export function response(ctx) {
         )
 
         # Route53 record for CloudFront distribution
-        route53.ARecord(
+        # This creates the A record for dev.kernelworx.app (or kernelworx.app in prod)
+        # which is required by Cognito as the parent domain for login.dev.kernelworx.app
+        self.site_domain_record = route53.ARecord(
             self,
             "SiteDomainRecord",
             zone=self.hosted_zone,
             record_name=self.site_domain,
             target=route53.RecordTarget.from_alias(targets.CloudFrontTarget(self.distribution)),
         )
+
+        # Add dependency: UserPoolDomain requires the parent domain A record to exist
+        # Cognito custom domain login.dev.kernelworx.app needs dev.kernelworx.app to resolve
+        if hasattr(self, "user_pool_domain") and hasattr(self.user_pool_domain, "node"):
+            self.user_pool_domain.node.add_dependency(self.site_domain_record)

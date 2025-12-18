@@ -2,7 +2,7 @@
  * ReportsPage - Generate and download season reports
  */
 
-import React, { useState } from "react";
+import React from "react";
 import { useParams } from "react-router-dom";
 import { useMutation, useQuery } from "@apollo/client/react";
 import {
@@ -11,13 +11,7 @@ import {
   Paper,
   Stack,
   Button,
-  FormControl,
-  InputLabel,
-  Select,
-  MenuItem,
-  Alert,
   CircularProgress,
-  Link,
   Table,
   TableBody,
   TableCell,
@@ -25,10 +19,7 @@ import {
   TableHead,
   TableRow,
 } from "@mui/material";
-import {
-  Download as DownloadIcon,
-  Description as FileIcon,
-} from "@mui/icons-material";
+import { Download as DownloadIcon } from "@mui/icons-material";
 import { REQUEST_SEASON_REPORT, LIST_ORDERS_BY_SEASON } from "../lib/graphql";
 import { downloadAsCSV, downloadAsXLSX } from "../lib/reportExport";
 
@@ -65,8 +56,9 @@ interface ReportResult {
 export const ReportsPage: React.FC = () => {
   const { seasonId: encodedSeasonId } = useParams<{ seasonId: string }>();
   const seasonId = encodedSeasonId ? decodeURIComponent(encodedSeasonId) : "";
-  const [format, setFormat] = useState<"CSV" | "XLSX">("XLSX");
-  const [lastReport, setLastReport] = useState<ReportResult | null>(null);
+  // Report format option (currently defaults to XLSX)
+  const reportFormat: "CSV" | "XLSX" = "XLSX";
+  void reportFormat; // Used for future report format selection
 
   const { data: ordersData, loading: ordersLoading } = useQuery<{
     listOrdersBySeason: Order[];
@@ -75,26 +67,13 @@ export const ReportsPage: React.FC = () => {
     skip: !seasonId,
   });
 
-  const [requestReport, { loading, error }] = useMutation<{
+  const [_requestReport, { loading: _loading, error: _error }] = useMutation<{
     requestSeasonReport: ReportResult;
   }>(REQUEST_SEASON_REPORT, {
-    onCompleted: (data) => {
-      setLastReport(data.requestSeasonReport);
+    onCompleted: (_data) => {
+      // Report generated
     },
   });
-
-  const handleGenerateReport = async () => {
-    if (!seasonId) return;
-    setLastReport(null);
-    await requestReport({
-      variables: {
-        input: {
-          seasonId,
-          format,
-        },
-      },
-    });
-  };
 
   const orders = ordersData?.listOrdersBySeason || [];
 

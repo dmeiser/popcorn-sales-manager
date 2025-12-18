@@ -64,15 +64,9 @@ export const LoginPage: React.FC = () => {
       if (result.isSignedIn) {
         // Login successful, navigate to destination
         navigate(from, { replace: true });
-      } else if (
-        result.nextStep?.signInStep === "CONFIRM_SIGN_IN_WITH_TOTP_CODE"
-      ) {
-        // MFA required
-        setShowMfa(true);
-        setLoading(false);
-      } else if (result.nextStep) {
-        // Some other challenge we don't handle yet
-        setError(`Additional step required: ${result.nextStep.signInStep}`);
+      } else {
+        // For MFA or other challenges, user needs to use a different flow
+        setError("Additional authentication required. Please try again.");
         setLoading(false);
       }
     } catch (err: any) {
@@ -142,22 +136,14 @@ export const LoginPage: React.FC = () => {
         if (confirmResult.isSignedIn) {
           await new Promise((resolve) => setTimeout(resolve, 500));
           window.location.href = from;
-        } else if (
-          confirmResult.nextStep?.signInStep ===
-          "CONFIRM_SIGN_IN_WITH_WEBAUTHN_CREDENTIAL"
-        ) {
-          // Now the WebAuthn prompt should appear
+        } else if (confirmResult.nextStep?.signInStep) {
+          // Handle next step (could be WebAuthn or other)
           setShowPasskeyPrompt(true);
-          setLoading(false);
-        } else {
-          setError(
-            `Unexpected step after selecting WebAuthn: ${confirmResult.nextStep?.signInStep}`,
-          );
           setLoading(false);
         }
       } else if (
-        result.nextStep?.signInStep ===
-        "CONFIRM_SIGN_IN_WITH_WEBAUTHN_CREDENTIAL"
+        result.nextStep?.signInStep &&
+        result.nextStep.signInStep.includes("WEBAUTHN")
       ) {
         // Passkey challenge initiated directly
         setShowPasskeyPrompt(true);

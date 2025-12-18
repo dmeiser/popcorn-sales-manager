@@ -25,7 +25,9 @@ export const AcceptInvitePage: React.FC = () => {
   const [successMessage, setSuccessMessage] = useState("");
   const [error, setError] = useState("");
 
-  const [redeemInvite, { loading }] = useMutation(REDEEM_PROFILE_INVITE, {
+  const [redeemInvite, { loading }] = useMutation<{
+    redeemProfileInvite: { permissions: string[] };
+  }>(REDEEM_PROFILE_INVITE, {
     onCompleted: (data) => {
       const share = data.redeemProfileInvite;
       setSuccessMessage(
