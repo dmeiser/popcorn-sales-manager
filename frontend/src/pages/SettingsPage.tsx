@@ -118,7 +118,7 @@ export const SettingsPage: React.FC = () => {
           <Typography variant="body2" color="text.secondary">
             <strong>Repository:</strong>{" "}
             <a
-              href="https://github.com/dmeiser/popcorn-sales-manager"
+              href="https://github.com/dmeiser/kernelworx"
               target="_blank"
               rel="noopener noreferrer"
             >

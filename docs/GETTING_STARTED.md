@@ -14,8 +14,8 @@
 
 ```bash
 # Clone the repository
-git clone https://github.com/dmeiser/popcorn-sales-manager.git
-cd popcorn-sales-manager
+git clone https://github.com/dmeiser/kernelworx.git
+cd kernelworx
 
 # Install Python dependencies (Lambda functions)
 uv sync

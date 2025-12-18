@@ -22,7 +22,7 @@
 
 ### Step 3: Repository & Project Initialization ✅ COMPLETE
 - [x] Initialize Git repository locally - main branch ✅
-- [x] Create GitHub repository ✅ - https://github.com/dmeiser/popcorn-sales-manager
+- [x] Create GitHub repository ✅ - https://github.com/dmeiser/kernelworx
 - [x] Create `.gitignore` for Node, Python, IaC secrets, CDK outputs ✅
 - [x] Decide: monorepo structure or separate repos for frontend/backend - monorepo ✅
 - [x] Add LICENSE file (MIT) ✅
