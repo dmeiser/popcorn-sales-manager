@@ -91,7 +91,12 @@ export const UnitReportsPage: React.FC = () => {
   const [reportView, setReportView] = useState<ReportView>("summary");
 
   // Get user's account to pre-populate their unit
-  const { data: accountData } = useQuery(GET_MY_ACCOUNT);
+  const { data: accountData } = useQuery<{
+    getMyAccount: {
+      unitType?: string;
+      unitNumber?: number;
+    };
+  }>(GET_MY_ACCOUNT);
 
   React.useEffect(() => {
     if (accountData?.getMyAccount) {
