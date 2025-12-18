@@ -443,7 +443,7 @@ export const UserSettingsPage: React.FC = () => {
       return;
     }
 
-    if (newEmail.toLowerCase() === account?.email.toLowerCase()) {
+    if (newEmail.toLowerCase() === account?.email?.toLowerCase()) {
       setEmailUpdateError("New email must be different from current email");
       return;
     }

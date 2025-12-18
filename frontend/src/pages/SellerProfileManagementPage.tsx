@@ -42,7 +42,6 @@ import {
   Delete as DeleteIcon,
   ContentCopy as CopyIcon,
   Add as AddIcon,
-  Close as CloseIcon,
 } from "@mui/icons-material";
 import {
   GET_PROFILE,
@@ -125,7 +124,7 @@ export const SellerProfileManagementPage: React.FC = () => {
   });
 
   // Fetch shares (accounts with access to this profile)
-  const { data: sharesData, refetch: refetchShares } = useQuery<{
+  const { data: sharesData } = useQuery<{
     listSharesByProfile: Share[];
   }>(LIST_SHARES_BY_PROFILE, {
     variables: { profileId },

@@ -146,18 +146,26 @@ def request_season_report(event: Dict[str, Any], context: Any) -> Dict[str, Any]
 
 
 def _get_season(table: Any, season_id: str) -> Dict[str, Any] | None:
-    """Get season by ID (multi-table design: direct get by primary key)."""
+    """Get season by ID (V2: Query seasonId-index GSI since PK=profileId, SK=seasonId)."""
     # Season ID format: SEASON#uuid
-    # Seasons are stored with seasonId as primary key
-    response = table.get_item(Key={"seasonId": season_id})
-    item: Dict[str, Any] | None = response.get("Item")
+    # V2: Seasons are stored with PK=profileId, SK=seasonId
+    # Use seasonId-index GSI for lookup by seasonId
+    response = table.query(
+        IndexName="seasonId-index",
+        KeyConditionExpression="seasonId = :seasonId",
+        ExpressionAttributeValues={":seasonId": season_id},
+        Limit=1,
+    )
+    items = response.get("Items", [])
+    item: Dict[str, Any] | None = items[0] if items else None
     return item
 
 
 def _get_season_orders(table: Any, season_id: str) -> list[Dict[str, Any]]:
-    """Get all orders for a season using seasonId GSI (multi-table design)."""
+    """Get all orders for a season (V2: Direct PK query since PK=seasonId)."""
+    # V2 schema: Orders table has PK=seasonId, SK=orderId
+    # No GSI needed - direct query on the partition key
     response = table.query(
-        IndexName="seasonId-index",
         KeyConditionExpression="seasonId = :season_id",
         ExpressionAttributeValues={
             ":season_id": season_id,

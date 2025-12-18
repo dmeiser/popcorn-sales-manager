@@ -128,7 +128,6 @@ def update_my_account(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             "givenName": updated_item.get("givenName"),
             "familyName": updated_item.get("familyName"),
             "phoneNumber": updated_item.get("phoneNumber"),
-            "isAdmin": updated_item.get("isAdmin", False),
             "createdAt": updated_item.get("createdAt"),
             "updatedAt": updated_item.get("updatedAt"),
         }

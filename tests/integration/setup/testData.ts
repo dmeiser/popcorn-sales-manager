@@ -4,19 +4,23 @@ import { DynamoDBClient, DeleteItemCommand, QueryCommand } from '@aws-sdk/client
 const dynamoClient = new DynamoDBClient({ region: 'us-east-1' });
 
 // Multi-table configuration for the new schema design
+// Profiles table V2 uses: PK=ownerAccountId, SK=profileId, GSI=profileId-index
+// Seasons table V2 uses: PK=profileId, SK=seasonId, GSI=seasonId-index
+// Orders table V2 uses: PK=seasonId, SK=orderId, GSI=orderId-index
+// Shares and Invites are now in separate dedicated tables
 export const TABLE_NAMES = {
-  profiles: process.env.PROFILES_TABLE_NAME || 'kernelworx-profiles-ue1-dev',
-  seasons: process.env.SEASONS_TABLE_NAME || 'kernelworx-seasons-ue1-dev',
-  orders: process.env.ORDERS_TABLE_NAME || 'kernelworx-orders-ue1-dev',
+  profiles: process.env.PROFILES_TABLE_NAME || 'kernelworx-profiles-v2-ue1-dev',
+  shares: process.env.SHARES_TABLE_NAME || 'kernelworx-shares-ue1-dev',
+  invites: process.env.INVITES_TABLE_NAME || 'kernelworx-invites-ue1-dev',
+  seasons: process.env.SEASONS_TABLE_NAME || 'kernelworx-seasons-v2-ue1-dev',
+  orders: process.env.ORDERS_TABLE_NAME || 'kernelworx-orders-v2-ue1-dev',
   catalogs: process.env.CATALOGS_TABLE_NAME || 'kernelworx-catalogs-ue1-dev',
   accounts: process.env.ACCOUNTS_TABLE_NAME || 'kernelworx-accounts-ue1-dev',
 };
 
-// Legacy single-table name (deprecated, kept for backward compatibility)
-const tableName = process.env.TABLE_NAME || 'kernelworx-app-dev';
-
 interface TestResource {
   profileId?: string;
+  ownerAccountId?: string; // Required for profile cleanup with new schema
   seasonId?: string;
   orderId?: string;
   shareAccountId?: string;
@@ -26,33 +30,37 @@ interface TestResource {
 /**
  * Clean up test data from DynamoDB.
  * Deletes resources in proper order to avoid orphaned data.
- * Uses the new multi-table schema design.
+ * Uses the new multi-table schema design with separate shares/invites tables.
+ * 
+ * NEW SCHEMA (V2):
+ * - Profiles: PK=ownerAccountId, SK=profileId
+ * - Seasons: PK=profileId, SK=seasonId (separate table with seasonId-index GSI)
+ * - Orders: PK=seasonId, SK=orderId (separate table with orderId-index GSI)
+ * - Shares: PK=profileId, SK=targetAccountId (separate table)
+ * - Invites: PK=inviteCode (separate table with profileId-index GSI)
  */
 export async function cleanupTestData(resources: TestResource): Promise<void> {
-  const { profileId, seasonId, orderId, shareAccountId, catalogIds } = resources;
+  const { profileId, ownerAccountId, seasonId, orderId, shareAccountId, catalogIds } = resources;
 
   try {
-    // Delete orders from orders table
+    // Delete orders from orders table V2 (query by orderId-index, delete with composite key)
     if (orderId) {
-      await deleteFromTable(TABLE_NAMES.orders, 'orderId', orderId);
+      await deleteOrderById(orderId);
     }
 
-    // Delete seasons from seasons table
+    // Delete seasons from seasons table V2 (query by seasonId-index, delete with composite key)
     if (seasonId) {
-      await deleteFromTable(TABLE_NAMES.seasons, 'seasonId', seasonId);
+      await deleteSeasonById(seasonId);
     }
 
-    // Delete shares from profiles table (recordType = SHARE#ACCOUNT#<accountId>)
+    // Delete shares from shares table (NEW: separate table)
     if (profileId && shareAccountId) {
-      const recordType = shareAccountId.startsWith('ACCOUNT#') 
-        ? `SHARE#${shareAccountId}` 
-        : `SHARE#ACCOUNT#${shareAccountId}`;
-      await deleteProfileRecord(profileId, recordType);
+      await deleteShare(profileId, shareAccountId);
     }
 
-    // Delete invites from profiles table (recordType = INVITE#xxx)
+    // Delete invites from invites table (NEW: separate table)
     if (profileId) {
-      await deleteInvites(profileId);
+      await deleteInvitesByProfile(profileId);
     }
 
     // Delete catalogs from catalogs table
@@ -62,9 +70,9 @@ export async function cleanupTestData(resources: TestResource): Promise<void> {
       }
     }
 
-    // Delete profile metadata from profiles table
-    if (profileId) {
-      await deleteProfileRecord(profileId, 'METADATA');
+    // Delete profile from profiles table (NEW: uses ownerAccountId/profileId keys)
+    if (profileId && ownerAccountId) {
+      await deleteProfile(ownerAccountId, profileId);
     }
   } catch (error) {
     console.error('Cleanup error:', error);
@@ -73,16 +81,38 @@ export async function cleanupTestData(resources: TestResource): Promise<void> {
 }
 
 /**
- * Delete all invites for a profile from the profiles table.
- * Invites have recordType = INVITE#<code>
+ * Delete a share from the shares table.
+ * Shares table: PK=profileId, SK=targetAccountId
  */
-async function deleteInvites(profileId: string): Promise<void> {
+async function deleteShare(profileId: string, targetAccountId: string): Promise<void> {
+  // Normalize targetAccountId to not have ACCOUNT# prefix (shares table stores raw account ID)
+  const normalizedAccountId = targetAccountId.startsWith('ACCOUNT#') 
+    ? targetAccountId 
+    : `ACCOUNT#${targetAccountId}`;
+  
+  const command = new DeleteItemCommand({
+    TableName: TABLE_NAMES.shares,
+    Key: {
+      profileId: { S: profileId },
+      targetAccountId: { S: normalizedAccountId },
+    },
+  });
+
+  await dynamoClient.send(command);
+}
+
+/**
+ * Delete all invites for a profile from the invites table.
+ * Invites table: PK=inviteCode, GSI=profileId-index
+ * Must query by profileId-index first, then delete each by inviteCode
+ */
+async function deleteInvitesByProfile(profileId: string): Promise<void> {
   const queryCommand = new QueryCommand({
-    TableName: TABLE_NAMES.profiles,
-    KeyConditionExpression: 'profileId = :pid AND begins_with(recordType, :rt)',
+    TableName: TABLE_NAMES.invites,
+    IndexName: 'profileId-index',
+    KeyConditionExpression: 'profileId = :pid',
     ExpressionAttributeValues: {
       ':pid': { S: profileId },
-      ':rt': { S: 'INVITE#' },
     },
   });
 
@@ -90,21 +120,28 @@ async function deleteInvites(profileId: string): Promise<void> {
   
   if (result.Items) {
     for (const item of result.Items) {
-      const recordType = item.recordType.S!;
-      await deleteProfileRecord(profileId, recordType);
+      const inviteCode = item.inviteCode.S!;
+      const deleteCommand = new DeleteItemCommand({
+        TableName: TABLE_NAMES.invites,
+        Key: {
+          inviteCode: { S: inviteCode },
+        },
+      });
+      await dynamoClient.send(deleteCommand);
     }
   }
 }
 
 /**
- * Delete a record from the profiles table.
+ * Delete a profile from the profiles table.
+ * Profiles table V2: PK=ownerAccountId, SK=profileId
  */
-async function deleteProfileRecord(profileId: string, recordType: string): Promise<void> {
+async function deleteProfile(ownerAccountId: string, profileId: string): Promise<void> {
   const command = new DeleteItemCommand({
     TableName: TABLE_NAMES.profiles,
     Key: {
+      ownerAccountId: { S: ownerAccountId },
       profileId: { S: profileId },
-      recordType: { S: recordType },
     },
   });
 
@@ -123,6 +160,68 @@ async function deleteFromTable(tableName: string, keyName: string, keyValue: str
   });
 
   await dynamoClient.send(command);
+}
+
+/**
+ * Delete an order from the orders table V2.
+ * Orders table V2: PK=seasonId, SK=orderId, GSI=orderId-index
+ * Must query by orderId-index first to get seasonId, then delete with composite key.
+ */
+async function deleteOrderById(orderId: string): Promise<void> {
+  // Query orderId-index to get the seasonId (needed for composite key)
+  const queryCommand = new QueryCommand({
+    TableName: TABLE_NAMES.orders,
+    IndexName: 'orderId-index',
+    KeyConditionExpression: 'orderId = :oid',
+    ExpressionAttributeValues: {
+      ':oid': { S: orderId },
+    },
+  });
+
+  const result = await dynamoClient.send(queryCommand);
+  
+  if (result.Items && result.Items.length > 0) {
+    const seasonId = result.Items[0].seasonId.S!;
+    const deleteCommand = new DeleteItemCommand({
+      TableName: TABLE_NAMES.orders,
+      Key: {
+        seasonId: { S: seasonId },
+        orderId: { S: orderId },
+      },
+    });
+    await dynamoClient.send(deleteCommand);
+  }
+}
+
+/**
+ * Delete a season from the seasons table V2.
+ * Seasons table V2: PK=profileId, SK=seasonId, GSI=seasonId-index
+ * Must query by seasonId-index first to get profileId, then delete with composite key.
+ */
+async function deleteSeasonById(seasonId: string): Promise<void> {
+  // Query seasonId-index to get the profileId (needed for composite key)
+  const queryCommand = new QueryCommand({
+    TableName: TABLE_NAMES.seasons,
+    IndexName: 'seasonId-index',
+    KeyConditionExpression: 'seasonId = :sid',
+    ExpressionAttributeValues: {
+      ':sid': { S: seasonId },
+    },
+  });
+
+  const result = await dynamoClient.send(queryCommand);
+  
+  if (result.Items && result.Items.length > 0) {
+    const profileId = result.Items[0].profileId.S!;
+    const deleteCommand = new DeleteItemCommand({
+      TableName: TABLE_NAMES.seasons,
+      Key: {
+        profileId: { S: profileId },
+        seasonId: { S: seasonId },
+      },
+    });
+    await dynamoClient.send(deleteCommand);
+  }
 }
 
 /**

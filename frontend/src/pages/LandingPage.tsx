@@ -196,7 +196,7 @@ export const LandingPage: React.FC = () => {
           </Box>
 
           {/* Footer */}
-          <Box textAlign="center" sx={{ pt: 4 }}>
+          <Box textAlign="center" sx={{ pt: 4, pb: 4 }}>
             <Typography variant="body2" color="text.secondary">
               Built with ❤️ for Scouting America volunteers
             </Typography>

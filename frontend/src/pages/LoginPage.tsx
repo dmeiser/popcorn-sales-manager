@@ -30,6 +30,7 @@ import {
 import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { confirmSignIn, signIn } from "aws-amplify/auth";
+import type { SignInOutput } from "aws-amplify/auth";
 
 export const LoginPage: React.FC = () => {
   const navigate = useNavigate();
@@ -59,20 +60,34 @@ export const LoginPage: React.FC = () => {
     setLoading(true);
 
     try {
-      const result = await loginWithPassword(email, password);
+      const result = (await loginWithPassword(email, password)) as SignInOutput;
 
       if (result.isSignedIn) {
         // Login successful, navigate to destination
         navigate(from, { replace: true });
-      } else if (
-        result.nextStep?.signInStep === "CONFIRM_SIGN_IN_WITH_TOTP_CODE"
-      ) {
-        // MFA required
+      } else if (result.nextStep?.signInStep === "CONFIRM_SIGN_IN_WITH_TOTP_CODE") {
+        // TOTP MFA required - show MFA form
         setShowMfa(true);
+        setMfaCode("");
+        setLoading(false);
+      } else if (result.nextStep?.signInStep === "CONFIRM_SIGN_IN_WITH_SMS_CODE") {
+        // SMS MFA required - show MFA form
+        setShowMfa(true);
+        setMfaCode("");
+        setLoading(false);
+      } else if (result.nextStep?.signInStep === "CONFIRM_SIGN_IN_WITH_EMAIL_CODE") {
+        // Email MFA required - show MFA form
+        setShowMfa(true);
+        setMfaCode("");
         setLoading(false);
       } else if (result.nextStep) {
-        // Some other challenge we don't handle yet
-        setError(`Additional step required: ${result.nextStep.signInStep}`);
+        // Other challenge types
+        console.log("Unexpected next step:", result.nextStep);
+        setError(`Unexpected authentication step: ${result.nextStep.signInStep}`);
+        setLoading(false);
+      } else {
+        // No nextStep and not signed in - unclear state
+        setError("Authentication failed. Please try again.");
         setLoading(false);
       }
     } catch (err: any) {
@@ -91,10 +106,15 @@ export const LoginPage: React.FC = () => {
       const result = await confirmSignIn({ challengeResponse: mfaCode });
 
       if (result.isSignedIn) {
-        // Wait a bit for auth state to propagate
-        await new Promise((resolve) => setTimeout(resolve, 500));
-        // Force a page reload to ensure auth state is fresh
-        window.location.href = from;
+        // MFA successful - refresh auth session to pick up new tokens
+        // Then navigate to destination. The AuthContext will detect the new session.
+        setShowMfa(false);
+        setMfaCode("");
+        setPassword("");
+        // Refresh auth session and trigger redirect via useEffect hook
+        setTimeout(() => {
+          navigate(from, { replace: true });
+        }, 500);
       } else {
         setError("MFA verification failed");
         setLoading(false);
@@ -142,22 +162,14 @@ export const LoginPage: React.FC = () => {
         if (confirmResult.isSignedIn) {
           await new Promise((resolve) => setTimeout(resolve, 500));
           window.location.href = from;
-        } else if (
-          confirmResult.nextStep?.signInStep ===
-          "CONFIRM_SIGN_IN_WITH_WEBAUTHN_CREDENTIAL"
-        ) {
-          // Now the WebAuthn prompt should appear
+        } else if (confirmResult.nextStep?.signInStep) {
+          // Handle next step (could be WebAuthn or other)
           setShowPasskeyPrompt(true);
-          setLoading(false);
-        } else {
-          setError(
-            `Unexpected step after selecting WebAuthn: ${confirmResult.nextStep?.signInStep}`,
-          );
           setLoading(false);
         }
       } else if (
-        result.nextStep?.signInStep ===
-        "CONFIRM_SIGN_IN_WITH_WEBAUTHN_CREDENTIAL"
+        result.nextStep?.signInStep &&
+        result.nextStep.signInStep.includes("WEBAUTHN")
       ) {
         // Passkey challenge initiated directly
         setShowPasskeyPrompt(true);
@@ -429,6 +441,7 @@ export const LoginPage: React.FC = () => {
               severity="warning"
               sx={{
                 mt: 3,
+                mb: 4,
                 backgroundColor: "#fff3e0",
                 borderLeft: "4px solid #f57c00",
                 "& .MuiAlert-icon": {

@@ -1,22 +1,45 @@
-from aws_cdk import (
-    Stack,
-    RemovalPolicy,
-    Duration,
-    aws_dynamodb as dynamodb,
-    aws_s3 as s3,
-    aws_iam as iam,
-    aws_cognito as cognito,
-    aws_appsync as appsync,
-    aws_lambda as lambda_,
-    aws_cloudfront as cloudfront,
-    aws_cloudfront_origins as origins,
-    aws_route53 as route53,
-    aws_route53_targets as targets,
-    aws_certificatemanager as acm,
-    CfnOutput,
-)
-from constructs import Construct
 import os
+
+from aws_cdk import (
+    CfnOutput,
+    Duration,
+    RemovalPolicy,
+    Stack,
+)
+from aws_cdk import aws_appsync as appsync
+from aws_cdk import aws_certificatemanager as acm
+from aws_cdk import aws_cloudfront as cloudfront
+from aws_cdk import aws_cloudfront_origins as origins
+from aws_cdk import aws_cognito as cognito
+from aws_cdk import aws_dynamodb as dynamodb
+from aws_cdk import aws_iam as iam
+from aws_cdk import aws_lambda as lambda_
+from aws_cdk import aws_route53 as route53
+from aws_cdk import aws_route53_targets as targets
+from aws_cdk import aws_s3 as s3
+from constructs import Construct
+
+# Region abbreviation mapping for resource naming
+# Pattern: {name}-{region_abbrev}-{env} e.g. kernelworx-ue1-dev
+REGION_ABBREVIATIONS = {
+    "us-east-1": "ue1",
+    "us-east-2": "ue2",
+    "us-west-1": "uw1",
+    "us-west-2": "uw2",
+    "eu-west-1": "ew1",
+    "eu-west-2": "ew2",
+    "eu-west-3": "ew3",
+    "eu-central-1": "ec1",
+    "eu-north-1": "en1",
+    "ap-northeast-1": "ane1",   # Tokyo
+    "ap-northeast-2": "ane2",   # Seoul
+    "ap-northeast-3": "ane3",   # Osaka
+    "ap-southeast-1": "ase1",   # Singapore
+    "ap-southeast-2": "ase2",   # Sydney
+    "ap-south-1": "as1",        # Mumbai
+    "sa-east-1": "se1",        # São Paulo
+    "ca-central-1": "cc1",     # Canada
+}
 
 
 class CdkStack(Stack):
@@ -38,6 +61,18 @@ class CdkStack(Stack):
         super().__init__(scope, construct_id, **kwargs)
 
         self.env_name = env_name
+
+        # Get region abbreviation for resource naming
+        # Uses CDK_DEFAULT_REGION or falls back to us-east-1
+        region = os.getenv("AWS_REGION") or os.getenv("CDK_DEFAULT_REGION", "us-east-1")
+        self.region_abbrev = REGION_ABBREVIATIONS.get(region, region[:3])
+
+        # Helper for consistent resource naming: {name}-{region}-{env}
+        def rn(name: str) -> str:
+            """Generate resource name with region and environment suffix."""
+            return f"{name}-{self.region_abbrev}-{env_name}"
+
+        self.resource_name = rn  # Make available to instance methods
 
         # Load configuration from environment variables
         base_domain = os.getenv("BASE_DOMAIN", "kernelworx.app")
@@ -77,11 +112,17 @@ class CdkStack(Stack):
 
         # Separate ACM Certificate for Cognito custom domain
         # Must be in us-east-1 for Cognito
-        self.cognito_certificate = acm.Certificate(
+        # Using DnsValidatedCertificate because it actually WAITS for the certificate
+        # to be issued (ISSUED status) before allowing dependent resources to proceed.
+        # The standard Certificate construct with from_dns() only creates DNS records
+        # but doesn't wait for validation, which causes Cognito UserPoolDomain to fail
+        # with "Invalid request provided" because it requires a fully validated certificate.
+        self.cognito_certificate = acm.DnsValidatedCertificate(
             self,
             "CognitoCertificate",
             domain_name=self.cognito_domain,
-            validation=acm.CertificateValidation.from_dns(self.hosted_zone),
+            hosted_zone=self.hosted_zone,
+            region="us-east-1",  # Cognito custom domains require us-east-1
         )
 
         # ====================================================================
@@ -96,7 +137,7 @@ class CdkStack(Stack):
             self.table = dynamodb.Table(
                 self,
                 "PsmApp",
-                table_name=f"kernelworx-app-{env_name}",
+                table_name=rn("kernelworx-app"),
                 partition_key=dynamodb.Attribute(name="PK", type=dynamodb.AttributeType.STRING),
                 sort_key=dynamodb.Attribute(name="SK", type=dynamodb.AttributeType.STRING),
                 billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
@@ -171,9 +212,7 @@ class CdkStack(Stack):
             # GSI8: Account lookup by email (for share-direct pipeline resolver)
             self.table.add_global_secondary_index(
                 index_name="GSI8",
-                partition_key=dynamodb.Attribute(
-                    name="email", type=dynamodb.AttributeType.STRING
-                ),
+                partition_key=dynamodb.Attribute(name="email", type=dynamodb.AttributeType.STRING),
                 projection_type=dynamodb.ProjectionType.ALL,
             )
 
@@ -204,10 +243,8 @@ class CdkStack(Stack):
         self.accounts_table = dynamodb.Table(
             self,
             "AccountsTable",
-            table_name=f"kernelworx-accounts-ue1-{env_name}",
-            partition_key=dynamodb.Attribute(
-                name="accountId", type=dynamodb.AttributeType.STRING
-            ),
+            table_name=rn("kernelworx-accounts"),
+            partition_key=dynamodb.Attribute(name="accountId", type=dynamodb.AttributeType.STRING),
             billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
             point_in_time_recovery_specification=dynamodb.PointInTimeRecoverySpecification(
                 point_in_time_recovery_enabled=True
@@ -218,9 +255,7 @@ class CdkStack(Stack):
         # GSI for email lookup (account by email)
         self.accounts_table.add_global_secondary_index(
             index_name="email-index",
-            partition_key=dynamodb.Attribute(
-                name="email", type=dynamodb.AttributeType.STRING
-            ),
+            partition_key=dynamodb.Attribute(name="email", type=dynamodb.AttributeType.STRING),
             projection_type=dynamodb.ProjectionType.ALL,
         )
 
@@ -228,10 +263,8 @@ class CdkStack(Stack):
         self.catalogs_table = dynamodb.Table(
             self,
             "CatalogsTable",
-            table_name=f"kernelworx-catalogs-ue1-{env_name}",
-            partition_key=dynamodb.Attribute(
-                name="catalogId", type=dynamodb.AttributeType.STRING
-            ),
+            table_name=rn("kernelworx-catalogs"),
+            partition_key=dynamodb.Attribute(name="catalogId", type=dynamodb.AttributeType.STRING),
             billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
             point_in_time_recovery_specification=dynamodb.PointInTimeRecoverySpecification(
                 point_in_time_recovery_enabled=True
@@ -254,23 +287,22 @@ class CdkStack(Stack):
             partition_key=dynamodb.Attribute(
                 name="isPublicStr", type=dynamodb.AttributeType.STRING
             ),
-            sort_key=dynamodb.Attribute(
-                name="createdAt", type=dynamodb.AttributeType.STRING
-            ),
+            sort_key=dynamodb.Attribute(name="createdAt", type=dynamodb.AttributeType.STRING),
             projection_type=dynamodb.ProjectionType.ALL,
         )
 
-        # Profiles Table (includes shares, invites, ownership records)
+        # Profiles Table - stores profile METADATA only
+        # NEW STRUCTURE (V2): PK=ownerAccountId, SK=profileId
+        # This enables direct query for listMyProfiles (no GSI needed)
+        # Shares and invites are in separate tables now
         self.profiles_table = dynamodb.Table(
             self,
-            "ProfilesTable",
-            table_name=f"kernelworx-profiles-ue1-{env_name}",
+            "ProfilesTableV2",
+            table_name=rn("kernelworx-profiles"),
             partition_key=dynamodb.Attribute(
-                name="profileId", type=dynamodb.AttributeType.STRING
+                name="ownerAccountId", type=dynamodb.AttributeType.STRING
             ),
-            sort_key=dynamodb.Attribute(
-                name="recordType", type=dynamodb.AttributeType.STRING
-            ),
+            sort_key=dynamodb.Attribute(name="profileId", type=dynamodb.AttributeType.STRING),
             billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
             point_in_time_recovery_specification=dynamodb.PointInTimeRecoverySpecification(
                 point_in_time_recovery_enabled=True
@@ -278,17 +310,31 @@ class CdkStack(Stack):
             removal_policy=RemovalPolicy.RETAIN,
         )
 
-        # GSI for profile owner lookup (list my profiles)
+        # GSI for direct profile lookup by profileId (sparse index for getProfile)
         self.profiles_table.add_global_secondary_index(
-            index_name="ownerAccountId-index",
-            partition_key=dynamodb.Attribute(
-                name="ownerAccountId", type=dynamodb.AttributeType.STRING
-            ),
+            index_name="profileId-index",
+            partition_key=dynamodb.Attribute(name="profileId", type=dynamodb.AttributeType.STRING),
             projection_type=dynamodb.ProjectionType.ALL,
         )
 
-        # GSI for shares by target account (list shared profiles)
-        self.profiles_table.add_global_secondary_index(
+        # Shares Table (NEW - separated from profiles for cleaner design)
+        # PK: profileId, SK: targetAccountId
+        # Enables direct query for "all shares for this profile"
+        self.shares_table = dynamodb.Table(
+            self,
+            "SharesTable",
+            table_name=rn("kernelworx-shares"),
+            partition_key=dynamodb.Attribute(name="profileId", type=dynamodb.AttributeType.STRING),
+            sort_key=dynamodb.Attribute(name="targetAccountId", type=dynamodb.AttributeType.STRING),
+            billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
+            point_in_time_recovery_specification=dynamodb.PointInTimeRecoverySpecification(
+                point_in_time_recovery_enabled=True
+            ),
+            removal_policy=RemovalPolicy.RETAIN,
+        )
+
+        # GSI for "profiles shared with me" query
+        self.shares_table.add_global_secondary_index(
             index_name="targetAccountId-index",
             partition_key=dynamodb.Attribute(
                 name="targetAccountId", type=dynamodb.AttributeType.STRING
@@ -296,32 +342,14 @@ class CdkStack(Stack):
             projection_type=dynamodb.ProjectionType.ALL,
         )
 
-        # GSI for invite code lookup
-        self.profiles_table.add_global_secondary_index(
-            index_name="inviteCode-index",
-            partition_key=dynamodb.Attribute(
-                name="inviteCode", type=dynamodb.AttributeType.STRING
-            ),
-            projection_type=dynamodb.ProjectionType.ALL,
-        )
-
-        # TTL for profile invites
-        cfn_profiles_table = self.profiles_table.node.default_child
-        cfn_profiles_table.time_to_live_specification = (
-            dynamodb.CfnTable.TimeToLiveSpecificationProperty(
-                attribute_name="TTL",
-                enabled=True,
-            )
-        )
-
-        # Seasons Table
-        self.seasons_table = dynamodb.Table(
+        # Invites Table (NEW - separated from profiles for cleaner design)
+        # PK: inviteCode (enables direct lookup)
+        # TTL: expiresAt (automatic cleanup of expired invites)
+        self.invites_table = dynamodb.Table(
             self,
-            "SeasonsTable",
-            table_name=f"kernelworx-seasons-ue1-{env_name}",
-            partition_key=dynamodb.Attribute(
-                name="seasonId", type=dynamodb.AttributeType.STRING
-            ),
+            "InvitesTable",
+            table_name=rn("kernelworx-invites"),
+            partition_key=dynamodb.Attribute(name="inviteCode", type=dynamodb.AttributeType.STRING),
             billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
             point_in_time_recovery_specification=dynamodb.PointInTimeRecoverySpecification(
                 point_in_time_recovery_enabled=True
@@ -329,35 +357,61 @@ class CdkStack(Stack):
             removal_policy=RemovalPolicy.RETAIN,
         )
 
-        # GSI for seasons by profile
-        self.seasons_table.add_global_secondary_index(
+        # GSI for "invites for this profile" query
+        self.invites_table.add_global_secondary_index(
             index_name="profileId-index",
-            partition_key=dynamodb.Attribute(
-                name="profileId", type=dynamodb.AttributeType.STRING
+            partition_key=dynamodb.Attribute(name="profileId", type=dynamodb.AttributeType.STRING),
+            projection_type=dynamodb.ProjectionType.ALL,
+        )
+
+        # TTL for invites (automatic expiration)
+        cfn_invites_table = self.invites_table.node.default_child
+        cfn_invites_table.time_to_live_specification = (
+            dynamodb.CfnTable.TimeToLiveSpecificationProperty(
+                attribute_name="expiresAt",
+                enabled=True,
+            )
+        )
+
+        # Seasons Table V2
+        # NEW STRUCTURE: PK=profileId, SK=seasonId
+        # This enables direct query for listSeasonsByProfile (no GSI needed)
+        self.seasons_table = dynamodb.Table(
+            self,
+            "SeasonsTableV2",
+            table_name=rn("kernelworx-seasons"),
+            partition_key=dynamodb.Attribute(name="profileId", type=dynamodb.AttributeType.STRING),
+            sort_key=dynamodb.Attribute(name="seasonId", type=dynamodb.AttributeType.STRING),
+            billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
+            point_in_time_recovery_specification=dynamodb.PointInTimeRecoverySpecification(
+                point_in_time_recovery_enabled=True
             ),
-            sort_key=dynamodb.Attribute(
-                name="createdAt", type=dynamodb.AttributeType.STRING
-            ),
+            removal_policy=RemovalPolicy.RETAIN,
+        )
+
+        # GSI for direct getSeason by seasonId (sparse index)
+        self.seasons_table.add_global_secondary_index(
+            index_name="seasonId-index",
+            partition_key=dynamodb.Attribute(name="seasonId", type=dynamodb.AttributeType.STRING),
             projection_type=dynamodb.ProjectionType.ALL,
         )
 
         # GSI for seasons by catalog (for checking catalog in-use before deletion)
         self.seasons_table.add_global_secondary_index(
             index_name="catalogId-index",
-            partition_key=dynamodb.Attribute(
-                name="catalogId", type=dynamodb.AttributeType.STRING
-            ),
+            partition_key=dynamodb.Attribute(name="catalogId", type=dynamodb.AttributeType.STRING),
             projection_type=dynamodb.ProjectionType.KEYS_ONLY,
         )
 
         # Orders Table
+        # Orders Table V2: PK=seasonId, SK=orderId for efficient season-based queries
+        # Direct order lookups use orderId-index GSI
         self.orders_table = dynamodb.Table(
             self,
-            "OrdersTable",
-            table_name=f"kernelworx-orders-ue1-{env_name}",
-            partition_key=dynamodb.Attribute(
-                name="orderId", type=dynamodb.AttributeType.STRING
-            ),
+            "OrdersTableV2",
+            table_name=rn("kernelworx-orders"),
+            partition_key=dynamodb.Attribute(name="seasonId", type=dynamodb.AttributeType.STRING),
+            sort_key=dynamodb.Attribute(name="orderId", type=dynamodb.AttributeType.STRING),
             billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
             point_in_time_recovery_specification=dynamodb.PointInTimeRecoverySpecification(
                 point_in_time_recovery_enabled=True
@@ -365,27 +419,18 @@ class CdkStack(Stack):
             removal_policy=RemovalPolicy.RETAIN,
         )
 
-        # GSI for orders by season
+        # GSI for direct order lookup by orderId (for getOrder, updateOrder, deleteOrder)
         self.orders_table.add_global_secondary_index(
-            index_name="seasonId-index",
-            partition_key=dynamodb.Attribute(
-                name="seasonId", type=dynamodb.AttributeType.STRING
-            ),
-            sort_key=dynamodb.Attribute(
-                name="createdAt", type=dynamodb.AttributeType.STRING
-            ),
+            index_name="orderId-index",
+            partition_key=dynamodb.Attribute(name="orderId", type=dynamodb.AttributeType.STRING),
             projection_type=dynamodb.ProjectionType.ALL,
         )
 
         # GSI for orders by profile (cross-season order lookup)
         self.orders_table.add_global_secondary_index(
             index_name="profileId-index",
-            partition_key=dynamodb.Attribute(
-                name="profileId", type=dynamodb.AttributeType.STRING
-            ),
-            sort_key=dynamodb.Attribute(
-                name="createdAt", type=dynamodb.AttributeType.STRING
-            ),
+            partition_key=dynamodb.Attribute(name="profileId", type=dynamodb.AttributeType.STRING),
+            sort_key=dynamodb.Attribute(name="createdAt", type=dynamodb.AttributeType.STRING),
             projection_type=dynamodb.ProjectionType.ALL,
         )
 
@@ -404,7 +449,7 @@ class CdkStack(Stack):
             self.static_assets_bucket = s3.Bucket(
                 self,
                 "StaticAssets",
-                bucket_name=f"kernelworx-static-{env_name}",  # Deterministic name
+                bucket_name=rn("kernelworx-static"),
                 versioned=True,
                 encryption=s3.BucketEncryption.S3_MANAGED,
                 block_public_access=s3.BlockPublicAccess.BLOCK_ALL,
@@ -422,7 +467,7 @@ class CdkStack(Stack):
             self.exports_bucket = s3.Bucket(
                 self,
                 "Exports",
-                bucket_name=f"kernelworx-exports-{env_name}",  # Deterministic name
+                bucket_name=rn("kernelworx-exports"),
                 versioned=False,
                 encryption=s3.BucketEncryption.S3_MANAGED,
                 block_public_access=s3.BlockPublicAccess.BLOCK_ALL,
@@ -437,7 +482,7 @@ class CdkStack(Stack):
         self.lambda_execution_role = iam.Role(
             self,
             "LambdaExecutionRole",
-            role_name=f"kernelworx-lambda-execution-{env_name}",
+            role_name=rn("kernelworx-lambda-exec"),
             assumed_by=iam.ServicePrincipal("lambda.amazonaws.com"),
             managed_policies=[
                 iam.ManagedPolicy.from_aws_managed_policy_name(
@@ -463,6 +508,8 @@ class CdkStack(Stack):
         self.profiles_table.grant_read_write_data(self.lambda_execution_role)
         self.seasons_table.grant_read_write_data(self.lambda_execution_role)
         self.orders_table.grant_read_write_data(self.lambda_execution_role)
+        self.shares_table.grant_read_write_data(self.lambda_execution_role)
+        self.invites_table.grant_read_write_data(self.lambda_execution_role)
 
         # Grant Lambda role access to new table GSI indexes
         for table in [
@@ -471,6 +518,8 @@ class CdkStack(Stack):
             self.profiles_table,
             self.seasons_table,
             self.orders_table,
+            self.shares_table,
+            self.invites_table,
         ]:
             self.lambda_execution_role.add_to_policy(
                 iam.PolicyStatement(
@@ -486,13 +535,13 @@ class CdkStack(Stack):
         self.appsync_service_role = iam.Role(
             self,
             "AppSyncServiceRole",
-            role_name=f"kernelworx-appsync-{env_name}",
+            role_name=rn("kernelworx-appsync"),
             assumed_by=iam.ServicePrincipal("appsync.amazonaws.com"),
         )
 
         # Grant AppSync role access to DynamoDB table
         self.table.grant_read_write_data(self.appsync_service_role)
-        
+
         # Grant AppSync role access to all GSI indexes (required for imported tables)
         self.appsync_service_role.add_to_policy(
             iam.PolicyStatement(
@@ -507,6 +556,8 @@ class CdkStack(Stack):
         self.profiles_table.grant_read_write_data(self.appsync_service_role)
         self.seasons_table.grant_read_write_data(self.appsync_service_role)
         self.orders_table.grant_read_write_data(self.appsync_service_role)
+        self.shares_table.grant_read_write_data(self.appsync_service_role)
+        self.invites_table.grant_read_write_data(self.appsync_service_role)
 
         # Grant AppSync role access to new table GSI indexes
         for table in [
@@ -515,6 +566,8 @@ class CdkStack(Stack):
             self.profiles_table,
             self.seasons_table,
             self.orders_table,
+            self.shares_table,
+            self.invites_table,
         ]:
             self.appsync_service_role.add_to_policy(
                 iam.PolicyStatement(
@@ -542,6 +595,8 @@ class CdkStack(Stack):
             "PROFILES_TABLE_NAME": self.profiles_table.table_name,
             "SEASONS_TABLE_NAME": self.seasons_table.table_name,
             "ORDERS_TABLE_NAME": self.orders_table.table_name,
+            "SHARES_TABLE_NAME": self.shares_table.table_name,
+            "INVITES_TABLE_NAME": self.invites_table.table_name,
         }
 
         # Create Lambda Layer for shared dependencies
@@ -555,7 +610,7 @@ class CdkStack(Stack):
         self.shared_layer = lambda_.LayerVersion(
             self,
             "SharedDependenciesLayer",
-            layer_version_name=f"kernelworx-shared-deps-{env_name}",
+            layer_version_name=rn("kernelworx-deps"),
             code=lambda_.Code.from_asset(lambda_layer_path),
             compatible_runtimes=[lambda_.Runtime.PYTHON_3_13],
             description="Shared Python dependencies for Lambda functions",
@@ -586,7 +641,7 @@ class CdkStack(Stack):
         self.create_profile_fn = lambda_.Function(
             self,
             "CreateProfileFnV2",
-            function_name=f"kernelworx-create-profile-{env_name}",
+            function_name=rn("kernelworx-create-profile"),
             runtime=lambda_.Runtime.PYTHON_3_13,
             handler="handlers.profile_operations.create_seller_profile",
             code=lambda_code,
@@ -600,7 +655,7 @@ class CdkStack(Stack):
         self.request_season_report_fn = lambda_.Function(
             self,
             "RequestSeasonReportFnV2",
-            function_name=f"kernelworx-request-report-{env_name}",
+            function_name=rn("kernelworx-request-report"),
             runtime=lambda_.Runtime.PYTHON_3_13,
             handler="handlers.report_generation.request_season_report",
             code=lambda_code,
@@ -615,7 +670,7 @@ class CdkStack(Stack):
         self.update_my_account_fn = lambda_.Function(
             self,
             "UpdateMyAccountFnV2",
-            function_name=f"kernelworx-update-account-{env_name}",
+            function_name=rn("kernelworx-update-account"),
             runtime=lambda_.Runtime.PYTHON_3_13,
             handler="handlers.account_operations.update_my_account",
             code=lambda_code,
@@ -630,7 +685,7 @@ class CdkStack(Stack):
         self.post_auth_fn = lambda_.Function(
             self,
             "PostAuthenticationFnV2",
-            function_name=f"kernelworx-post-auth-{env_name}",
+            function_name=rn("kernelworx-post-auth"),
             runtime=lambda_.Runtime.PYTHON_3_13,
             handler="handlers.post_authentication.lambda_handler",
             code=lambda_code,
@@ -655,7 +710,7 @@ class CdkStack(Stack):
             self.user_pool = cognito.UserPool.from_user_pool_id(
                 self, "UserPool", existing_user_pool_id
             )
-            
+
             # For imported pools, either import existing client or create new one
             existing_client_id = self.node.try_get_context("user_pool_client_id")
             if existing_client_id:
@@ -702,13 +757,13 @@ class CdkStack(Stack):
                         "ALLOW_USER_PASSWORD_AUTH",
                         "ALLOW_USER_SRP_AUTH",
                         "ALLOW_USER_AUTH",  # Required for WebAuthn/passkeys
-                    ]
+                    ],
                 )
         else:
             self.user_pool = cognito.UserPool(
                 self,
                 "UserPool",
-                user_pool_name=f"kernelworx-users-{env_name}",
+                user_pool_name=rn("kernelworx-users"),
                 sign_in_aliases=cognito.SignInAliases(email=True, username=False),
                 self_sign_up_enabled=True,
                 auto_verify=cognito.AutoVerifiedAttrs(email=True),
@@ -867,63 +922,36 @@ class CdkStack(Stack):
                 prevent_user_existence_errors=True,
             )
 
+            # Support two-stage deploys: some environments prefer creating the
+            # site distribution and DNS first, then creating the Cognito
+            # custom domain after DNS has propagated. Control this behaviour
+            # with the context key `create_cognito_domain` (default: True).
+            create_cognito_domain_ctx = self.node.try_get_context(
+                "create_cognito_domain"
+            )
+            # Handle string values from CLI (e.g., -c create_cognito_domain=false)
+            if create_cognito_domain_ctx is None:
+                create_cognito_domain = True
+            elif isinstance(create_cognito_domain_ctx, bool):
+                create_cognito_domain = create_cognito_domain_ctx
+            else:
+                create_cognito_domain = str(create_cognito_domain_ctx).lower() != "false"
+
             # Custom domain configuration (login.{env}.kernelworx.app or login.kernelworx.app)
-            self.user_pool_domain = self.user_pool.add_domain(
-                "UserPoolDomain",
-                custom_domain=cognito.CustomDomainOptions(
-                    domain_name=self.cognito_domain,
-                    certificate=self.cognito_certificate,
-                ),
-            )
-
-            # Set domain to use Managed Login (version 2) instead of Hosted UI (classic)
-            # This enables the branding deployed via deploy-cognito-branding.sh
-            cfn_domain = self.user_pool_domain.node.default_child
-            cfn_domain.add_property_override("ManagedLoginVersion", 2)
-
-            # Cognito Hosted UI Customization
-            # Note: CSS must be inline (no external files) and max 100KB
-            # Read logo from assets
-            logo_path = os.path.join(
-                os.path.dirname(__file__), "..", "assets", "cognito-logo-base64.txt"
-            )
-            try:
-                with open(logo_path, "r") as f:
-                    logo_base64 = f.read().strip()
-            except FileNotFoundError:
-                logo_base64 = None  # Deploy without logo if file not found
-
-            # AWS Cognito has a very restrictive whitelist of allowed CSS classes
-            # Only submit button appears to be reliably supported
-            # Other customization (logo, fonts, COPPA warning) must be done via:
-            # 1. Logo: AWS Console or CLI after deployment
-            # 2. Custom fonts: Not supported in basic tier
-            # 3. COPPA warning: Implement in app UI, not in Cognito
-            cognito_ui_css = """
-                .submitButton-customizable {
-                    background-color: #1976d2;
-                }
-            """
-
-            # Apply UI customization
-            ui_customization = cognito.CfnUserPoolUICustomizationAttachment(
-                self,
-                "UserPoolUICustomization",
-                user_pool_id=self.user_pool.user_pool_id,
-                client_id=self.user_pool_client.user_pool_client_id,
-                css=cognito_ui_css,
-            )
-
-            # Note: Logo (ImageFile) must be added via AWS Console or AWS CLI after deployment
-            # CDK L1 construct doesn't expose the ImageFile property correctly
-            # To add logo: aws cognito-idp set-ui-customization --user-pool-id <pool-id> --client-id <client-id> --image-file fileb://cognito-logo.png
-            if logo_base64:
-                CfnOutput(
-                    self,
-                    "CognitoLogoBase64",
-                    value=f"Logo file ready at cdk/assets/cognito-logo-base64.txt ({len(logo_base64)} chars)",
-                    description="Use AWS CLI to upload: aws cognito-idp set-ui-customization",
+            if create_cognito_domain:
+                self.user_pool_domain = self.user_pool.add_domain(
+                    "UserPoolDomain",
+                    custom_domain=cognito.CustomDomainOptions(
+                        domain_name=self.cognito_domain,
+                        certificate=self.cognito_certificate,
+                    ),
                 )
+
+                # Ensure the certificate is fully validated before creating the domain
+                self.user_pool_domain.node.add_dependency(self.cognito_certificate)
+
+            # NOTE: ManagedLoginVersion property removed temporarily - can be added back
+            # after initial deployment if needed for Managed Login v2 branding
 
         # ====================================================================
         # Cognito Custom Domain Configuration (for imported pools only)
@@ -938,8 +966,10 @@ class CdkStack(Stack):
 
         # Route53 record for Cognito custom domain
         # For imported pools, assume the record already exists
-        # For new pools, create the record with RETAIN policy
-        if not existing_user_pool_id:
+        # For new pools, create the record with RETAIN policy. Only create
+        # the record in deploys where we're also creating the Cognito domain
+        # (controlled by `create_cognito_domain` context flag).
+        if not existing_user_pool_id and create_cognito_domain:
             # Create new Route53 record for new pools
             self.cognito_domain_record = route53.ARecord(
                 self,
@@ -953,7 +983,7 @@ class CdkStack(Stack):
             self.cognito_domain_record.apply_removal_policy(RemovalPolicy.RETAIN)
 
         # Output Cognito Hosted UI URL for easy access (only if user pool was created, not imported)
-        if hasattr(self, 'user_pool_domain') and hasattr(self, 'user_pool_client'):
+        if hasattr(self, "user_pool_domain") and hasattr(self, "user_pool_client"):
             CfnOutput(
                 self,
                 "CognitoHostedUIUrl",
@@ -980,11 +1010,11 @@ class CdkStack(Stack):
             # Determine if logging should be enabled (configurable via ENABLE_APPSYNC_LOGGING env var)
             # Defaults to True if not specified
             enable_appsync_logging = os.getenv("ENABLE_APPSYNC_LOGGING", "true").lower() == "true"
-            
+
             self.api = appsync.GraphqlApi(
                 self,
                 "Api",
-                name=f"kernelworx-api-{env_name}",
+                name=rn("kernelworx-api"),
                 definition=appsync.Definition.from_file(schema_path),
                 authorization_config=appsync.AuthorizationConfig(
                     default_authorization=appsync.AuthorizationMode(
@@ -993,12 +1023,16 @@ class CdkStack(Stack):
                     ),
                 ),
                 xray_enabled=True,
-                log_config=appsync.LogConfig(
-                    field_log_level=appsync.FieldLogLevel.ALL,
-                    exclude_verbose_content=False,
-                ) if enable_appsync_logging else None,
+                log_config=(
+                    appsync.LogConfig(
+                        field_log_level=appsync.FieldLogLevel.ALL,
+                        exclude_verbose_content=False,
+                    )
+                    if enable_appsync_logging
+                    else None
+                ),
             )
-            
+
             CfnOutput(
                 self,
                 "AppSyncApiKey",
@@ -1011,7 +1045,7 @@ class CdkStack(Stack):
                 "DynamoDBDataSource",
                 table=self.table,
             )
-            
+
             # Grant GSI permissions to the DynamoDB data source role
             self.dynamodb_datasource.grant_principal.add_to_principal_policy(
                 iam.PolicyStatement(
@@ -1023,7 +1057,7 @@ class CdkStack(Stack):
             # ================================================================
             # Multi-table data sources (new architecture)
             # ================================================================
-            
+
             # Accounts table data source
             self.accounts_datasource = self.api.add_dynamo_db_data_source(
                 "AccountsDataSource",
@@ -1035,7 +1069,7 @@ class CdkStack(Stack):
                     resources=[f"{self.accounts_table.table_arn}/index/*"],
                 )
             )
-            
+
             # Catalogs table data source
             self.catalogs_datasource = self.api.add_dynamo_db_data_source(
                 "CatalogsDataSource",
@@ -1047,7 +1081,7 @@ class CdkStack(Stack):
                     resources=[f"{self.catalogs_table.table_arn}/index/*"],
                 )
             )
-            
+
             # Profiles table data source
             self.profiles_datasource = self.api.add_dynamo_db_data_source(
                 "ProfilesDataSource",
@@ -1059,7 +1093,7 @@ class CdkStack(Stack):
                     resources=[f"{self.profiles_table.table_arn}/index/*"],
                 )
             )
-            
+
             # Seasons table data source
             self.seasons_datasource = self.api.add_dynamo_db_data_source(
                 "SeasonsDataSource",
@@ -1071,7 +1105,7 @@ class CdkStack(Stack):
                     resources=[f"{self.seasons_table.table_arn}/index/*"],
                 )
             )
-            
+
             # Orders table data source
             self.orders_datasource = self.api.add_dynamo_db_data_source(
                 "OrdersDataSource",
@@ -1081,6 +1115,30 @@ class CdkStack(Stack):
                 iam.PolicyStatement(
                     actions=["dynamodb:Query", "dynamodb:Scan"],
                     resources=[f"{self.orders_table.table_arn}/index/*"],
+                )
+            )
+
+            # Shares table data source
+            self.shares_datasource = self.api.add_dynamo_db_data_source(
+                "SharesDataSource",
+                table=self.shares_table,
+            )
+            self.shares_datasource.grant_principal.add_to_principal_policy(
+                iam.PolicyStatement(
+                    actions=["dynamodb:Query", "dynamodb:Scan"],
+                    resources=[f"{self.shares_table.table_arn}/index/*"],
+                )
+            )
+
+            # Invites table data source
+            self.invites_datasource = self.api.add_dynamo_db_data_source(
+                "InvitesDataSource",
+                table=self.invites_table,
+            )
+            self.invites_datasource.grant_principal.add_to_principal_policy(
+                iam.PolicyStatement(
+                    actions=["dynamodb:Query", "dynamodb:Scan"],
+                    resources=[f"{self.invites_table.table_arn}/index/*"],
                 )
             )
 
@@ -1133,13 +1191,15 @@ class CdkStack(Stack):
 import { util } from '@aws-appsync/utils';
 
 export function request(ctx) {
+    // NEW STRUCTURE: Query profileId-index GSI to find profile
     const profileId = ctx.args.input.profileId;
     return {
-        operation: 'GetItem',
-        key: util.dynamodb.toMapValues({ 
-            profileId: profileId, 
-            recordType: 'METADATA' 
-        })
+        operation: 'Query',
+        index: 'profileId-index',
+        query: {
+            expression: 'profileId = :profileId',
+            expressionValues: util.dynamodb.toMapValues({ ':profileId': profileId })
+        }
     };
 }
 
@@ -1147,22 +1207,24 @@ export function response(ctx) {
     if (ctx.error) {
         util.error(ctx.error.message, ctx.error.type);
     }
-    if (!ctx.result || ctx.result.ownerAccountId !== 'ACCOUNT#' + ctx.identity.sub) {
+    const profile = ctx.result.items && ctx.result.items[0];
+    if (!profile || profile.ownerAccountId !== 'ACCOUNT#' + ctx.identity.sub) {
         util.error('Forbidden: Only profile owner can create invites', 'Unauthorized');
     }
-    ctx.stash.profile = ctx.result;
-    return ctx.result;
+    ctx.stash.profile = profile;
+    return profile;
 }
         """
                 ),
             )
 
+            # Create invite in invites table - NOW USES INVITES TABLE
             create_invite_fn = appsync.AppsyncFunction(
                 self,
                 "CreateInviteFn",
                 name=f"CreateInviteFn_{env_name}",
                 api=self.api,
-                data_source=self.profiles_datasource,
+                data_source=self.invites_datasource,
                 runtime=appsync.FunctionRuntime.JS_1_0_0,
                 code=appsync.Code.from_inline(
                     """
@@ -1174,6 +1236,9 @@ export function request(ctx) {
     const permissions = input.permissions;
     const callerAccountId = ctx.identity.sub;
     
+    // Get ownerAccountId from profile in stash (for BatchGetItem on profiles table)
+    const ownerAccountId = ctx.stash.profile ? ctx.stash.profile.ownerAccountId : null;
+    
     // Generate invite code (first 10 chars of UUID, uppercase)
     const inviteCode = util.autoId().substring(0, 10).toUpperCase();
     
@@ -1184,20 +1249,20 @@ export function request(ctx) {
     const now = util.time.nowISO8601();
     const expiresAtISO = util.time.epochMilliSecondsToISO8601(expiresAtEpoch * 1000);
     
+    // Invites table uses inviteCode as PK
     const key = {
-        profileId: profileId,
-        recordType: 'INVITE#' + inviteCode
+        inviteCode: inviteCode
     };
     
     const attributes = {
         inviteCode: inviteCode,
         profileId: profileId,
+        ownerAccountId: ownerAccountId,  // Store for BatchGetItem on profiles table
         permissions: permissions,
         createdBy: callerAccountId,
         createdAt: now,
-        expiresAt: expiresAtISO,
-        used: false,
-        TTL: expiresAtEpoch
+        expiresAt: expiresAtEpoch,
+        used: false
     };
     
     return {
@@ -1205,7 +1270,7 @@ export function request(ctx) {
         key: util.dynamodb.toMapValues(key),
         attributeValues: util.dynamodb.toMapValues(attributes),
         condition: {
-            expression: 'attribute_not_exists(profileId)'
+            expression: 'attribute_not_exists(inviteCode)'
         }
     };
 }
@@ -1218,11 +1283,14 @@ export function response(ctx) {
         util.error(ctx.error.message, ctx.error.type);
     }
     
+    // Convert expiresAt epoch back to ISO string for API response
+    const expiresAtISO = util.time.epochMilliSecondsToISO8601(ctx.result.expiresAt * 1000);
+    
     return {
         inviteCode: ctx.result.inviteCode,
         profileId: ctx.result.profileId,
         permissions: ctx.result.permissions,
-        expiresAt: ctx.result.expiresAt,
+        expiresAt: expiresAtISO,
         createdByAccountId: ctx.result.createdBy,
         createdAt: ctx.result.createdAt
     };
@@ -1266,13 +1334,15 @@ export function response(ctx) {
 import { util } from '@aws-appsync/utils';
 
 export function request(ctx) {
+    // NEW STRUCTURE: Query profileId-index GSI to find profile
     const profileId = ctx.args.input.profileId;
     return {
-        operation: 'GetItem',
-        key: util.dynamodb.toMapValues({ 
-            profileId: profileId, 
-            recordType: 'METADATA' 
-        })
+        operation: 'Query',
+        index: 'profileId-index',
+        query: {
+            expression: 'profileId = :profileId',
+            expressionValues: util.dynamodb.toMapValues({ ':profileId': profileId })
+        }
     };
 }
 
@@ -1280,11 +1350,12 @@ export function response(ctx) {
     if (ctx.error) {
         util.error(ctx.error.message, ctx.error.type);
     }
-    if (!ctx.result || ctx.result.ownerAccountId !== 'ACCOUNT#' + ctx.identity.sub) {
+    const profile = ctx.result.items && ctx.result.items[0];
+    if (!profile || profile.ownerAccountId !== 'ACCOUNT#' + ctx.identity.sub) {
         util.error('Forbidden: Only profile owner can revoke shares', 'Unauthorized');
     }
-    ctx.stash.profile = ctx.result;
-    return ctx.result;
+    ctx.stash.profile = profile;
+    return profile;
 }
         """
                 ),
@@ -1295,7 +1366,7 @@ export function response(ctx) {
                 "DeleteShareFn",
                 name=f"DeleteShareFn_{env_name}",
                 api=self.api,
-                data_source=self.profiles_datasource,
+                data_source=self.shares_datasource,
                 runtime=appsync.FunctionRuntime.JS_1_0_0,
                 code=appsync.Code.from_inline(
                     """
@@ -1303,13 +1374,26 @@ import { util } from '@aws-appsync/utils';
 
 export function request(ctx) {
     const profileId = ctx.args.input.profileId;
-    const targetAccountId = ctx.args.input.targetAccountId;
+    var targetAccountId = ctx.args.input.targetAccountId;
+    
+    // Strip ACCOUNT# prefix if present
+    if (targetAccountId && targetAccountId.startsWith('ACCOUNT#')) {
+        targetAccountId = targetAccountId.substring(8);
+    }
+    // Also strip old SHARE#ACCOUNT# prefix if present
+    if (targetAccountId && targetAccountId.startsWith('SHARE#ACCOUNT#')) {
+        targetAccountId = targetAccountId.substring(14);
+    }
+    // Also strip old SHARE# prefix if present
+    if (targetAccountId && targetAccountId.startsWith('SHARE#')) {
+        targetAccountId = targetAccountId.substring(6);
+    }
     
     return {
         operation: 'DeleteItem',
         key: util.dynamodb.toMapValues({ 
             profileId: profileId, 
-            recordType: 'SHARE#' + targetAccountId 
+            targetAccountId: targetAccountId 
         })
     };
 }
@@ -1356,13 +1440,16 @@ export function response(ctx) {
 import { util } from '@aws-appsync/utils';
 
 export function request(ctx) {
+    // NEW STRUCTURE: Query profileId-index GSI to find profile
     const profileId = ctx.args.profileId;
-    const inviteCode = ctx.args.inviteCode;
     
-    // Verify caller is the profile owner
     return {
-        operation: 'GetItem',
-        key: util.dynamodb.toMapValues({ profileId: profileId, recordType: 'METADATA' })
+        operation: 'Query',
+        index: 'profileId-index',
+        query: {
+            expression: 'profileId = :profileId',
+            expressionValues: util.dynamodb.toMapValues({ ':profileId': profileId })
+        }
     };
 }
 
@@ -1371,7 +1458,7 @@ export function response(ctx) {
         util.error(ctx.error.message, ctx.error.type);
     }
     
-    const profile = ctx.result;
+    const profile = ctx.result.items && ctx.result.items[0];
     const callerAccountId = 'ACCOUNT#' + ctx.identity.sub;
     
     // Check if caller is the owner
@@ -1390,27 +1477,26 @@ export function response(ctx) {
                 ),
             )
 
-            # Second function to perform the actual deletion
+            # Second function to perform the actual deletion - NOW USES INVITES TABLE
             delete_invite_item_fn = appsync.AppsyncFunction(
                 self,
                 "DeleteInviteItemFn",
                 name=f"DeleteInviteItemFn_{env_name}",
                 api=self.api,
-                data_source=self.profiles_datasource,
+                data_source=self.invites_datasource,
                 runtime=appsync.FunctionRuntime.JS_1_0_0,
                 code=appsync.Code.from_inline(
                     """
 import { util } from '@aws-appsync/utils';
 
 export function request(ctx) {
-    const profileId = ctx.stash.profileId;
     const inviteCode = ctx.stash.inviteCode;
     
+    // Delete from invites table using inviteCode as PK
     return {
         operation: 'DeleteItem',
         key: util.dynamodb.toMapValues({ 
-            profileId: profileId, 
-            recordType: 'INVITE#' + inviteCode
+            inviteCode: inviteCode
         })
     };
 }
@@ -1447,7 +1533,7 @@ export function response(ctx) {
             # ================================================================
             # SHARED AUTHORIZATION FUNCTION
             # ================================================================
-            
+
             # VerifyProfileWriteAccessFn: Checks if caller is owner OR has WRITE permission
             # Used by: createOrder, updateOrder, deleteOrder, updateSeason, deleteSeason
             verify_profile_write_access_fn = appsync.AppsyncFunction(
@@ -1477,7 +1563,7 @@ export function request(ctx) {
         // Return no-op request (won't be used)
         return {
             operation: 'GetItem',
-            key: util.dynamodb.toMapValues({ profileId: 'NOOP', recordType: 'NOOP' })
+            key: util.dynamodb.toMapValues({ ownerAccountId: 'NOOP', profileId: 'NOOP' })
         };
     }
     
@@ -1505,11 +1591,14 @@ export function request(ctx) {
         }), 'BadRequest');
     }
     
-    // Get profile metadata from profiles table
+    // NEW STRUCTURE: Query profileId-index GSI to find profile
     return {
-        operation: 'GetItem',
-        key: util.dynamodb.toMapValues({ profileId: profileId, recordType: 'METADATA' }),
-        consistentRead: true
+        operation: 'Query',
+        index: 'profileId-index',
+        query: {
+            expression: 'profileId = :profileId',
+            expressionValues: util.dynamodb.toMapValues({ ':profileId': profileId })
+        }
     };
 }
 
@@ -1523,7 +1612,7 @@ export function response(ctx) {
         util.error(ctx.error.message, ctx.error.type);
     }
     
-    const profile = ctx.result;
+    const profile = ctx.result.items && ctx.result.items[0];
     
     if (!profile) {
         util.error('Profile not found', 'NotFound');
@@ -1550,15 +1639,16 @@ export function response(ctx) {
                 """
                 ),
             )
-            
+
             # CheckSharePermissionsFn: Checks if non-owner has WRITE permission via share
             # Used in conjunction with VerifyProfileWriteAccessFn above
+            # NOW USES SHARES TABLE
             check_share_permissions_fn = appsync.AppsyncFunction(
                 self,
                 "CheckSharePermissionsFn",
                 name=f"CheckSharePermissionsFn_{env_name}",
                 api=self.api,
-                data_source=self.profiles_datasource,
+                data_source=self.shares_datasource,
                 runtime=appsync.FunctionRuntime.JS_1_0_0,
                 code=appsync.Code.from_inline(
                     """
@@ -1569,7 +1659,7 @@ export function request(ctx) {
     if (ctx.stash.isOwner || ctx.stash.skipAuth) {
         return {
             operation: 'GetItem',
-            key: util.dynamodb.toMapValues({ profileId: 'NOOP', recordType: 'NOOP' })
+            key: util.dynamodb.toMapValues({ profileId: 'NOOP', targetAccountId: 'NOOP' })
         };
     }
     
@@ -1591,12 +1681,12 @@ export function request(ctx) {
         util.error('Profile ID not found for share check', 'BadRequest');
     }
     
-    // Look up share in profiles table (recordType = SHARE#accountId)
+    // Look up share in shares table: profileId + targetAccountId
     return {
         operation: 'GetItem',
         key: util.dynamodb.toMapValues({ 
             profileId: profileId, 
-            recordType: 'SHARE#' + ctx.identity.sub 
+            targetAccountId: ctx.identity.sub 
         }),
         consistentRead: true
     };
@@ -1657,7 +1747,7 @@ export function request(ctx) {
         // Return a no-op read
         return {
             operation: 'GetItem',
-            key: util.dynamodb.toMapValues({ profileId: 'NOOP', recordType: 'NOOP' })
+            key: util.dynamodb.toMapValues({ ownerAccountId: 'NOOP', profileId: 'NOOP' })
         };
     }
     
@@ -1666,7 +1756,7 @@ export function request(ctx) {
         // Return a no-op read
         return {
             operation: 'GetItem',
-            key: util.dynamodb.toMapValues({ profileId: 'NOOP', recordType: 'NOOP' })
+            key: util.dynamodb.toMapValues({ ownerAccountId: 'NOOP', profileId: 'NOOP' })
         };
     }
     
@@ -1689,11 +1779,14 @@ export function request(ctx) {
     // Store profileId in stash for next function
     ctx.stash.profileId = profileId;
     
-    // Get profile metadata from profiles table to check ownership
+    // NEW STRUCTURE: Query profileId-index GSI to find profile
     return {
-        operation: 'GetItem',
-        key: util.dynamodb.toMapValues({ profileId: profileId, recordType: 'METADATA' }),
-        consistentRead: true
+        operation: 'Query',
+        index: 'profileId-index',
+        query: {
+            expression: 'profileId = :profileId',
+            expressionValues: util.dynamodb.toMapValues({ ':profileId': profileId })
+        }
     };
 }
 
@@ -1714,7 +1807,7 @@ export function response(ctx) {
         util.error(ctx.error.message, ctx.error.type);
     }
     
-    const profile = ctx.result;
+    const profile = ctx.result.items && ctx.result.items[0];
     
     if (!profile) {
         // Profile doesn't exist - for getSeason, we'll return null later
@@ -1741,15 +1834,16 @@ export function response(ctx) {
                 """
                 ),
             )
-            
+
             # CheckShareReadPermissionsFn: Checks if non-owner has READ or WRITE permission
             # Used in conjunction with VerifyProfileReadAccessFn
+            # NOW USES SHARES TABLE
             check_share_read_permissions_fn = appsync.AppsyncFunction(
                 self,
                 "CheckShareReadPermissionsFn",
                 name=f"CheckShareReadPermissionsFn_{env_name}",
                 api=self.api,
-                data_source=self.profiles_datasource,
+                data_source=self.shares_datasource,
                 runtime=appsync.FunctionRuntime.JS_1_0_0,
                 code=appsync.Code.from_inline(
                     """
@@ -1761,18 +1855,18 @@ export function request(ctx) {
         // Use a no-op read
         return {
             operation: 'GetItem',
-            key: util.dynamodb.toMapValues({ profileId: 'NOOP', recordType: 'NOOP' })
+            key: util.dynamodb.toMapValues({ profileId: 'NOOP', targetAccountId: 'NOOP' })
         };
     }
     
     const profileId = ctx.stash.profileId;
     
-    // Look up share in profiles table (recordType = SHARE#accountId)
+    // Look up share in shares table: profileId + targetAccountId
     return {
         operation: 'GetItem',
         key: util.dynamodb.toMapValues({ 
             profileId: profileId, 
-            recordType: 'SHARE#' + ctx.identity.sub 
+            targetAccountId: ctx.identity.sub 
         }),
         consistentRead: true
     };
@@ -1839,11 +1933,15 @@ import { util } from '@aws-appsync/utils';
 
 export function request(ctx) {
     const seasonId = ctx.args.seasonId || ctx.args.input.seasonId;
-    // Direct GetItem on seasons table using seasonId as primary key
+    // Query seasonId-index GSI to find the season (V2: PK=profileId, SK=seasonId)
     return {
-        operation: 'GetItem',
-        key: util.dynamodb.toMapValues({ seasonId: seasonId }),
-        consistentRead: true
+        operation: 'Query',
+        index: 'seasonId-index',
+        query: {
+            expression: 'seasonId = :seasonId',
+            expressionValues: util.dynamodb.toMapValues({ ':seasonId': seasonId })
+        },
+        consistentRead: false
     };
 }
 
@@ -1851,12 +1949,12 @@ export function response(ctx) {
     if (ctx.error) {
         util.error(ctx.error.message, ctx.error.type);
     }
-    if (!ctx.result) {
+    if (!ctx.result.items || ctx.result.items.length === 0) {
         util.error('Season not found', 'NotFound');
     }
     // Store season in stash for next function
-    ctx.stash.season = ctx.result;
-    return ctx.result;
+    ctx.stash.season = ctx.result.items[0];
+    return ctx.result.items[0];
 }
                 """
                 ),
@@ -1909,9 +2007,10 @@ export function request(ctx) {
     
     const updateExpression = 'SET ' + updates.join(', ');
     
+    // V2: Use composite key (profileId, seasonId)
     return {
         operation: 'UpdateItem',
-        key: util.dynamodb.toMapValues({ seasonId: season.seasonId }),
+        key: util.dynamodb.toMapValues({ profileId: season.profileId, seasonId: season.seasonId }),
         update: {
             expression: updateExpression,
             expressionNames: Object.keys(exprNames).length > 0 ? exprNames : undefined,
@@ -1952,7 +2051,12 @@ export function response(ctx) {
                 type_name="Mutation",
                 field_name="updateSeason",
                 runtime=appsync.FunctionRuntime.JS_1_0_0,
-                pipeline_config=[lookup_season_fn, verify_profile_write_access_fn, check_share_permissions_fn, update_season_fn],
+                pipeline_config=[
+                    lookup_season_fn,
+                    verify_profile_write_access_fn,
+                    check_share_permissions_fn,
+                    update_season_fn,
+                ],
                 code=appsync.Code.from_inline(
                     """
 export function request(ctx) {
@@ -1968,7 +2072,7 @@ export function response(ctx) {
 
             # deleteSeason Pipeline: Direct GetItem → DeleteItem
             # Separate lookup for delete - doesn't error on missing season (idempotent)
-            # Now uses seasons_datasource with direct seasonId key
+            # V2: Query seasonId-index GSI since PK=profileId, SK=seasonId
             lookup_season_for_delete_fn = appsync.AppsyncFunction(
                 self,
                 "LookupSeasonForDeleteFn",
@@ -1982,11 +2086,15 @@ import { util } from '@aws-appsync/utils';
 
 export function request(ctx) {
     const seasonId = ctx.args.seasonId;
-    // Direct GetItem on seasons table using seasonId as primary key
+    // Query seasonId-index GSI to find the season (V2: PK=profileId, SK=seasonId)
     return {
-        operation: 'GetItem',
-        key: util.dynamodb.toMapValues({ seasonId: seasonId }),
-        consistentRead: true
+        operation: 'Query',
+        index: 'seasonId-index',
+        query: {
+            expression: 'seasonId = :seasonId',
+            expressionValues: util.dynamodb.toMapValues({ ':seasonId': seasonId })
+        },
+        consistentRead: false
     };
 }
 
@@ -1997,22 +2105,22 @@ export function response(ctx) {
     
     // For delete, if season not found, that's OK (idempotent)
     // Just store null in stash and let delete function handle it
-    if (!ctx.result) {
+    if (!ctx.result.items || ctx.result.items.length === 0) {
         ctx.stash.season = null;
         return null;
     }
     
     // Note: Authorization is simplified - relies on Cognito authentication
     // Full share-based authorization would require additional pipeline functions
-    ctx.stash.season = ctx.result;
-    return ctx.result;
+    ctx.stash.season = ctx.result.items[0];
+    return ctx.result.items[0];
 }
                 """
                 ),
             )
-            
+
             # Query orders for the season to delete (for cleanup)
-            # Uses orders table with seasonId-index GSI
+            # V2 schema: Direct PK query since PK=seasonId
             query_season_orders_for_delete_fn = appsync.AppsyncFunction(
                 self,
                 "QuerySeasonOrdersForDeleteFn",
@@ -2032,17 +2140,19 @@ export function request(ctx) {
         ctx.stash.ordersToDelete = [];
         ctx.stash.skipOrderQuery = true;
         return {
-            operation: 'GetItem',
-            key: util.dynamodb.toMapValues({ orderId: 'NOOP' })
+            operation: 'Query',
+            query: {
+                expression: 'seasonId = :seasonId',
+                expressionValues: util.dynamodb.toMapValues({ ':seasonId': 'NOOP' })
+            }
         };
     }
     
     const seasonId = season.seasonId;
     
-    // Query orders table using seasonId-index GSI
+    // V2 schema: Direct PK query since PK=seasonId
     return {
         operation: 'Query',
-        index: 'seasonId-index',
         query: {
             expression: 'seasonId = :seasonId',
             expressionValues: util.dynamodb.toMapValues({ ':seasonId': seasonId })
@@ -2060,7 +2170,7 @@ export function response(ctx) {
         util.error(ctx.error.message, ctx.error.type);
     }
     
-    // Store orders to delete in stash (just need orderId for orders table)
+    // Store orders to delete in stash (need seasonId and orderId for V2 schema)
     const orders = ctx.result.items || [];
     ctx.stash.ordersToDelete = orders;
     
@@ -2069,9 +2179,9 @@ export function response(ctx) {
                 """
                 ),
             )
-            
+
             # Delete orders associated with the season
-            # Uses orders_datasource with orderId key
+            # V2 schema: Uses composite key (seasonId, orderId)
             delete_season_orders_fn = appsync.AppsyncFunction(
                 self,
                 "DeleteSeasonOrdersFn",
@@ -2094,9 +2204,10 @@ export function request(ctx) {
     // Delete first order only - simple approach for now
     const firstOrder = ordersToDelete[0];
     
+    // V2 schema: composite key (seasonId, orderId)
     return {
         operation: 'DeleteItem',
-        key: util.dynamodb.toMapValues({ orderId: firstOrder.orderId })
+        key: util.dynamodb.toMapValues({ seasonId: firstOrder.seasonId, orderId: firstOrder.orderId })
     };
 }
 
@@ -2109,7 +2220,7 @@ export function response(ctx) {
                 """
                 ),
             )
-            
+
             # Delete season from seasons table
             delete_season_fn = appsync.AppsyncFunction(
                 self,
@@ -2132,13 +2243,14 @@ export function request(ctx) {
         ctx.stash.skipDelete = true;
         return {
             operation: 'GetItem',
-            key: util.dynamodb.toMapValues({ seasonId: 'NOOP' })
+            key: util.dynamodb.toMapValues({ profileId: 'NOOP', seasonId: 'NOOP' })
         };
     }
     
+    // V2: Use composite key (profileId, seasonId)
     return {
         operation: 'DeleteItem',
-        key: util.dynamodb.toMapValues({ seasonId: season.seasonId })
+        key: util.dynamodb.toMapValues({ profileId: season.profileId, seasonId: season.seasonId })
     };
 }
 
@@ -2159,7 +2271,14 @@ export function response(ctx) {
                 type_name="Mutation",
                 field_name="deleteSeason",
                 runtime=appsync.FunctionRuntime.JS_1_0_0,
-                pipeline_config=[lookup_season_for_delete_fn, verify_profile_write_access_fn, check_share_permissions_fn, query_season_orders_for_delete_fn, delete_season_orders_fn, delete_season_fn],
+                pipeline_config=[
+                    lookup_season_for_delete_fn,
+                    verify_profile_write_access_fn,
+                    check_share_permissions_fn,
+                    query_season_orders_for_delete_fn,
+                    delete_season_orders_fn,
+                    delete_season_fn,
+                ],
                 code=appsync.Code.from_inline(
                     """
 export function request(ctx) {
@@ -2173,8 +2292,8 @@ export function response(ctx) {
                 ),
             )
 
-            # updateOrder Pipeline: Direct GetItem → UpdateItem
-            # Now uses orders_datasource with direct orderId key
+            # updateOrder Pipeline: Query GSI → UpdateItem (V2 schema)
+            # Uses orderId-index GSI since V2 schema has PK=seasonId, SK=orderId
             lookup_order_fn = appsync.AppsyncFunction(
                 self,
                 "LookupOrderFn",
@@ -2188,11 +2307,15 @@ import { util } from '@aws-appsync/utils';
 
 export function request(ctx) {
     const orderId = ctx.args.orderId || ctx.args.input.orderId;
-    // Direct GetItem on orders table using orderId as primary key
+    // Query orderId-index GSI (V2 schema: PK=seasonId, SK=orderId)
     return {
-        operation: 'GetItem',
-        key: util.dynamodb.toMapValues({ orderId: orderId }),
-        consistentRead: true
+        operation: 'Query',
+        index: 'orderId-index',
+        query: {
+            expression: 'orderId = :orderId',
+            expressionValues: util.dynamodb.toMapValues({ ':orderId': orderId })
+        },
+        limit: 1
     };
 }
 
@@ -2200,19 +2323,20 @@ export function response(ctx) {
     if (ctx.error) {
         util.error(ctx.error.message, ctx.error.type);
     }
-    if (!ctx.result) {
+    const items = ctx.result.items || [];
+    if (items.length === 0) {
         util.error('Order not found', 'NotFound');
     }
     // Store order in stash for next function
-    ctx.stash.order = ctx.result;
-    return ctx.result;
+    ctx.stash.order = items[0];
+    return items[0];
 }
                 """
                 ),
             )
 
             # Bug #16 fix: Get catalog for updateOrder when lineItems are being updated
-            # First looks up the season, then fetches the catalog
+            # First looks up the season via GSI, then fetches the catalog
             get_catalog_for_update_order_fn = appsync.AppsyncFunction(
                 self,
                 "GetCatalogForUpdateOrderFn",
@@ -2228,10 +2352,15 @@ export function request(ctx) {
     // Only fetch catalog if lineItems are being updated
     if (!ctx.args.input.lineItems) {
         ctx.stash.skipCatalog = true;
-        // Return no-op request
+        // Return no-op query (will return empty)
         return {
-            operation: 'GetItem',
-            key: util.dynamodb.toMapValues({ seasonId: 'NOOP' })
+            operation: 'Query',
+            index: 'seasonId-index',
+            query: {
+                expression: 'seasonId = :seasonId',
+                expressionValues: util.dynamodb.toMapValues({ ':seasonId': 'NOOP' })
+            },
+            limit: 1
         };
     }
     
@@ -2239,11 +2368,15 @@ export function request(ctx) {
     const order = ctx.stash.order;
     const seasonId = order.seasonId;
     
-    // Direct GetItem on seasons table
+    // Query seasonId-index GSI to find season (V2 schema)
     return {
-        operation: 'GetItem',
-        key: util.dynamodb.toMapValues({ seasonId: seasonId }),
-        consistentRead: true
+        operation: 'Query',
+        index: 'seasonId-index',
+        query: {
+            expression: 'seasonId = :seasonId',
+            expressionValues: util.dynamodb.toMapValues({ ':seasonId': seasonId })
+        },
+        limit: 1
     };
 }
 
@@ -2256,11 +2389,12 @@ export function response(ctx) {
         util.error(ctx.error.message, ctx.error.type);
     }
     
-    if (!ctx.result) {
+    const items = ctx.result.items || [];
+    if (items.length === 0) {
         util.error('Season not found', 'NotFound');
     }
     
-    const season = ctx.result;
+    const season = items[0];
     const catalogId = season.catalogId;
     
     if (!catalogId) {
@@ -2437,9 +2571,10 @@ export function request(ctx) {
     
     const updateExpression = 'SET ' + updates.join(', ');
     
+    // V2 schema: composite key (seasonId, orderId)
     return {
         operation: 'UpdateItem',
-        key: util.dynamodb.toMapValues({ orderId: order.orderId }),
+        key: util.dynamodb.toMapValues({ seasonId: order.seasonId, orderId: order.orderId }),
         update: {
             expression: updateExpression,
             expressionNames: Object.keys(exprNames).length > 0 ? exprNames : undefined,
@@ -2464,7 +2599,14 @@ export function response(ctx) {
                 type_name="Mutation",
                 field_name="updateOrder",
                 runtime=appsync.FunctionRuntime.JS_1_0_0,
-                pipeline_config=[lookup_order_fn, verify_profile_write_access_fn, check_share_permissions_fn, get_catalog_for_update_order_fn, fetch_catalog_for_update_fn, update_order_fn],
+                pipeline_config=[
+                    lookup_order_fn,
+                    verify_profile_write_access_fn,
+                    check_share_permissions_fn,
+                    get_catalog_for_update_order_fn,
+                    fetch_catalog_for_update_fn,
+                    update_order_fn,
+                ],
                 code=appsync.Code.from_inline(
                     """
 export function request(ctx) {
@@ -2478,9 +2620,9 @@ export function response(ctx) {
                 ),
             )
 
-            # deleteOrder Pipeline: Direct GetItem → DeleteItem
+            # deleteOrder Pipeline: Query GSI → DeleteItem (V2 schema)
             # Separate lookup for delete - doesn't error on missing order (idempotent)
-            # Now uses orders_datasource with direct orderId key
+            # Uses orderId-index GSI since V2 schema has PK=seasonId, SK=orderId
             lookup_order_for_delete_fn = appsync.AppsyncFunction(
                 self,
                 "LookupOrderForDeleteFn",
@@ -2494,11 +2636,15 @@ import { util } from '@aws-appsync/utils';
 
 export function request(ctx) {
     const orderId = ctx.args.orderId;
-    // Direct GetItem on orders table using orderId as primary key
+    // Query orderId-index GSI (V2 schema: PK=seasonId, SK=orderId)
     return {
-        operation: 'GetItem',
-        key: util.dynamodb.toMapValues({ orderId: orderId }),
-        consistentRead: true
+        operation: 'Query',
+        index: 'orderId-index',
+        query: {
+            expression: 'orderId = :orderId',
+            expressionValues: util.dynamodb.toMapValues({ ':orderId': orderId })
+        },
+        limit: 1
     };
 }
 
@@ -2507,21 +2653,22 @@ export function response(ctx) {
         util.error(ctx.error.message, ctx.error.type);
     }
     
+    const items = ctx.result.items || [];
     // For delete, if order not found, that's OK (idempotent)
     // Just store null in stash and let delete function handle it
-    if (!ctx.result) {
+    if (items.length === 0) {
         ctx.stash.order = null;
         return null;
     }
     
-    ctx.stash.order = ctx.result;
-    return ctx.result;
+    ctx.stash.order = items[0];
+    return items[0];
 }
                 """
                 ),
             )
-            
-            # Delete order from orders table
+
+            # Delete order from orders table (V2 schema: composite key)
             delete_order_fn = appsync.AppsyncFunction(
                 self,
                 "DeleteOrderFn",
@@ -2542,14 +2689,20 @@ export function request(ctx) {
         // Return a no-op - just set a flag in stash
         ctx.stash.skipDelete = true;
         return {
-            operation: 'GetItem',
-            key: util.dynamodb.toMapValues({ orderId: 'NOOP' })
+            operation: 'Query',
+            index: 'orderId-index',
+            query: {
+                expression: 'orderId = :orderId',
+                expressionValues: util.dynamodb.toMapValues({ ':orderId': 'NOOP' })
+            },
+            limit: 1
         };
     }
     
+    // V2 schema: composite key (seasonId, orderId)
     return {
         operation: 'DeleteItem',
-        key: util.dynamodb.toMapValues({ orderId: order.orderId })
+        key: util.dynamodb.toMapValues({ seasonId: order.seasonId, orderId: order.orderId })
     };
 }
 
@@ -2570,7 +2723,12 @@ export function response(ctx) {
                 type_name="Mutation",
                 field_name="deleteOrder",
                 runtime=appsync.FunctionRuntime.JS_1_0_0,
-                pipeline_config=[lookup_order_for_delete_fn, verify_profile_write_access_fn, check_share_permissions_fn, delete_order_fn],
+                pipeline_config=[
+                    lookup_order_for_delete_fn,
+                    verify_profile_write_access_fn,
+                    check_share_permissions_fn,
+                    delete_order_fn,
+                ],
                 code=appsync.Code.from_inline(
                     """
 export function request(ctx) {
@@ -2590,7 +2748,7 @@ export function response(ctx) {
 
             # createOrder Pipeline: Verify access → Query season → GetItem catalog → PutItem order
             # Step 1: Get season to find catalogId
-            # Now uses seasons_datasource with direct seasonId key
+            # Uses seasonId-index GSI to look up season (V2 schema: PK=profileId, SK=seasonId)
             get_season_for_order_fn = appsync.AppsyncFunction(
                 self,
                 "GetSeasonForOrderFn",
@@ -2605,11 +2763,15 @@ import { util } from '@aws-appsync/utils';
 export function request(ctx) {
     const seasonId = ctx.args.input.seasonId;
     
-    // Direct GetItem on seasons table
+    // Query seasonId-index GSI to find season (V2 schema)
     return {
-        operation: 'GetItem',
-        key: util.dynamodb.toMapValues({ seasonId: seasonId }),
-        consistentRead: true
+        operation: 'Query',
+        index: 'seasonId-index',
+        query: {
+            expression: 'seasonId = :seasonId',
+            expressionValues: util.dynamodb.toMapValues({ ':seasonId': seasonId })
+        },
+        limit: 1
     };
 }
 
@@ -2617,11 +2779,13 @@ export function response(ctx) {
     if (ctx.error) {
         util.error(ctx.error.message, ctx.error.type);
     }
-    if (!ctx.result) {
+    
+    const items = ctx.result.items || [];
+    if (items.length === 0) {
         util.error('Season not found', 'NotFound');
     }
     
-    const season = ctx.result;
+    const season = items[0];
     if (!season.catalogId) {
         util.error('Season has no catalog assigned', 'BadRequest');
     }
@@ -2635,7 +2799,7 @@ export function response(ctx) {
                 """
                 ),
             )
-            
+
             # Step 2: Get catalog using catalogId from stash
             # Now uses catalogs_datasource with direct catalogId key
             get_catalog_fn = appsync.AppsyncFunction(
@@ -2768,9 +2932,10 @@ export function request(ctx) {
         orderItem.notes = input.notes;
     }
     
+    // V2 schema: composite key (seasonId, orderId)
     return {
         operation: 'PutItem',
-        key: util.dynamodb.toMapValues({ orderId: orderId }),
+        key: util.dynamodb.toMapValues({ seasonId: input.seasonId, orderId: orderId }),
         attributeValues: util.dynamodb.toMapValues(orderItem)
     };
 }
@@ -2791,7 +2956,13 @@ export function response(ctx) {
                 type_name="Mutation",
                 field_name="createOrder",
                 runtime=appsync.FunctionRuntime.JS_1_0_0,
-                pipeline_config=[verify_profile_write_access_fn, check_share_permissions_fn, get_season_for_order_fn, get_catalog_fn, create_order_fn],
+                pipeline_config=[
+                    verify_profile_write_access_fn,
+                    check_share_permissions_fn,
+                    get_season_for_order_fn,
+                    get_catalog_fn,
+                    create_order_fn,
+                ],
                 code=appsync.Code.from_inline(
                     """
 export function request(ctx) {
@@ -2818,14 +2989,15 @@ export function response(ctx) {
 import { util } from '@aws-appsync/utils';
 
 export function request(ctx) {
+    // NEW STRUCTURE: Query profileId-index GSI to find profile
     const profileId = ctx.args.input.profileId;
     return {
-        operation: 'GetItem',
-        key: util.dynamodb.toMapValues({ 
-            profileId: profileId, 
-            recordType: 'METADATA' 
-        }),
-        consistentRead: true
+        operation: 'Query',
+        index: 'profileId-index',
+        query: {
+            expression: 'profileId = :profileId',
+            expressionValues: util.dynamodb.toMapValues({ ':profileId': profileId })
+        }
     };
 }
 
@@ -2834,12 +3006,13 @@ export function response(ctx) {
         util.error(ctx.error.message, ctx.error.type);
     }
     // Check ownership - ownerAccountId uses ACCOUNT# prefix now
+    const profile = ctx.result.items && ctx.result.items[0];
     const expectedOwner = 'ACCOUNT#' + ctx.identity.sub;
-    if (!ctx.result || ctx.result.ownerAccountId !== expectedOwner) {
+    if (!profile || profile.ownerAccountId !== expectedOwner) {
         util.error('Forbidden: Only profile owner can share profiles', 'Unauthorized');
     }
-    ctx.stash.profile = ctx.result;
-    return ctx.result;
+    ctx.stash.profile = profile;
+    return profile;
 }
         """
                 ),
@@ -2889,12 +3062,13 @@ export function response(ctx) {
             )
 
             # Check if share already exists (to prevent duplicates and support idempotent upsert)
+            # NOW USES SHARES TABLE
             check_existing_share_fn = appsync.AppsyncFunction(
                 self,
                 "CheckExistingShareFn",
                 name=f"CheckExistingShareFn_{env_name}",
                 api=self.api,
-                data_source=self.profiles_datasource,
+                data_source=self.shares_datasource,
                 runtime=appsync.FunctionRuntime.JS_1_0_0,
                 code=appsync.Code.from_inline(
                     """
@@ -2912,12 +3086,12 @@ export function request(ctx) {
     // Store clean ID for later use by CreateShareFn
     ctx.stash.cleanTargetAccountId = targetAccountId;
     
-    // Query for existing share with SHARE#ACCOUNT# prefix
+    // Query shares table directly by PK+SK
     return {
         operation: 'GetItem',
         key: util.dynamodb.toMapValues({ 
             profileId: profileId, 
-            recordType: 'SHARE#ACCOUNT#' + targetAccountId 
+            targetAccountId: targetAccountId 
         }),
         consistentRead: true
     };
@@ -2939,13 +3113,14 @@ export function response(ctx) {
                 ),
             )
 
-            # Create share in profiles table
+            # Create share in shares table
+            # NOW USES SHARES TABLE
             create_share_fn = appsync.AppsyncFunction(
                 self,
                 "CreateShareFn",
                 name=f"CreateShareFn_{env_name}",
                 api=self.api,
-                data_source=self.profiles_datasource,
+                data_source=self.shares_datasource,
                 runtime=appsync.FunctionRuntime.JS_1_0_0,
                 code=appsync.Code.from_inline(
                     """
@@ -2958,22 +3133,29 @@ export function request(ctx) {
     const permissions = input.permissions || ctx.stash.invite.permissions;
     const now = util.time.nowISO8601();
     
-    // Strip ACCOUNT# prefix if present - store clean ID for GSI queries
+    // Get ownerAccountId from stash - check profile (shareProfileDirect) or invite (redeemProfileInvite)
+    var ownerAccountId = null;
+    if (ctx.stash.profile && ctx.stash.profile.ownerAccountId) {
+        ownerAccountId = ctx.stash.profile.ownerAccountId;
+    } else if (ctx.stash.invite && ctx.stash.invite.ownerAccountId) {
+        ownerAccountId = ctx.stash.invite.ownerAccountId;
+    }
+    
+    // Strip ACCOUNT# prefix if present - store clean ID
     if (targetAccountId && targetAccountId.startsWith('ACCOUNT#')) {
         targetAccountId = targetAccountId.substring(8);
     }
     
-    // Share in profiles table: profileId + recordType: SHARE#ACCOUNT#targetAccountId
-    // Use SHARE#ACCOUNT# prefix for consistency with old data
-    const recordType = 'SHARE#ACCOUNT#' + targetAccountId;
-    // shareId is the recordType (SHARE#ACCOUNT#xxx) to match test expectations
-    const shareId = recordType;
+    // Generate shareId for backward compatibility with tests
+    // Format: SHARE#ACCOUNT#{targetAccountId} to match old expectations
+    const shareId = 'SHARE#ACCOUNT#' + targetAccountId;
+    
     const shareItem = {
         profileId: profileId,
-        recordType: recordType,
-        shareId: shareId,
         targetAccountId: targetAccountId,
+        shareId: shareId,
         permissions: permissions,
+        ownerAccountId: ownerAccountId,  // Store for BatchGetItem lookup
         createdByAccountId: ctx.identity.sub,
         createdAt: now
     };
@@ -2984,7 +3166,7 @@ export function request(ctx) {
     // Use PutItem without condition to support both create and update (upsert)
     return {
         operation: 'PutItem',
-        key: util.dynamodb.toMapValues({ profileId: profileId, recordType: recordType }),
+        key: util.dynamodb.toMapValues({ profileId: profileId, targetAccountId: targetAccountId }),
         attributeValues: util.dynamodb.toMapValues(shareItem)
     };
 }
@@ -3026,15 +3208,15 @@ export function response(ctx) {
             )
 
             # ================================================================
-            # redeemProfileInvite Pipeline: Query inviteCode-index for invite → Create Share → Mark invite used
+            # redeemProfileInvite Pipeline: Lookup invite → Create Share → Mark invite used
             # ================================================================
-            # Uses profiles table inviteCode-index GSI
+            # NOW USES INVITES TABLE (direct GetItem by inviteCode)
             lookup_invite_fn = appsync.AppsyncFunction(
                 self,
                 "LookupInviteFn",
                 name=f"LookupInviteFn_{env_name}",
                 api=self.api,
-                data_source=self.profiles_datasource,
+                data_source=self.invites_datasource,
                 runtime=appsync.FunctionRuntime.JS_1_0_0,
                 code=appsync.Code.from_inline(
                     """
@@ -3042,14 +3224,11 @@ import { util } from '@aws-appsync/utils';
 
 export function request(ctx) {
     const inviteCode = ctx.args.input.inviteCode;
+    // Direct GetItem on invites table using inviteCode as PK
     return {
-        operation: 'Query',
-        index: 'inviteCode-index',
-        query: {
-            expression: 'inviteCode = :inviteCode',
-            expressionValues: util.dynamodb.toMapValues({ ':inviteCode': inviteCode })
-        },
-        limit: 1
+        operation: 'GetItem',
+        key: util.dynamodb.toMapValues({ inviteCode: inviteCode }),
+        consistentRead: true
     };
 }
 
@@ -3057,20 +3236,20 @@ export function response(ctx) {
     if (ctx.error) {
         util.error(ctx.error.message, ctx.error.type);
     }
-    if (!ctx.result.items || ctx.result.items.length === 0) {
+    if (!ctx.result || !ctx.result.inviteCode) {
         util.error('Invalid invite code', 'NotFound');
     }
     
-    const invite = ctx.result.items[0];
+    const invite = ctx.result;
     
     // Check if invite is already used
     if (invite.used) {
         util.error('Invite code has already been used', 'ConflictException');
     }
     
-    // Check if invite is expired
+    // Check if invite is expired (expiresAt is epoch seconds)
     const now = util.time.nowEpochSeconds();
-    if (invite.TTL && invite.TTL < now) {
+    if (invite.expiresAt && invite.expiresAt < now) {
         util.error('Invite code has expired', 'ConflictException');
     }
     
@@ -3083,13 +3262,13 @@ export function response(ctx) {
                 ),
             )
 
-            # Mark invite as used in profiles table
+            # Mark invite as used in invites table
             mark_invite_used_fn = appsync.AppsyncFunction(
                 self,
                 "MarkInviteUsedFn",
                 name=f"MarkInviteUsedFn_{env_name}",
                 api=self.api,
-                data_source=self.profiles_datasource,
+                data_source=self.invites_datasource,
                 runtime=appsync.FunctionRuntime.JS_1_0_0,
                 code=appsync.Code.from_inline(
                     """
@@ -3099,9 +3278,10 @@ export function request(ctx) {
     const invite = ctx.stash.invite;
     const now = util.time.nowISO8601();
     
+    // Update invite in invites table using inviteCode as key
     return {
         operation: 'UpdateItem',
-        key: util.dynamodb.toMapValues({ profileId: invite.profileId, recordType: invite.recordType }),
+        key: util.dynamodb.toMapValues({ inviteCode: invite.inviteCode }),
         update: {
             expression: 'SET used = :used, usedBy = :usedBy, usedAt = :usedAt',
             expressionValues: util.dynamodb.toMapValues({
@@ -3111,7 +3291,7 @@ export function request(ctx) {
                 ':false': false
             })
         },
-        condition: { expression: 'attribute_exists(profileId) AND used = :false' }
+        condition: { expression: 'attribute_exists(inviteCode) AND used = :false' }
     };
 }
 
@@ -3186,38 +3366,9 @@ $util.toJson($ctx.result)
                 ),
             )
 
-            # Account.isAdmin - Field resolver to compute isAdmin from Cognito groups
-            # Returns true if user is in "admin" Cognito group
-            self.none_datasource.create_resolver(
-                "AccountIsAdminResolver",
-                type_name="Account",
-                field_name="isAdmin",
-                runtime=appsync.FunctionRuntime.JS_1_0_0,
-                code=appsync.Code.from_inline(
-                    """
-export function request(ctx) {
-    return {};
-}
-
-export function response(ctx) {
-    // Check if user is in admin Cognito group
-    const groups = ctx.identity.claims ? ctx.identity.claims['cognito:groups'] : null;
-    if (groups && Array.isArray(groups)) {
-        return groups.includes('admin');
-    }
-    // For single group, it may be returned as a string
-    if (groups && typeof groups === 'string') {
-        return groups === 'admin';
-    }
-    return false;
-}
-                """
-                ),
-            )
-
             # getProfile - Get a specific profile by ID with authorization
             # Pipeline: FetchProfileFn -> CheckProfileReadAuthFn
-            
+
             # FetchProfileFn: Get the profile from profiles table directly
             fetch_profile_fn = appsync.AppsyncFunction(
                 self,
@@ -3239,11 +3390,14 @@ export function request(ctx) {
     // Store profileId for authorization check
     ctx.stash.profileId = profileId;
     
-    // Direct GetItem on profiles table using profileId and METADATA recordType
+    // NEW STRUCTURE: Query profileId-index GSI to find profile
     return {
-        operation: 'GetItem',
-        key: util.dynamodb.toMapValues({ profileId: profileId, recordType: 'METADATA' }),
-        consistentRead: true
+        operation: 'Query',
+        index: 'profileId-index',
+        query: {
+            expression: 'profileId = :profileId',
+            expressionValues: util.dynamodb.toMapValues({ ':profileId': profileId })
+        }
     };
 }
 
@@ -3252,8 +3406,8 @@ export function response(ctx) {
         util.error(ctx.error.message, ctx.error.type);
     }
     
-    // GetItem returns the profile directly (or null)
-    const profile = ctx.result;
+    // Query returns items array
+    const profile = ctx.result.items && ctx.result.items[0];
     
     if (!profile) {
         util.error('Profile not found', 'NotFound');
@@ -3266,14 +3420,15 @@ export function response(ctx) {
                     """
                 ),
             )
-            
+
             # CheckProfileReadAuthFn: Check if caller is owner or has share
+            # NOW USES SHARES TABLE
             check_profile_read_auth_fn = appsync.AppsyncFunction(
                 self,
                 "CheckProfileReadAuthFn",
                 name=f"CheckProfileReadAuthFn_{env_name}",
                 api=self.api,
-                data_source=self.profiles_datasource,
+                data_source=self.shares_datasource,
                 runtime=appsync.FunctionRuntime.JS_1_0_0,
                 code=appsync.Code.from_inline(
                     """
@@ -3289,7 +3444,7 @@ export function request(ctx) {
         // No DB operation needed, return no-op
         return {
             operation: 'GetItem',
-            key: util.dynamodb.toMapValues({ profileId: 'NOOP', recordType: 'NOOP' })
+            key: util.dynamodb.toMapValues({ profileId: 'NOOP', targetAccountId: 'NOOP' })
         };
     }
     
@@ -3297,12 +3452,12 @@ export function request(ctx) {
     ctx.stash.authorized = false;
     const profileId = ctx.stash.profileId;
     
-    // Check for share in profiles table
+    // Check for share in shares table: profileId + targetAccountId
     return {
         operation: 'GetItem',
         key: util.dynamodb.toMapValues({ 
             profileId: profileId, 
-            recordType: 'SHARE#' + ctx.identity.sub 
+            targetAccountId: ctx.identity.sub 
         }),
         consistentRead: true
     };
@@ -3341,7 +3496,7 @@ export function response(ctx) {
                     """
                 ),
             )
-            
+
             # getProfile Pipeline Resolver
             appsync.Resolver(
                 self,
@@ -3368,50 +3523,11 @@ export function response(ctx) {
             )
 
             # listMyProfiles - List profiles owned by current user
-            # Uses GSI1 (ownerAccountId-index) on profiles table to find METADATA records
-            self.profiles_datasource.create_resolver(
+            # NEW STRUCTURE: Query by PK (ownerAccountId) - no GSI needed
+            self.api.create_resolver(
                 "ListMyProfilesResolver",
                 type_name="Query",
                 field_name="listMyProfiles",
-                request_mapping_template=appsync.MappingTemplate.from_string(
-                    """
-{
-    "version": "2017-02-28",
-    "operation": "Query",
-    "query": {
-        "expression": "ownerAccountId = :ownerAccountId",
-        "expressionValues": {
-            ":ownerAccountId": $util.dynamodb.toDynamoDBJson("ACCOUNT#$ctx.identity.sub")
-        }
-    },
-    "index": "ownerAccountId-index",
-    "filter": {
-        "expression": "recordType = :recordType",
-        "expressionValues": {
-            ":recordType": $util.dynamodb.toDynamoDBJson("METADATA")
-        }
-    },
-    "limit": 100
-}
-                """
-                ),
-                response_mapping_template=appsync.MappingTemplate.from_string(
-                    """
-#if($ctx.error)
-    $util.error($ctx.error.message, $ctx.error.type)
-#end
-$util.toJson($ctx.result.items)
-                """
-                ),
-            )
-
-            # listSharedProfiles - Pipeline resolver to get profiles shared with current user
-            # Step 1: Query GSI2 (targetAccountId-index) for shares where targetAccountId = current user
-            list_shares_fn = appsync.AppsyncFunction(
-                self,
-                "ListSharesFn",
-                name=f"ListSharesFn_{env_name}",
-                api=self.api,
                 data_source=self.profiles_datasource,
                 runtime=appsync.FunctionRuntime.JS_1_0_0,
                 code=appsync.Code.from_inline(
@@ -3419,7 +3535,44 @@ $util.toJson($ctx.result.items)
 import { util } from '@aws-appsync/utils';
 
 export function request(ctx) {
-    // Query with clean accountId - CreateShareFn stores targetAccountId without ACCOUNT# prefix
+    // NEW STRUCTURE: Query by PK (ownerAccountId)
+    const ownerAccountId = 'ACCOUNT#' + ctx.identity.sub;
+    return {
+        operation: 'Query',
+        query: {
+            expression: 'ownerAccountId = :ownerAccountId',
+            expressionValues: util.dynamodb.toMapValues({ ':ownerAccountId': ownerAccountId })
+        },
+        limit: 500
+    };
+}
+
+export function response(ctx) {
+    if (ctx.error) {
+        util.error(ctx.error.message, ctx.error.type);
+    }
+    return ctx.result.items || [];
+}
+                """
+                ),
+            )
+
+            # listSharedProfiles - Pipeline resolver to get profiles shared with current user
+            # Step 1: Query shares table GSI (targetAccountId-index) for shares where targetAccountId = current user
+            # NOW USES SHARES TABLE
+            list_shares_fn = appsync.AppsyncFunction(
+                self,
+                "ListSharesFn",
+                name=f"ListSharesFn_{env_name}",
+                api=self.api,
+                data_source=self.shares_datasource,
+                runtime=appsync.FunctionRuntime.JS_1_0_0,
+                code=appsync.Code.from_inline(
+                    """
+import { util } from '@aws-appsync/utils';
+
+export function request(ctx) {
+    // Query shares table GSI with caller's accountId
     const accountId = ctx.identity.sub;
     return {
         operation: 'Query',
@@ -3433,23 +3586,33 @@ export function request(ctx) {
 
 export function response(ctx) {
     if (ctx.error) {
-        return util.error(ctx.error.message, ctx.error.type);
+        util.error(ctx.error.message, ctx.error.type);
     }
     const shares = ctx.result.items || [];
-    const profileIdSet = {};
+    
+    // Collect unique profiles with their ownerAccountIds for BatchGetItem
+    const profileKeys = [];
+    const seenProfileIds = {};
     for (const share of shares) {
-        profileIdSet[share.profileId] = true;
+        if (!seenProfileIds[share.profileId] && share.ownerAccountId) {
+            seenProfileIds[share.profileId] = true;
+            profileKeys.push({
+                profileId: share.profileId,
+                ownerAccountId: share.ownerAccountId
+            });
+        }
     }
-    const profileIds = Object.keys(profileIdSet);
+    
     ctx.stash.shares = shares;
-    ctx.stash.profileIds = profileIds;
-    return profileIds;
+    ctx.stash.profileKeys = profileKeys;
+    return profileKeys;
 }
                     """
                 ),
             )
 
-            # Step 2: Batch get METADATA records for shared profiles
+            # Step 2: Batch get profile records for shared profiles
+            # NEW STRUCTURE: Uses ownerAccountId + profileId as keys
             profiles_table_name = self.profiles_table.table_name
             batch_get_profiles_fn = appsync.AppsyncFunction(
                 self,
@@ -3463,14 +3626,23 @@ export function response(ctx) {
 import {{ util }} from '@aws-appsync/utils';
 
 export function request(ctx) {{
-    const profileIds = ctx.stash.profileIds || [];
-    if (profileIds.length === 0) {{
-        return {{ payload: [] }};
+    const profileKeys = ctx.stash.profileKeys || [];
+    if (profileKeys.length === 0) {{
+        // Return empty result without calling DynamoDB
+        ctx.stash.skipBatchGet = true;
+        return {{
+            operation: 'Query',
+            query: {{
+                expression: 'ownerAccountId = :noop',
+                expressionValues: util.dynamodb.toMapValues({{ ':noop': 'NOOP' }})
+            }}
+        }};
     }}
     
     const keys = [];
-    for (const profileId of profileIds) {{
-        keys.push(util.dynamodb.toMapValues({{ profileId: profileId, recordType: 'METADATA' }}));
+    for (const pk of profileKeys) {{
+        // NEW STRUCTURE: PK=ownerAccountId, SK=profileId
+        keys.push(util.dynamodb.toMapValues({{ ownerAccountId: pk.ownerAccountId, profileId: pk.profileId }}));
     }}
     
     return {{
@@ -3482,8 +3654,12 @@ export function request(ctx) {{
 }}
 
 export function response(ctx) {{
+    if (ctx.stash.skipBatchGet) {{
+        return [];
+    }}
+    
     if (ctx.error) {{
-        return util.error(ctx.error.message, ctx.error.type);
+        util.error(ctx.error.message, ctx.error.type);
     }}
     
     if (!ctx.result || !ctx.result.data) {{
@@ -3534,8 +3710,9 @@ export function response(ctx) { return ctx.prev.result; }
 
             # getSeason - Get a specific season by ID with authorization
             # Pipeline: QuerySeasonFn → VerifyProfileReadAccessFn → CheckShareReadPermissionsFn → ReturnSeasonFn
-            
-            # Step 1: Get season directly from seasons table
+
+            # Step 1: Get season from seasons table using seasonId-index GSI
+            # V2 STRUCTURE: PK=profileId, SK=seasonId, GSI=seasonId-index
             query_season_fn = appsync.AppsyncFunction(
                 self,
                 "QuerySeasonFn",
@@ -3549,11 +3726,15 @@ import { util } from '@aws-appsync/utils';
 
 export function request(ctx) {
     const seasonId = ctx.args.seasonId;
-    // Direct GetItem on seasons table
+    // V2: Query seasonId-index GSI since PK is now profileId
     return {
-        operation: 'GetItem',
-        key: util.dynamodb.toMapValues({ seasonId: seasonId }),
-        consistentRead: true
+        operation: 'Query',
+        index: 'seasonId-index',
+        query: {
+            expression: 'seasonId = :seasonId',
+            expressionValues: util.dynamodb.toMapValues({ ':seasonId': seasonId })
+        },
+        limit: 1
     };
 }
 
@@ -3562,13 +3743,13 @@ export function response(ctx) {
         util.error(ctx.error.message, ctx.error.type);
     }
     
-    if (!ctx.result) {
+    if (!ctx.result || !ctx.result.items || ctx.result.items.length === 0) {
         // Season not found - return null (auth check will be skipped)
         ctx.stash.seasonNotFound = true;
         return null;
     }
     
-    const season = ctx.result;
+    const season = ctx.result.items[0];
     ctx.stash.season = season;
     
     return season;
@@ -3576,7 +3757,7 @@ export function response(ctx) {
                 """
                 ),
             )
-            
+
             # Step 4: Return season if authorized, null otherwise
             return_season_fn = appsync.AppsyncFunction(
                 self,
@@ -3615,7 +3796,7 @@ export function response(ctx) {
                 """
                 ),
             )
-            
+
             # getSeason Pipeline Resolver
             self.api.create_resolver(
                 "GetSeasonResolver",
@@ -3626,7 +3807,7 @@ export function response(ctx) {
                     query_season_fn,
                     verify_profile_read_access_fn,
                     check_share_read_permissions_fn,
-                    return_season_fn
+                    return_season_fn,
                 ],
                 code=appsync.Code.from_inline(
                     """
@@ -3643,8 +3824,9 @@ export function response(ctx) {
 
             # listSeasonsByProfile - List all seasons for a profile with authorization
             # Pipeline: VerifyProfileReadAccessFn → CheckShareReadPermissionsFn → QuerySeasonsFn
-            
+
             # Step 3: Query seasons from seasons table (only if authorized)
+            # V2 STRUCTURE: PK=profileId, SK=seasonId - direct query, no GSI needed
             query_seasons_fn = appsync.AppsyncFunction(
                 self,
                 "QuerySeasonsFn",
@@ -3660,16 +3842,19 @@ export function request(ctx) {
     // If not authorized or profile not found, return no-op
     if (!ctx.stash.authorized || ctx.stash.profileNotFound) {
         return {
-            operation: 'GetItem',
-            key: util.dynamodb.toMapValues({ seasonId: 'NOOP' })
+            operation: 'Query',
+            query: {
+                expression: 'profileId = :profileId AND seasonId = :seasonId',
+                expressionValues: util.dynamodb.toMapValues({ ':profileId': 'NOOP', ':seasonId': 'NOOP' })
+            },
+            limit: 1
         };
     }
     
     const profileId = ctx.args.profileId;
-    // Query seasons table using profileId-index GSI
+    // V2: Direct PK query on profileId (no GSI needed)
     return {
         operation: 'Query',
-        index: 'profileId-index',
         query: {
             expression: 'profileId = :profileId',
             expressionValues: util.dynamodb.toMapValues({ ':profileId': profileId })
@@ -3692,7 +3877,7 @@ export function response(ctx) {
                 """
                 ),
             )
-            
+
             # listSeasonsByProfile Pipeline Resolver
             self.api.create_resolver(
                 "ListSeasonsByProfileResolver",
@@ -3702,7 +3887,7 @@ export function response(ctx) {
                 pipeline_config=[
                     verify_profile_read_access_fn,
                     check_share_read_permissions_fn,
-                    query_seasons_fn
+                    query_seasons_fn,
                 ],
                 code=appsync.Code.from_inline(
                     """
@@ -3745,7 +3930,7 @@ $util.toJson($ctx.result)
             )
 
             # Season.totalOrders - Count orders for this season
-            # Uses orders table with seasonId-index GSI
+            # V2 schema: Direct PK query since PK=seasonId
             self.orders_datasource.create_resolver(
                 "SeasonTotalOrdersResolver",
                 type_name="Season",
@@ -3755,7 +3940,6 @@ $util.toJson($ctx.result)
 {
     "version": "2017-02-28",
     "operation": "Query",
-    "index": "seasonId-index",
     "query": {
         "expression": "seasonId = :seasonId",
         "expressionValues": {
@@ -3776,7 +3960,7 @@ $ctx.result.items.size()
             )
 
             # Season.totalRevenue - Sum order totals for this season
-            # Uses orders table with seasonId-index GSI
+            # V2 schema: Direct PK query since PK=seasonId
             self.orders_datasource.create_resolver(
                 "SeasonTotalRevenueResolver",
                 type_name="Season",
@@ -3786,7 +3970,6 @@ $ctx.result.items.size()
 {
     "version": "2017-02-28",
     "operation": "Query",
-    "index": "seasonId-index",
     "query": {
         "expression": "seasonId = :seasonId",
         "expressionValues": {
@@ -3862,8 +4045,8 @@ export function response(ctx) {
 
             # SellerProfile.permissions - Return caller's permissions on this profile
             # If owner: ['READ', 'WRITE'], if shared: share.permissions, else: null
-            # Uses profiles table to look up share
-            self.profiles_datasource.create_resolver(
+            # NOW USES SHARES TABLE
+            self.shares_datasource.create_resolver(
                 "SellerProfilePermissionsResolver",
                 type_name="SellerProfile",
                 field_name="permissions",
@@ -3884,17 +4067,16 @@ export function request(ctx) {
         // Return a no-op query
         return {
             operation: 'GetItem',
-            key: util.dynamodb.toMapValues({ profileId: 'NOOP', recordType: 'NOOP' })
+            key: util.dynamodb.toMapValues({ profileId: 'NOOP', targetAccountId: 'NOOP' })
         };
     }
     
-    // Query for share record in profiles table
-    // recordType uses SHARE#ACCOUNT# prefix
+    // Query shares table for share record: profileId + targetAccountId
     return {
         operation: 'GetItem',
         key: util.dynamodb.toMapValues({ 
             profileId: profileId, 
-            recordType: 'SHARE#ACCOUNT#' + callerAccountId 
+            targetAccountId: callerAccountId 
         }),
         consistentRead: true
     };
@@ -3932,8 +4114,8 @@ export function response(ctx) {
 
             # getOrder - Get a specific order by ID with authorization (Pipeline Resolver)
             # Pipeline: QueryOrderFn → VerifyProfileReadAccessFn → CheckShareReadPermissionsFn → ReturnOrderFn
-            
-            # Step 1: Get order from orders table directly
+
+            # Step 1: Get order from orders table via orderId-index GSI (V2 schema)
             query_order_fn = appsync.AppsyncFunction(
                 self,
                 "QueryOrderFn",
@@ -3947,11 +4129,15 @@ import { util } from '@aws-appsync/utils';
 
 export function request(ctx) {
     const orderId = ctx.args.orderId;
-    // Direct GetItem on orders table
+    // Query orderId-index GSI (V2 schema: PK=seasonId, SK=orderId)
     return {
-        operation: 'GetItem',
-        key: util.dynamodb.toMapValues({ orderId: orderId }),
-        consistentRead: true
+        operation: 'Query',
+        index: 'orderId-index',
+        query: {
+            expression: 'orderId = :orderId',
+            expressionValues: util.dynamodb.toMapValues({ ':orderId': orderId })
+        },
+        limit: 1
     };
 }
 
@@ -3960,16 +4146,17 @@ export function response(ctx) {
         util.error(ctx.error.message, ctx.error.type);
     }
     
-    if (!ctx.result) {
+    const items = ctx.result.items || [];
+    if (items.length === 0) {
         // Order not found - return null (auth check will be skipped)
         ctx.stash.orderNotFound = true;
         return null;
     }
     
-    const order = ctx.result;
+    const order = items[0];
     ctx.stash.order = order;
     
-    // profileId is now stored directly on the order
+    // profileId is stored directly on the order
     ctx.stash.profileId = order.profileId;
     
     return order;
@@ -3977,7 +4164,7 @@ export function response(ctx) {
                 """
                 ),
             )
-            
+
             # Step 4: Return order if authorized, null otherwise
             return_order_fn = appsync.AppsyncFunction(
                 self,
@@ -4016,7 +4203,7 @@ export function response(ctx) {
                 """
                 ),
             )
-            
+
             # getOrder Pipeline Resolver
             self.api.create_resolver(
                 "GetOrderResolver",
@@ -4027,7 +4214,7 @@ export function response(ctx) {
                     query_order_fn,
                     verify_profile_read_access_fn,
                     check_share_read_permissions_fn,
-                    return_order_fn
+                    return_order_fn,
                 ],
                 code=appsync.Code.from_inline(
                     """
@@ -4047,8 +4234,8 @@ export function response(ctx) {
             # FIXED Bug #25: Now uses GSI5 with filter for ORDER# items
             # FIXED Bug #23: Added authorization check
             # Pipeline: LookupSeasonForOrdersFn → VerifyProfileReadAccessFn → CheckShareReadPermissionsFn → QueryOrdersBySeasonFn
-            
-            # Step 1: Lookup season to get profileId (uses seasons table with direct GetItem)
+
+            # Step 1: Lookup season to get profileId (uses seasonId-index GSI, V2 schema)
             lookup_season_for_orders_fn = appsync.AppsyncFunction(
                 self,
                 "LookupSeasonForOrdersFn",
@@ -4062,11 +4249,15 @@ import { util } from '@aws-appsync/utils';
 
 export function request(ctx) {
     const seasonId = ctx.args.seasonId;
-    // Direct GetItem on seasons table using seasonId as primary key
+    // Query seasonId-index GSI to find season (V2 schema: PK=profileId, SK=seasonId)
     return {
-        operation: 'GetItem',
-        key: util.dynamodb.toMapValues({ seasonId: seasonId }),
-        consistentRead: true
+        operation: 'Query',
+        index: 'seasonId-index',
+        query: {
+            expression: 'seasonId = :seasonId',
+            expressionValues: util.dynamodb.toMapValues({ ':seasonId': seasonId })
+        },
+        limit: 1
     };
 }
 
@@ -4075,14 +4266,15 @@ export function response(ctx) {
         util.error(ctx.error.message, ctx.error.type);
     }
     
-    if (!ctx.result) {
+    const items = ctx.result.items || [];
+    if (items.length === 0) {
         // Season not found - return empty, skip auth (will return empty array)
         ctx.stash.seasonNotFound = true;
         ctx.stash.authorized = false;
         return null;
     }
     
-    const season = ctx.result;
+    const season = items[0];
     ctx.stash.season = season;
     ctx.stash.profileId = season.profileId;
     
@@ -4091,8 +4283,8 @@ export function response(ctx) {
                 """
                 ),
             )
-            
-            # Step 4: Query orders (only if authorized) - uses orders table
+
+            # Step 4: Query orders (only if authorized) - direct PK query (V2 schema)
             query_orders_by_season_fn = appsync.AppsyncFunction(
                 self,
                 "QueryOrdersBySeasonFn",
@@ -4109,7 +4301,6 @@ export function request(ctx) {
     if (ctx.stash.seasonNotFound || !ctx.stash.authorized) {
         return {
             operation: 'Query',
-            index: 'seasonId-index',
             query: {
                 expression: 'seasonId = :seasonId',
                 expressionValues: util.dynamodb.toMapValues({ 
@@ -4120,10 +4311,9 @@ export function request(ctx) {
     }
     
     const seasonId = ctx.args.seasonId;
-    // Query orders table using seasonId-index GSI
+    // Direct PK query on orders table (V2 schema: PK=seasonId)
     return {
         operation: 'Query',
-        index: 'seasonId-index',
         query: {
             expression: 'seasonId = :seasonId',
             expressionValues: util.dynamodb.toMapValues({ 
@@ -4143,7 +4333,7 @@ export function response(ctx) {
                 """
                 ),
             )
-            
+
             # listOrdersBySeason Pipeline Resolver
             self.api.create_resolver(
                 "ListOrdersBySeasonResolver",
@@ -4154,7 +4344,7 @@ export function response(ctx) {
                     lookup_season_for_orders_fn,
                     verify_profile_read_access_fn,
                     check_share_read_permissions_fn,
-                    query_orders_by_season_fn
+                    query_orders_by_season_fn,
                 ],
                 code=appsync.Code.from_inline(
                     """
@@ -4173,7 +4363,7 @@ export function response(ctx) {
             # FIXED Bug #26: Now queries main table (PK=profileId) instead of GSI2
             # FIXED Bug #24: Added authorization check
             # Pipeline: VerifyProfileReadAccessFn → CheckShareReadPermissionsFn → QueryOrdersByProfileFn
-            
+
             # Query orders function - uses orders table with profileId-index GSI
             query_orders_by_profile_fn = appsync.AppsyncFunction(
                 self,
@@ -4225,7 +4415,7 @@ export function response(ctx) {
                 """
                 ),
             )
-            
+
             # listOrdersByProfile Pipeline Resolver
             self.api.create_resolver(
                 "ListOrdersByProfileResolver",
@@ -4235,7 +4425,7 @@ export function response(ctx) {
                 pipeline_config=[
                     verify_profile_read_access_fn,
                     check_share_read_permissions_fn,
-                    query_orders_by_profile_fn
+                    query_orders_by_profile_fn,
                 ],
                 code=appsync.Code.from_inline(
                     """
@@ -4253,14 +4443,14 @@ export function response(ctx) {
             # listSharesByProfile - List all shares for a profile with authorization (Pipeline Resolver)
             # FIXED Bug #27/#28: Added authorization check (owner or WRITE permission required)
             # Pipeline: VerifyProfileWriteAccessOrOwnerFn → QuerySharesFn
-            
-            # Function to query shares (only if authorized) - uses profiles table
+
+            # Function to query shares (only if authorized) - NOW USES SHARES TABLE
             query_shares_fn = appsync.AppsyncFunction(
                 self,
                 "QuerySharesFn",
                 name=f"QuerySharesFn_{env_name}",
                 api=self.api,
-                data_source=self.profiles_datasource,
+                data_source=self.shares_datasource,
                 runtime=appsync.FunctionRuntime.JS_1_0_0,
                 code=appsync.Code.from_inline(
                     """
@@ -4272,24 +4462,22 @@ export function request(ctx) {
         return {
             operation: 'Query',
             query: {
-                expression: 'profileId = :profileId AND begins_with(recordType, :recordType)',
+                expression: 'profileId = :profileId',
                 expressionValues: util.dynamodb.toMapValues({ 
-                    ':profileId': 'NONEXISTENT',
-                    ':recordType': 'NONE'
+                    ':profileId': 'NONEXISTENT'
                 })
             }
         };
     }
     
     const profileId = ctx.args.profileId;
-    // Query profiles table for SHARE# records
+    // Query shares table directly by PK (profileId)
     return {
         operation: 'Query',
         query: {
-            expression: 'profileId = :profileId AND begins_with(recordType, :recordType)',
+            expression: 'profileId = :profileId',
             expressionValues: util.dynamodb.toMapValues({ 
-                ':profileId': profileId,
-                ':recordType': 'SHARE#'
+                ':profileId': profileId
             })
         }
     };
@@ -4305,7 +4493,7 @@ export function response(ctx) {
                 """
                 ),
             )
-            
+
             # Verification function for shares (owner or WRITE permission) - uses profiles table
             verify_profile_write_or_owner_fn = appsync.AppsyncFunction(
                 self,
@@ -4323,26 +4511,33 @@ export function request(ctx) {
     
     // Validate profileId format - must start with 'PROFILE#' and have a UUID
     if (!profileId || !profileId.startsWith('PROFILE#')) {
-        // Invalid format - set flags to deny and skip GetItem
+        // Invalid format - set flags to deny and skip Query
         ctx.stash.isOwner = false;
         ctx.stash.hasWritePermission = false;
         ctx.stash.skipGetItem = true;
         return {
-            operation: 'GetItem',
-            key: util.dynamodb.toMapValues({ profileId: 'NOOP', recordType: 'NOOP' })
+            operation: 'Query',
+            index: 'profileId-index',
+            query: {
+                expression: 'profileId = :profileId',
+                expressionValues: util.dynamodb.toMapValues({ ':profileId': 'NOOP' })
+            }
         };
     }
     
-    // Get profile metadata to check ownership - uses profileId/recordType keys
+    // NEW STRUCTURE: Query profileId-index GSI to find profile
     return {
-        operation: 'GetItem',
-        key: util.dynamodb.toMapValues({ profileId: profileId, recordType: 'METADATA' }),
-        consistentRead: true
+        operation: 'Query',
+        index: 'profileId-index',
+        query: {
+            expression: 'profileId = :profileId',
+            expressionValues: util.dynamodb.toMapValues({ ':profileId': profileId })
+        }
     };
 }
 
 export function response(ctx) {
-    // Check if we skipped GetItem due to validation
+    // Check if we skipped Query due to validation
     if (ctx.stash.skipGetItem) {
         return { authorized: false };
     }
@@ -4354,7 +4549,7 @@ export function response(ctx) {
         return { authorized: false };
     }
     
-    const profile = ctx.result;
+    const profile = ctx.result.items && ctx.result.items[0];
     
     if (!profile) {
         // Profile not found - return empty list
@@ -4391,14 +4586,14 @@ export function response(ctx) {
                 """
                 ),
             )
-            
-            # Check WRITE permission function - uses profiles table
+
+            # Check WRITE permission function - NOW USES SHARES TABLE
             check_write_permission_fn = appsync.AppsyncFunction(
                 self,
                 "CheckWritePermissionFn",
                 name=f"CheckWritePermissionFn_{env_name}",
                 api=self.api,
-                data_source=self.profiles_datasource,
+                data_source=self.shares_datasource,
                 runtime=appsync.FunctionRuntime.JS_1_0_0,
                 code=appsync.Code.from_inline(
                     """
@@ -4409,7 +4604,7 @@ export function request(ctx) {
     if (ctx.stash.isOwner || ctx.stash.skipGetItem) {
         return {
             operation: 'GetItem',
-            key: util.dynamodb.toMapValues({ profileId: 'NOOP', recordType: 'NOOP' })
+            key: util.dynamodb.toMapValues({ profileId: 'NOOP', targetAccountId: 'NOOP' })
         };
     }
     
@@ -4420,16 +4615,16 @@ export function request(ctx) {
         ctx.stash.hasWritePermission = false;
         return {
             operation: 'GetItem',
-            key: util.dynamodb.toMapValues({ profileId: 'NOOP', recordType: 'NOOP' })
+            key: util.dynamodb.toMapValues({ profileId: 'NOOP', targetAccountId: 'NOOP' })
         };
     }
     
-    // Get share using profileId/recordType keys
+    // Get share from shares table using profileId + targetAccountId (caller's sub)
     return {
         operation: 'GetItem',
         key: util.dynamodb.toMapValues({ 
             profileId: profileId, 
-            recordType: 'SHARE#' + ctx.identity.sub 
+            targetAccountId: ctx.identity.sub 
         }),
         consistentRead: true
     };
@@ -4467,7 +4662,7 @@ export function response(ctx) {
                 """
                 ),
             )
-            
+
             # listSharesByProfile Pipeline Resolver
             self.api.create_resolver(
                 "ListSharesByProfileResolver",
@@ -4477,7 +4672,7 @@ export function response(ctx) {
                 pipeline_config=[
                     verify_profile_write_or_owner_fn,
                     check_write_permission_fn,
-                    query_shares_fn
+                    query_shares_fn,
                 ],
                 code=appsync.Code.from_inline(
                     """
@@ -4508,10 +4703,14 @@ import { util } from '@aws-appsync/utils';
 export function request(ctx) {
     const profileId = ctx.args.profileId;
     
-    // Get profile metadata using profileId/recordType keys
+    // NEW STRUCTURE: Query profileId-index GSI to find profile
     return {
-        operation: 'GetItem',
-        key: util.dynamodb.toMapValues({ profileId: profileId, recordType: 'METADATA' })
+        operation: 'Query',
+        index: 'profileId-index',
+        query: {
+            expression: 'profileId = :profileId',
+            expressionValues: util.dynamodb.toMapValues({ ':profileId': profileId })
+        }
     };
 }
 
@@ -4520,7 +4719,7 @@ export function response(ctx) {
         util.error(ctx.error.message, ctx.error.type);
     }
     
-    const profile = ctx.result;
+    const profile = ctx.result.items && ctx.result.items[0];
     const callerAccountId = ctx.identity.sub;
     
     // Profile not found
@@ -4543,12 +4742,13 @@ export function response(ctx) {
                 ),
             )
 
+            # NOW USES INVITES TABLE
             query_invites_fn = appsync.AppsyncFunction(
                 self,
                 "QueryInvitesFn",
                 name=f"QueryInvitesFn_{env_name}",
                 api=self.api,
-                data_source=self.profiles_datasource,
+                data_source=self.invites_datasource,
                 runtime=appsync.FunctionRuntime.JS_1_0_0,
                 code=appsync.Code.from_inline(
                     """
@@ -4562,24 +4762,24 @@ export function request(ctx) {
         // Return empty query that yields no results
         return {
             operation: 'Query',
+            index: 'profileId-index',
             query: {
-                expression: 'profileId = :profileId AND begins_with(recordType, :recordType)',
+                expression: 'profileId = :profileId',
                 expressionValues: util.dynamodb.toMapValues({
-                    ':profileId': 'NONEXISTENT',
-                    ':recordType': 'NONEXISTENT'
+                    ':profileId': 'NONEXISTENT'
                 })
             }
         };
     }
     
-    // Owner is authorized - query invites using profileId/recordType keys
+    // Owner is authorized - query invites table using profileId-index GSI
     return {
         operation: 'Query',
+        index: 'profileId-index',
         query: {
-            expression: 'profileId = :profileId AND begins_with(recordType, :recordType)',
+            expression: 'profileId = :profileId',
             expressionValues: util.dynamodb.toMapValues({
-                ':profileId': profileId,
-                ':recordType': 'INVITE#'
+                ':profileId': profileId
             })
         }
     };
@@ -4591,19 +4791,19 @@ export function response(ctx) {
     }
     
     const items = ctx.result.items || [];
-    // Get current time in ISO string format
-    const nowEpochMillis = util.time.nowEpochMilliSeconds();
-    const now = util.time.epochMilliSecondsToISO8601(nowEpochMillis);
+    // Get current time as epoch seconds for comparison
+    const nowEpochSeconds = util.time.nowEpochSeconds();
     
     // Filter out expired and used invites
+    // expiresAt is now stored as epoch seconds (number)
     const activeInvites = items.filter(invite => {
         // Skip if already used
         if (invite.used === true) {
             return false;
         }
         
-        // Skip if expired (expiresAt is ISO string)
-        if (invite.expiresAt && invite.expiresAt < now) {
+        // Skip if expired (expiresAt is epoch seconds)
+        if (invite.expiresAt && invite.expiresAt < nowEpochSeconds) {
             return false;
         }
         
@@ -4611,11 +4811,12 @@ export function response(ctx) {
     });
     
     // Map DynamoDB field names to GraphQL schema names
+    // Convert expiresAt from epoch to ISO string for API response
     return activeInvites.map(invite => ({
         inviteCode: invite.inviteCode,
         profileId: invite.profileId,
         permissions: invite.permissions,
-        expiresAt: invite.expiresAt,
+        expiresAt: util.time.epochMilliSecondsToISO8601(invite.expiresAt * 1000),
         createdAt: invite.createdAt,
         createdByAccountId: invite.createdBy
     }));
@@ -4689,62 +4890,67 @@ export function response(ctx) {
             )
 
             # listPublicCatalogs - List all public catalogs (uses catalogs table GSI)
-            self.catalogs_datasource.create_resolver(
+            self.api.create_resolver(
                 "ListPublicCatalogsResolver",
                 type_name="Query",
                 field_name="listPublicCatalogs",
-                request_mapping_template=appsync.MappingTemplate.from_string(
+                data_source=self.catalogs_datasource,
+                runtime=appsync.FunctionRuntime.JS_1_0_0,
+                code=appsync.Code.from_inline(
                     """
-{
-    "version": "2017-02-28",
-    "operation": "Query",
-    "index": "isPublic-createdAt-index",
-    "query": {
-        "expression": "isPublicStr = :isPublicStr",
-        "expressionValues": {
-            ":isPublicStr": $util.dynamodb.toDynamoDBJson("true")
-        }
-    },
-    "scanIndexForward": false
+import { util } from '@aws-appsync/utils';
+
+export function request(ctx) {
+    return {
+        operation: 'Query',
+        index: 'isPublic-createdAt-index',
+        query: {
+            expression: 'isPublicStr = :isPublicStr',
+            expressionValues: util.dynamodb.toMapValues({ ':isPublicStr': 'true' })
+        },
+        scanIndexForward: false
+    };
 }
-                """
-                ),
-                response_mapping_template=appsync.MappingTemplate.from_string(
-                    """
-#if($ctx.error)
-    $util.error($ctx.error.message, $ctx.error.type)
-#end
-$util.toJson($ctx.result.items)
+
+export function response(ctx) {
+    if (ctx.error) {
+        util.error(ctx.error.message, ctx.error.type);
+    }
+    return ctx.result.items || [];
+}
                 """
                 ),
             )
 
             # listMyCatalogs - List catalogs owned by current user (uses catalogs table GSI)
-            self.catalogs_datasource.create_resolver(
+            self.api.create_resolver(
                 "ListMyCatalogsResolver",
                 type_name="Query",
                 field_name="listMyCatalogs",
-                request_mapping_template=appsync.MappingTemplate.from_string(
+                data_source=self.catalogs_datasource,
+                runtime=appsync.FunctionRuntime.JS_1_0_0,
+                code=appsync.Code.from_inline(
                     """
-{
-    "version": "2017-02-28",
-    "operation": "Query",
-    "index": "ownerAccountId-index",
-    "query": {
-        "expression": "ownerAccountId = :ownerAccountId",
-        "expressionValues": {
-            ":ownerAccountId": $util.dynamodb.toDynamoDBJson("ACCOUNT#$ctx.identity.sub")
+import { util } from '@aws-appsync/utils';
+
+export function request(ctx) {
+    const ownerAccountId = 'ACCOUNT#' + ctx.identity.sub;
+    return {
+        operation: 'Query',
+        index: 'ownerAccountId-index',
+        query: {
+            expression: 'ownerAccountId = :ownerAccountId',
+            expressionValues: util.dynamodb.toMapValues({ ':ownerAccountId': ownerAccountId })
         }
-    }
+    };
 }
-                """
-                ),
-                response_mapping_template=appsync.MappingTemplate.from_string(
-                    """
-#if($ctx.error)
-    $util.error($ctx.error.message, $ctx.error.type)
-#end
-$util.toJson($ctx.result.items)
+
+export function response(ctx) {
+    if (ctx.error) {
+        util.error(ctx.error.message, ctx.error.type);
+    }
+    return ctx.result.items || [];
+}
                 """
                 ),
             )
@@ -4760,63 +4966,128 @@ $util.toJson($ctx.result.items)
                 field_name="createSellerProfile",
             )
 
-            # updateSellerProfile - Update an existing seller profile - uses profiles table
-            self.profiles_datasource.create_resolver(
+            # updateSellerProfile - Pipeline resolver: Lookup profile → Update profile
+            # Step 1: Query profile by profileId using GSI
+            lookup_profile_for_update_fn = appsync.AppsyncFunction(
+                self,
+                "LookupProfileForUpdateFn",
+                name=f"LookupProfileForUpdateFn_{env_name}",
+                api=self.api,
+                data_source=self.profiles_datasource,
+                runtime=appsync.FunctionRuntime.JS_1_0_0,
+                code=appsync.Code.from_inline(
+                    """
+import { util } from '@aws-appsync/utils';
+
+export function request(ctx) {
+    const profileId = ctx.args.input.profileId;
+    // NEW STRUCTURE: Query profileId-index GSI to find profile
+    return {
+        operation: 'Query',
+        index: 'profileId-index',
+        query: {
+            expression: 'profileId = :profileId',
+            expressionValues: util.dynamodb.toMapValues({ ':profileId': profileId })
+        }
+    };
+}
+
+export function response(ctx) {
+    if (ctx.error) {
+        util.error(ctx.error.message, ctx.error.type);
+    }
+    const profile = ctx.result.items && ctx.result.items[0];
+    if (!profile) {
+        util.error('Profile not found or access denied', 'Forbidden');
+    }
+    // Check ownership
+    const expectedOwner = 'ACCOUNT#' + ctx.identity.sub;
+    if (profile.ownerAccountId !== expectedOwner) {
+        util.error('Profile not found or access denied', 'Forbidden');
+    }
+    ctx.stash.profile = profile;
+    return profile;
+}
+                    """
+                ),
+            )
+
+            # Step 2: Update the profile
+            update_profile_fn = appsync.AppsyncFunction(
+                self,
+                "UpdateProfileFn",
+                name=f"UpdateProfileFn_{env_name}",
+                api=self.api,
+                data_source=self.profiles_datasource,
+                runtime=appsync.FunctionRuntime.JS_1_0_0,
+                code=appsync.Code.from_inline(
+                    """
+import { util } from '@aws-appsync/utils';
+
+export function request(ctx) {
+    const profile = ctx.stash.profile;
+    const input = ctx.args.input;
+    const now = util.time.nowISO8601();
+    
+    // NEW STRUCTURE: Update using ownerAccountId + profileId keys
+    return {
+        operation: 'UpdateItem',
+        key: util.dynamodb.toMapValues({ 
+            ownerAccountId: profile.ownerAccountId, 
+            profileId: input.profileId 
+        }),
+        update: {
+            expression: 'SET sellerName = :sellerName, updatedAt = :updatedAt',
+            expressionValues: util.dynamodb.toMapValues({
+                ':sellerName': input.sellerName,
+                ':updatedAt': now
+            })
+        }
+    };
+}
+
+export function response(ctx) {
+    if (ctx.error) {
+        util.error(ctx.error.message, ctx.error.type);
+    }
+    return ctx.result;
+}
+                    """
+                ),
+            )
+
+            # Create updateSellerProfile pipeline resolver
+            self.api.create_resolver(
                 "UpdateSellerProfileResolver",
                 type_name="Mutation",
                 field_name="updateSellerProfile",
-                request_mapping_template=appsync.MappingTemplate.from_string(
+                runtime=appsync.FunctionRuntime.JS_1_0_0,
+                pipeline_config=[lookup_profile_for_update_fn, update_profile_fn],
+                code=appsync.Code.from_inline(
                     """
-#set($now = $util.time.nowISO8601())
-{
-    "version": "2017-02-28",
-    "operation": "UpdateItem",
-    "key": {
-        "profileId": $util.dynamodb.toDynamoDBJson($ctx.args.input.profileId),
-        "recordType": $util.dynamodb.toDynamoDBJson("METADATA")
-    },
-    "update": {
-        "expression": "SET sellerName = :sellerName, updatedAt = :updatedAt",
-        "expressionValues": {
-            ":sellerName": $util.dynamodb.toDynamoDBJson($ctx.args.input.sellerName),
-            ":updatedAt": $util.dynamodb.toDynamoDBJson($now)
-        }
-    },
-    "condition": {
-        "expression": "attribute_exists(profileId) AND ownerAccountId = :ownerId",
-        "expressionValues": {
-            ":ownerId": $util.dynamodb.toDynamoDBJson("ACCOUNT#$ctx.identity.sub")
-        }
-    }
+export function request(ctx) {
+    return {};
 }
-                """
-                ),
-                response_mapping_template=appsync.MappingTemplate.from_string(
+
+export function response(ctx) {
+    return ctx.prev.result;
+}
                     """
-#if($ctx.error)
-    #if($ctx.error.type == "DynamoDB:ConditionalCheckFailedException")
-        $util.error("Profile not found or access denied", "Forbidden")
-    #else
-        $util.error($ctx.error.message, $ctx.error.type)
-    #end
-#end
-$util.toJson($ctx.result)
-                """
                 ),
             )
 
             # deleteSellerProfile - Delete a seller profile (owner only)
             # 9-step Pipeline resolver:
             # 1. Verify ownership by looking up profile metadata
-            # 2. Query all SHARE# records for this profile
-            # 3. Query all INVITE# records for this profile
+            # 2. Query all shares for this profile from shares table
+            # 3. Query all invites for this profile from invites table
             # 4. Delete all shares (TransactWriteItems)
             # 5. Delete all invites (TransactWriteItems)
             # 6. Query all SEASON# records for this profile
             # 7. Delete all seasons (TransactWriteItems)
             # 8. Delete the ownership record (ACCOUNT#{userId}|{profileId})
             # 9. Delete the metadata record (PROFILE#{profileId}|METADATA)
-            
+
             # Step 1: Verify ownership - uses profiles table
             verify_profile_owner_for_delete_fn = appsync.AppsyncFunction(
                 self,
@@ -4831,13 +5102,14 @@ import { util } from '@aws-appsync/utils';
 
 export function request(ctx) {
     const profileId = ctx.args.profileId;
-    // Get profile metadata using profileId/recordType keys
+    // NEW STRUCTURE: Query profileId-index GSI to find profile
     return {
-        operation: 'GetItem',
-        key: util.dynamodb.toMapValues({ 
-            profileId: profileId, 
-            recordType: 'METADATA' 
-        })
+        operation: 'Query',
+        index: 'profileId-index',
+        query: {
+            expression: 'profileId = :profileId',
+            expressionValues: util.dynamodb.toMapValues({ ':profileId': profileId })
+        }
     };
 }
 
@@ -4845,29 +5117,30 @@ export function response(ctx) {
     if (ctx.error) {
         util.error(ctx.error.message, ctx.error.type);
     }
-    if (!ctx.result) {
+    const profile = ctx.result.items && ctx.result.items[0];
+    if (!profile) {
         util.error('Profile not found', 'NotFound');
     }
     // ownerAccountId now has 'ACCOUNT#' prefix
-    if (ctx.result.ownerAccountId !== 'ACCOUNT#' + ctx.identity.sub) {
+    if (profile.ownerAccountId !== 'ACCOUNT#' + ctx.identity.sub) {
         util.error('Forbidden: Only profile owner can delete profile', 'Unauthorized');
     }
     // Store for next steps
     ctx.stash.profileId = ctx.args.profileId;
-    ctx.stash.ownerAccountId = ctx.result.ownerAccountId;
-    return ctx.result;
+    ctx.stash.ownerAccountId = profile.ownerAccountId;
+    return profile;
 }
         """
                 ),
             )
 
-            # Step 2: Query all SHARE# records for this profile - uses profiles table
+            # Step 2: Query all shares for this profile - NOW USES SHARES TABLE
             query_profile_shares_fn = appsync.AppsyncFunction(
                 self,
                 "QueryProfileSharesForDeleteFn",
                 name=f"QueryProfileSharesForDeleteFn_{env_name}",
                 api=self.api,
-                data_source=self.profiles_datasource,
+                data_source=self.shares_datasource,
                 runtime=appsync.FunctionRuntime.JS_1_0_0,
                 code=appsync.Code.from_inline(
                     """
@@ -4875,14 +5148,13 @@ import { util } from '@aws-appsync/utils';
 
 export function request(ctx) {
     const profileId = ctx.stash.profileId;
-    // Query profiles table for SHARE# records using profileId/recordType keys
+    // Query shares table directly by PK (profileId)
     return {
         operation: 'Query',
         query: {
-            expression: 'profileId = :profileId AND begins_with(recordType, :recordType)',
+            expression: 'profileId = :profileId',
             expressionValues: util.dynamodb.toMapValues({
-                ':profileId': profileId,
-                ':recordType': 'SHARE#'
+                ':profileId': profileId
             })
         }
     };
@@ -4899,13 +5171,13 @@ export function response(ctx) {
                 ),
             )
 
-            # Step 3: Query all INVITE# records for this profile - uses profiles table
+            # Step 3: Query all invites for this profile - NOW USES INVITES TABLE
             query_profile_invites_fn = appsync.AppsyncFunction(
                 self,
                 "QueryProfileInvitesForDeleteFn",
                 name=f"QueryProfileInvitesForDeleteFn_{env_name}",
                 api=self.api,
-                data_source=self.profiles_datasource,
+                data_source=self.invites_datasource,
                 runtime=appsync.FunctionRuntime.JS_1_0_0,
                 code=appsync.Code.from_inline(
                     """
@@ -4913,14 +5185,14 @@ import { util } from '@aws-appsync/utils';
 
 export function request(ctx) {
     const profileId = ctx.stash.profileId;
-    // Query profiles table for INVITE# records using profileId/recordType keys
+    // Query invites table using profileId-index GSI
     return {
         operation: 'Query',
+        index: 'profileId-index',
         query: {
-            expression: 'profileId = :profileId AND begins_with(recordType, :recordType)',
+            expression: 'profileId = :profileId',
             expressionValues: util.dynamodb.toMapValues({
-                ':profileId': profileId,
-                ':recordType': 'INVITE#'
+                ':profileId': profileId
             })
         }
     };
@@ -4937,13 +5209,13 @@ export function response(ctx) {
                 ),
             )
 
-            # Step 4: Delete all shares using BatchDeleteItem - uses profiles table
+            # Step 4: Delete all shares using BatchDeleteItem - NOW USES SHARES TABLE
             delete_profile_shares_fn = appsync.AppsyncFunction(
                 self,
                 "DeleteProfileSharesFn",
                 name=f"DeleteProfileSharesFn_{env_name}",
                 api=self.api,
-                data_source=self.profiles_datasource,
+                data_source=self.shares_datasource,
                 runtime=appsync.FunctionRuntime.JS_1_0_0,
                 code=appsync.Code.from_inline(
                     """
@@ -4954,18 +5226,20 @@ export function request(ctx) {
     
     // If no shares to delete, skip with a no-op GetItem
     if (shares.length === 0) {
-        return { operation: 'GetItem', key: util.dynamodb.toMapValues({ profileId: 'SKIP', recordType: 'SKIP' }) };
+        return { operation: 'GetItem', key: util.dynamodb.toMapValues({ profileId: 'SKIP', targetAccountId: 'SKIP' }) };
     }
     
-    // Build delete keys for BatchDeleteItem (max 25 items per batch) using profileId/recordType keys
+    // Build delete keys for BatchDeleteItem (max 25 items per batch) using shares table keys
     const keys = shares.slice(0, 25).map(share => 
-        util.dynamodb.toMapValues({ profileId: share.profileId, recordType: share.recordType })
+        util.dynamodb.toMapValues({ profileId: share.profileId, targetAccountId: share.targetAccountId })
     );
     
     return {
         operation: 'BatchDeleteItem',
         tables: {
-            '""" + self.profiles_table.table_name + """': keys
+            '"""
+                    + self.shares_table.table_name
+                    + """': keys
         }
     };
 }
@@ -4978,13 +5252,13 @@ export function response(ctx) {
                 ),
             )
 
-            # Step 5: Delete all invites using BatchDeleteItem - uses profiles table
+            # Step 5: Delete all invites using BatchDeleteItem - NOW USES INVITES TABLE
             delete_profile_invites_fn = appsync.AppsyncFunction(
                 self,
                 "DeleteProfileInvitesFn",
                 name=f"DeleteProfileInvitesFn_{env_name}",
                 api=self.api,
-                data_source=self.profiles_datasource,
+                data_source=self.invites_datasource,
                 runtime=appsync.FunctionRuntime.JS_1_0_0,
                 code=appsync.Code.from_inline(
                     """
@@ -4995,18 +5269,20 @@ export function request(ctx) {
     
     // If no invites to delete, skip with a no-op GetItem
     if (invites.length === 0) {
-        return { operation: 'GetItem', key: util.dynamodb.toMapValues({ profileId: 'SKIP', recordType: 'SKIP' }) };
+        return { operation: 'GetItem', key: util.dynamodb.toMapValues({ inviteCode: 'SKIP' }) };
     }
     
-    // Build delete keys for BatchDeleteItem (max 25 items per batch) using profileId/recordType keys
+    // Build delete keys for BatchDeleteItem (max 25 items per batch) using invites table key
     const keys = invites.slice(0, 25).map(invite => 
-        util.dynamodb.toMapValues({ profileId: invite.profileId, recordType: invite.recordType })
+        util.dynamodb.toMapValues({ inviteCode: invite.inviteCode })
     );
     
     return {
         operation: 'BatchDeleteItem',
         tables: {
-            '""" + self.profiles_table.table_name + """': keys
+            '"""
+                    + self.invites_table.table_name
+                    + """': keys
         }
     };
 }
@@ -5033,10 +5309,9 @@ import { util } from '@aws-appsync/utils';
 
 export function request(ctx) {
     const profileId = ctx.stash.profileId;
-    // Query seasons table using profileId-index GSI
+    // V2: Direct PK query on profileId (no GSI needed)
     return {
         operation: 'Query',
-        index: 'profileId-index',
         query: {
             expression: 'profileId = :profileId',
             expressionValues: util.dynamodb.toMapValues({
@@ -5074,14 +5349,16 @@ export function request(ctx) {
     
     // If no seasons to delete, skip
     if (seasons.length === 0) {
-        return { operation: 'GetItem', key: util.dynamodb.toMapValues({ seasonId: 'SKIP' }) };
+        return { operation: 'Query', query: { expression: 'profileId = :pk AND seasonId = :sk', expressionValues: util.dynamodb.toMapValues({ ':pk': 'SKIP', ':sk': 'SKIP' }) }, limit: 1 };
     }
     
-    // Build delete requests (max 100 items per TransactWriteItems) using seasonId key
+    // V2: Build delete requests (max 100 items per TransactWriteItems) using composite key (profileId, seasonId)
     const transactItems = seasons.slice(0, 100).map(season => ({
-        table: '""" + self.seasons_table.table_name + """',
+        table: '"""
+                    + self.seasons_table.table_name
+                    + """',
         operation: 'DeleteItem',
-        key: util.dynamodb.toMapValues({ seasonId: season.seasonId })
+        key: util.dynamodb.toMapValues({ profileId: season.profileId, seasonId: season.seasonId })
     }));
     
     return {
@@ -5118,7 +5395,7 @@ export function request(ctx) {
     // This is now a no-op - just return success
     return {
         operation: 'GetItem',
-        key: util.dynamodb.toMapValues({ profileId: 'NOOP', recordType: 'NOOP' })
+        key: util.dynamodb.toMapValues({ ownerAccountId: 'NOOP', profileId: 'NOOP' })
     };
 }
 
@@ -5130,7 +5407,7 @@ export function response(ctx) {
                 ),
             )
 
-            # Step 9: Delete the metadata record - uses profiles table with profileId/recordType keys
+            # Step 9: Delete the profile record - uses profiles table with new key structure
             delete_profile_metadata_fn = appsync.AppsyncFunction(
                 self,
                 "DeleteProfileMetadataFn",
@@ -5144,13 +5421,14 @@ import { util } from '@aws-appsync/utils';
 
 export function request(ctx) {
     const profileId = ctx.stash.profileId;
+    const ownerAccountId = ctx.stash.ownerAccountId;
     
-    // Delete profile metadata using profileId/recordType keys
+    // NEW STRUCTURE: Delete profile using ownerAccountId as PK and profileId as SK
     return {
         operation: 'DeleteItem',
         key: util.dynamodb.toMapValues({ 
-            profileId: profileId, 
-            recordType: 'METADATA' 
+            ownerAccountId: ownerAccountId, 
+            profileId: profileId 
         })
     };
 }
@@ -5180,7 +5458,7 @@ export function response(ctx) {
                     query_profile_seasons_fn,
                     delete_profile_seasons_fn,
                     delete_profile_ownership_fn,
-                    delete_profile_metadata_fn
+                    delete_profile_metadata_fn,
                 ],
                 code=appsync.Code.from_inline(
                     """
@@ -5392,10 +5670,10 @@ export function request(ctx) {
 
 export function response(ctx) {
     if (ctx.error) {
-        return util.error(ctx.error.message, ctx.error.type);
+        util.error(ctx.error.message, ctx.error.type);
     }
     if (!ctx.result) {
-        return util.error('Catalog not found', 'NotFound');
+        util.error('Catalog not found', 'NotFound');
     }
     
     const catalog = ctx.result;
@@ -5421,7 +5699,7 @@ export function response(ctx) {
     if (isOwner || isAdmin) {
         ctx.stash.authorized = true;
     } else {
-        return util.error('Not authorized to delete this catalog', 'Forbidden');
+        util.error('Not authorized to delete this catalog', 'Forbidden');
     }
     
     ctx.stash.catalog = catalog;
@@ -5461,7 +5739,7 @@ export function request(ctx) {
 
 export function response(ctx) {
     if (ctx.error) {
-        return util.error(ctx.error.message, ctx.error.type);
+        util.error(ctx.error.message, ctx.error.type);
     }
     
     const seasons = ctx.result.items || [];
@@ -5469,7 +5747,7 @@ export function response(ctx) {
     if (seasons.length > 0) {
         // Catalog is in use - return error
         const message = 'Cannot delete catalog: ' + seasons.length + ' season(s) are using it. Please update or delete those seasons first.';
-        return util.error(message, 'CatalogInUse');
+        util.error(message, 'CatalogInUse');
     }
     
     return ctx.prev.result;  // Pass through catalog from previous step
@@ -5492,7 +5770,7 @@ import { util } from '@aws-appsync/utils';
 
 export function request(ctx) {
     if (!ctx.stash.authorized) {
-        return util.error('Not authorized', 'Forbidden');
+        util.error('Not authorized', 'Forbidden');
     }
     
     const catalogId = ctx.args.catalogId;
@@ -5507,7 +5785,7 @@ export function request(ctx) {
 
 export function response(ctx) {
     if (ctx.error) {
-        return util.error(ctx.error.message, ctx.error.type);
+        util.error(ctx.error.message, ctx.error.type);
     }
     return true;
 }
@@ -5536,7 +5814,7 @@ export function request(ctx) {
 
 export function response(ctx) {
     if (ctx.error) {
-        return util.error(ctx.error.message, ctx.error.type);
+        util.error(ctx.error.message, ctx.error.type);
     }
     return ctx.result;
 }
@@ -5545,6 +5823,7 @@ export function response(ctx) {
             )
 
             # createSeason - Create a new season for a profile (Pipeline with authorization) - uses seasons table
+            # V2 STRUCTURE: PK=profileId, SK=seasonId
             create_season_fn = appsync.AppsyncFunction(
                 self,
                 "CreateSeasonFn",
@@ -5561,10 +5840,10 @@ export function request(ctx) {
     const now = util.time.nowISO8601();
     const input = ctx.args.input;
     
-    // Season record in new multi-table design uses seasonId as primary key
+    // V2 Season table structure: PK=profileId, SK=seasonId
     const season = {
-        seasonId: seasonId,
         profileId: input.profileId,
+        seasonId: seasonId,
         seasonName: input.seasonName,
         startDate: input.startDate,
         catalogId: input.catalogId,
@@ -5578,7 +5857,7 @@ export function request(ctx) {
     
     return {
         operation: 'PutItem',
-        key: util.dynamodb.toMapValues({ seasonId: seasonId }),
+        key: util.dynamodb.toMapValues({ profileId: input.profileId, seasonId: seasonId }),
         attributeValues: util.dynamodb.toMapValues(season)
     };
 }
@@ -5598,7 +5877,11 @@ export function response(ctx) {
                 type_name="Mutation",
                 field_name="createSeason",
                 runtime=appsync.FunctionRuntime.JS_1_0_0,
-                pipeline_config=[verify_profile_write_access_fn, check_share_permissions_fn, create_season_fn],
+                pipeline_config=[
+                    verify_profile_write_access_fn,
+                    check_share_permissions_fn,
+                    create_season_fn,
+                ],
                 code=appsync.Code.from_inline(
                     """
 export function request(ctx) {
@@ -5704,12 +5987,17 @@ export function response(ctx) {
         )
 
         # Route53 record for CloudFront distribution
-        route53.ARecord(
+        # This creates the A record for dev.kernelworx.app (or kernelworx.app in prod)
+        # which is required by Cognito as the parent domain for login.dev.kernelworx.app
+        self.site_domain_record = route53.ARecord(
             self,
             "SiteDomainRecord",
             zone=self.hosted_zone,
             record_name=self.site_domain,
-            target=route53.RecordTarget.from_alias(
-                targets.CloudFrontTarget(self.distribution)
-            ),
+            target=route53.RecordTarget.from_alias(targets.CloudFrontTarget(self.distribution)),
         )
+
+        # Add dependency: UserPoolDomain requires the parent domain A record to exist
+        # Cognito custom domain login.dev.kernelworx.app needs dev.kernelworx.app to resolve
+        if hasattr(self, "user_pool_domain") and hasattr(self.user_pool_domain, "node"):
+            self.user_pool_domain.node.add_dependency(self.site_domain_record)

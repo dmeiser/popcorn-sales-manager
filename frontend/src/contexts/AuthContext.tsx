@@ -39,13 +39,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
    * Fetch account data from GraphQL API
    */
   const fetchAccountData = useCallback(
-    async (accountId: string): Promise<Account | null> => {
+    async (_accountId: string): Promise<Account | null> => {
       try {
         const { data } = await apolloClient.query<{ getMyAccount: Account }>({
           query: GET_MY_ACCOUNT,
           fetchPolicy: "network-only", // Always fetch fresh data
         });
-        return data.getMyAccount;
+        return data?.getMyAccount ?? null;
       } catch (error) {
         console.error("Failed to fetch account data:", error);
         return null;

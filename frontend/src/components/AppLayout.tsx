@@ -73,10 +73,10 @@ export const AppLayout: React.FC<{ children?: React.ReactNode }> = ({
   };
 
   const drawerContent = (
-    <Box>
+    <Box sx={{ display: "flex", flexDirection: "column", height: "100%" }}>
       <Toolbar />
       <Divider />
-      <List>
+      <List sx={{ flexGrow: 1 }}>
         <ListItemButton
           onClick={() => handleNavigation("/profiles")}
           selected={isActive("/profiles")}

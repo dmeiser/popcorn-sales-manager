@@ -81,16 +81,17 @@ class TestCheckProfileAccess:
     def test_shared_user_with_read_has_access(
         self,
         dynamodb_table: Any,
+        shares_table: Any,
         sample_profile: Any,
         sample_profile_id: str,
         another_account_id: str,
     ) -> None:
         """Test that user with READ share has read access."""
-        # Create share with READ permission
-        dynamodb_table.put_item(
+        # Create share with READ permission (now in shares table)
+        shares_table.put_item(
             Item={
                 "profileId": sample_profile_id,
-                "recordType": f"SHARE#ACCOUNT#{another_account_id}",
+                "targetAccountId": another_account_id,
                 "permissions": ["READ"],
             }
         )
@@ -102,16 +103,17 @@ class TestCheckProfileAccess:
     def test_shared_user_without_write_denied(
         self,
         dynamodb_table: Any,
+        shares_table: Any,
         sample_profile: Any,
         sample_profile_id: str,
         another_account_id: str,
     ) -> None:
         """Test that user with only READ is denied WRITE access."""
-        # Create share with READ only
-        dynamodb_table.put_item(
+        # Create share with READ only (now in shares table)
+        shares_table.put_item(
             Item={
                 "profileId": sample_profile_id,
-                "recordType": f"SHARE#ACCOUNT#{another_account_id}",
+                "targetAccountId": another_account_id,
                 "permissions": ["READ"],
             }
         )
@@ -123,16 +125,17 @@ class TestCheckProfileAccess:
     def test_user_with_write_only_has_read_access(
         self,
         dynamodb_table: Any,
+        shares_table: Any,
         sample_profile: Any,
         sample_profile_id: str,
         another_account_id: str,
     ) -> None:
         """Test that user with only WRITE permission also has READ access."""
-        # Create share with WRITE only (no READ)
-        dynamodb_table.put_item(
+        # Create share with WRITE only (no READ) - now in shares table
+        shares_table.put_item(
             Item={
                 "profileId": sample_profile_id,
-                "recordType": f"SHARE#ACCOUNT#{another_account_id}",
+                "targetAccountId": another_account_id,
                 "permissions": ["WRITE"],
             }
         )
@@ -145,16 +148,17 @@ class TestCheckProfileAccess:
     def test_shared_user_with_write_has_access(
         self,
         dynamodb_table: Any,
+        shares_table: Any,
         sample_profile: Any,
         sample_profile_id: str,
         another_account_id: str,
     ) -> None:
         """Test that user with WRITE share has write access."""
-        # Create share with WRITE permission
-        dynamodb_table.put_item(
+        # Create share with WRITE permission (now in shares table)
+        shares_table.put_item(
             Item={
                 "profileId": sample_profile_id,
-                "recordType": f"SHARE#ACCOUNT#{another_account_id}",
+                "targetAccountId": another_account_id,
                 "permissions": ["READ", "WRITE"],
             }
         )
@@ -166,16 +170,17 @@ class TestCheckProfileAccess:
     def test_case_insensitive_permission_check(
         self,
         dynamodb_table: Any,
+        shares_table: Any,
         sample_profile: Any,
         sample_profile_id: str,
         another_account_id: str,
     ) -> None:
         """Test that permission checks are case-insensitive."""
-        # Create share with READ permission
-        dynamodb_table.put_item(
+        # Create share with READ permission (now in shares table)
+        shares_table.put_item(
             Item={
                 "profileId": sample_profile_id,
-                "recordType": f"SHARE#ACCOUNT#{another_account_id}",
+                "targetAccountId": another_account_id,
                 "permissions": ["READ"],
             }
         )
@@ -213,20 +218,22 @@ class TestCheckProfileAccess:
 
         assert exc_info.value.error_code == ErrorCode.NOT_FOUND
 
-    def test_profile_without_owner_denies_access(
+    def test_profile_with_different_owner_denies_access(
         self,
         dynamodb_table: Any,
         sample_account_id: str,
     ) -> None:
-        """Test that profile without ownerAccountId denies access."""
-        # Create profile without ownerAccountId (edge case)
-        profile_id = "PROFILE#orphan"
+        """Test that profile with different owner denies access (V2 schema edge case)."""
+        # In V2 schema, ownerAccountId is PK so it always exists
+        # Create profile owned by someone else
+        profile_id = "PROFILE#other-owner-profile"
+        other_owner = "other-owner-account"
         dynamodb_table.put_item(
             Item={
+                "ownerAccountId": other_owner,
                 "profileId": profile_id,
-                "recordType": "METADATA",
-                "profileId": profile_id,
-                # No ownerAccountId
+                "sellerName": "Other Owner's Profile",
+                "createdAt": "2025-01-01T00:00:00+00:00",
             }
         )
 
@@ -237,16 +244,17 @@ class TestCheckProfileAccess:
     def test_shared_user_with_dict_format_permissions(
         self,
         dynamodb_table: Any,
+        shares_table: Any,
         sample_profile: Any,
         sample_profile_id: str,
         another_account_id: str,
     ) -> None:
         """Test that user with dict-format permissions is recognized."""
-        # Create share with dict-format permissions (raw DynamoDB format)
-        dynamodb_table.put_item(
+        # Create share with dict-format permissions (raw DynamoDB format) - now in shares table
+        shares_table.put_item(
             Item={
                 "profileId": sample_profile_id,
-                "recordType": f"SHARE#ACCOUNT#{another_account_id}",
+                "targetAccountId": another_account_id,
                 "permissions": [{"S": "READ"}],  # Dict format instead of list of strings
             }
         )
@@ -258,16 +266,17 @@ class TestCheckProfileAccess:
     def test_shared_user_with_non_list_permissions(
         self,
         dynamodb_table: Any,
+        shares_table: Any,
         sample_profile: Any,
         sample_profile_id: str,
         another_account_id: str,
     ) -> None:
         """Test that user with non-list permissions is denied access."""
-        # Create share with non-list permissions
-        dynamodb_table.put_item(
+        # Create share with non-list permissions (now in shares table)
+        shares_table.put_item(
             Item={
                 "profileId": sample_profile_id,
-                "recordType": f"SHARE#ACCOUNT#{another_account_id}",
+                "targetAccountId": another_account_id,
                 "permissions": {"READ": True},  # Dict instead of list
             }
         )
@@ -279,16 +288,17 @@ class TestCheckProfileAccess:
     def test_shared_user_with_mixed_permission_formats(
         self,
         dynamodb_table: Any,
+        shares_table: Any,
         sample_profile: Any,
         sample_profile_id: str,
         another_account_id: str,
     ) -> None:
         """Test that user with mixed permission formats is recognized."""
-        # Create share with mixed permission formats
-        dynamodb_table.put_item(
+        # Create share with mixed permission formats (now in shares table)
+        shares_table.put_item(
             Item={
                 "profileId": sample_profile_id,
-                "recordType": f"SHARE#ACCOUNT#{another_account_id}",
+                "targetAccountId": another_account_id,
                 "permissions": ["WRITE", {"S": "READ"}],  # Mix of string and dict
             }
         )
@@ -300,16 +310,17 @@ class TestCheckProfileAccess:
     def test_shared_user_with_write_only_for_write_request(
         self,
         dynamodb_table: Any,
+        shares_table: Any,
         sample_profile: Any,
         sample_profile_id: str,
         another_account_id: str,
     ) -> None:
         """Test that user with WRITE permission gets WRITE access."""
-        # Create share with WRITE permission only
-        dynamodb_table.put_item(
+        # Create share with WRITE permission only (now in shares table)
+        shares_table.put_item(
             Item={
                 "profileId": sample_profile_id,
-                "recordType": f"SHARE#ACCOUNT#{another_account_id}",
+                "targetAccountId": another_account_id,
                 "permissions": ["WRITE"],
             }
         )
@@ -321,16 +332,17 @@ class TestCheckProfileAccess:
     def test_shared_user_with_read_only_denied_write(
         self,
         dynamodb_table: Any,
+        shares_table: Any,
         sample_profile: Any,
         sample_profile_id: str,
         another_account_id: str,
     ) -> None:
         """Test that user with READ-only permission is denied WRITE."""
-        # Create share with READ permission only
-        dynamodb_table.put_item(
+        # Create share with READ permission only (now in shares table)
+        shares_table.put_item(
             Item={
                 "profileId": sample_profile_id,
-                "recordType": f"SHARE#ACCOUNT#{another_account_id}",
+                "targetAccountId": another_account_id,
                 "permissions": ["READ"],
             }
         )
@@ -342,16 +354,17 @@ class TestCheckProfileAccess:
     def test_shared_user_with_empty_permissions_list(
         self,
         dynamodb_table: Any,
+        shares_table: Any,
         sample_profile: Any,
         sample_profile_id: str,
         another_account_id: str,
     ) -> None:
         """Test that user with empty permissions list is denied access."""
-        # Create share with empty permissions
-        dynamodb_table.put_item(
+        # Create share with empty permissions (now in shares table)
+        shares_table.put_item(
             Item={
                 "profileId": sample_profile_id,
-                "recordType": f"SHARE#ACCOUNT#{another_account_id}",
+                "targetAccountId": another_account_id,
                 "permissions": [],
             }
         )
@@ -363,16 +376,17 @@ class TestCheckProfileAccess:
     def test_shared_user_with_dict_permission_without_s_key(
         self,
         dynamodb_table: Any,
+        shares_table: Any,
         sample_profile: Any,
         sample_profile_id: str,
         another_account_id: str,
     ) -> None:
         """Test that user with dict permission without 'S' key is denied access."""
-        # Create share with dict permission that doesn't have "S" key
-        dynamodb_table.put_item(
+        # Create share with dict permission that doesn't have "S" key (now in shares table)
+        shares_table.put_item(
             Item={
                 "profileId": sample_profile_id,
-                "recordType": f"SHARE#ACCOUNT#{another_account_id}",
+                "targetAccountId": another_account_id,
                 "permissions": [{"N": "123"}],  # Dict with N key instead of S
             }
         )
@@ -399,16 +413,17 @@ class TestRequireProfileAccess:
     def test_shared_user_allowed(
         self,
         dynamodb_table: Any,
+        shares_table: Any,
         sample_profile: Any,
         sample_profile_id: str,
         another_account_id: str,
     ) -> None:
         """Test that shared user is allowed."""
-        # Create share
-        dynamodb_table.put_item(
+        # Create share (now in shares table)
+        shares_table.put_item(
             Item={
                 "profileId": sample_profile_id,
-                "recordType": f"SHARE#ACCOUNT#{another_account_id}",
+                "targetAccountId": another_account_id,
                 "permissions": ["READ"],
             }
         )

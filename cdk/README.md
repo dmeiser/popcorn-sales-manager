@@ -1,3 +1,29 @@
+Two-stage CDK deploy
+=====================
+
+When the authoritative nameservers for your base domain are managed outside of Route53 (for example, Cloudflare), Cognito custom domains can fail during stack creation because Cognito requires the parent domain to actually resolve.
+
+This repository supports a two-stage deploy to work around that:
+
+1) Phase 1 — create site, CloudFront, DNS records (skip Cognito custom domain)
+
+```bash
+# deploy everything except the Cognito custom domain
+npx cdk deploy -c environment=dev -c create_cognito_domain=false --require-approval never
+```
+
+2) Wait for CloudFront + Route53 to be visible (DNS propagation). Once the site domain (e.g. `dev.kernelworx.app`) resolves consistently to CloudFront, run Phase 2.
+
+3) Phase 2 — create Cognito custom domain
+
+```bash
+# deploy again enabling the Cognito custom domain creation
+npx cdk deploy -c environment=dev -c create_cognito_domain=true --require-approval never
+```
+
+Notes
+- You can omit `-c create_cognito_domain=true` in phase 2 since the default is `true`.
+- If you manage nameservers at your registrar, prefer pointing the domain to Route53 nameservers — that removes the need for two-stage deploys.
 # CDK Infrastructure
 
 AWS CDK infrastructure for Popcorn Sales Manager.
