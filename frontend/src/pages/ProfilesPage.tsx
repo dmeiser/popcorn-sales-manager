@@ -3,7 +3,8 @@
  */
 
 import React, { useState, useEffect } from "react";
-import { useQuery, useMutation } from "@apollo/client/react";
+import { useAuth } from "../contexts/AuthContext";
+import { useLazyQuery, useMutation } from "@apollo/client/react";
 import { useNavigate } from "react-router-dom";
 import {
   Typography,
@@ -53,6 +54,7 @@ interface EditingProfile {
 
 export const ProfilesPage: React.FC = () => {
   const navigate = useNavigate();
+  const { isAuthenticated, loading: authLoading } = useAuth();
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [editingProfile, setEditingProfile] = useState<EditingProfile | null>(
     null,
@@ -63,9 +65,13 @@ export const ProfilesPage: React.FC = () => {
   );
 
   // Fetch account preferences
-  const { data: accountData, loading: accountLoading } = useQuery<{
-    getMyAccount: { accountId: string; preferences?: string };
-  }>(GET_MY_ACCOUNT);
+  const [loadAccount, { data: accountData, loading: accountLoading }] =
+    useLazyQuery<{ getMyAccount: { accountId: string; preferences?: string } }>(
+      GET_MY_ACCOUNT,
+      {
+        fetchPolicy: "network-only",
+      },
+    );
 
   // Parse preferences from account data
   const preferences = React.useMemo(() => {
@@ -115,33 +121,52 @@ export const ProfilesPage: React.FC = () => {
   };
 
   // Fetch owned profiles
-  const {
+  const [loadMyProfiles, {
     data: myProfilesData,
     loading: myProfilesLoading,
     error: myProfilesError,
-    refetch: refetchMyProfiles,
-  } = useQuery<{ listMyProfiles: Profile[] }>(LIST_MY_PROFILES);
+  }] = useLazyQuery<{ listMyProfiles: Profile[] }>(LIST_MY_PROFILES, {
+    fetchPolicy: "network-only",
+    notifyOnNetworkStatusChange: true,
+  });
 
   // Fetch shared profiles
-  const {
+  const [loadSharedProfiles, {
     data: sharedProfilesData,
     loading: sharedProfilesLoading,
     error: sharedProfilesError,
-    refetch: refetchSharedProfiles,
-  } = useQuery<{ listSharedProfiles: Profile[] }>(LIST_SHARED_PROFILES);
+  }] = useLazyQuery<{ listSharedProfiles: Profile[] }>(LIST_SHARED_PROFILES, {
+    fetchPolicy: "network-only",
+    notifyOnNetworkStatusChange: true,
+  });
+
+  // When auth becomes ready, trigger queries explicitly to avoid race conditions
+  // Note: We use a ref to track if we've already triggered the queries to prevent double-firing
+  const queriesTriggeredRef = React.useRef(false);
+  
+  useEffect(() => {
+    if (!authLoading && isAuthenticated && !queriesTriggeredRef.current) {
+      queriesTriggeredRef.current = true;
+      // Trigger queries - auth is already confirmed ready by isAuthenticated=true
+      loadAccount();
+      loadMyProfiles();
+      loadSharedProfiles();
+    }
+  }, [authLoading, isAuthenticated, loadAccount, loadMyProfiles, loadSharedProfiles]);
+
 
   // Create profile mutation
   const [createProfile] = useMutation(CREATE_SELLER_PROFILE, {
     onCompleted: () => {
-      refetchMyProfiles();
+      loadMyProfiles();
     },
   });
 
   // Update profile mutation
   const [updateProfile] = useMutation(UPDATE_SELLER_PROFILE, {
     onCompleted: () => {
-      refetchMyProfiles();
-      refetchSharedProfiles();
+      loadMyProfiles();
+      loadSharedProfiles();
     },
   });
 
@@ -150,7 +175,7 @@ export const ProfilesPage: React.FC = () => {
     onCompleted: () => {
       setDeleteConfirmOpen(false);
       setDeletingProfileId(null);
-      refetchMyProfiles();
+      loadMyProfiles();
     },
   });
 
@@ -182,36 +207,23 @@ export const ProfilesPage: React.FC = () => {
   const allSharedProfiles: Profile[] =
     sharedProfilesData?.listSharedProfiles || [];
   
-  // Debug logging for intermittent shared profile loading issues
-  console.log("ProfilesPage shared profiles debug:", {
-    sharedProfilesLoading,
-    sharedProfilesError: sharedProfilesError?.message,
-    graphQLErrors: sharedProfilesError?.graphQLErrors?.map(e => ({
-      message: e.message,
-      path: e.path,
-      extensions: e.extensions
-    })),
-    networkError: sharedProfilesError?.networkError,
-    sharedProfilesData,
-    allSharedProfilesCount: allSharedProfiles.length,
-    showReadOnlyProfiles,
+  const sharedProfiles = allSharedProfiles.filter((profile) => {
+    const hasWrite = profile.permissions.includes("WRITE");
+    // When showReadOnlyProfiles is true: show all profiles
+    // When showReadOnlyProfiles is false: show only profiles with WRITE permission
+    return showReadOnlyProfiles || hasWrite;
   });
-  
-  const sharedProfiles = allSharedProfiles.filter(
-    (profile) => {
-      const hasWrite = profile.permissions.includes("WRITE");
-      // When showReadOnlyProfiles is true: show all profiles
-      // When showReadOnlyProfiles is false: show only profiles with WRITE permission
-      const included = showReadOnlyProfiles || hasWrite;
-      console.log(`Profile "${profile.sellerName}": permissions=${JSON.stringify(profile.permissions)}, hasWrite=${hasWrite}, showReadOnly=${showReadOnlyProfiles}, included=${included}`);
-      return included;
-    }
-  );
 
-  const loading = myProfilesLoading || sharedProfilesLoading || accountLoading;
+  // Wait for BOTH profile queries to complete before showing any profiles
+  // This prevents the jarring UX of owned profiles appearing before shared profiles
+  const profilesLoading = myProfilesLoading || sharedProfilesLoading;
+  const bothProfilesLoaded = myProfilesData !== undefined && sharedProfilesData !== undefined;
+  const loading = profilesLoading || accountLoading;
   const error = myProfilesError || sharedProfilesError;
 
-  if (loading && myProfiles.length === 0 && sharedProfiles.length === 0) {
+  // Show loading spinner until both profile queries complete
+  // This ensures owned and shared profiles appear together
+  if (loading || !bothProfilesLoaded) {
     return (
       <Box
         display="flex"

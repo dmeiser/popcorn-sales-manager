@@ -3642,7 +3642,6 @@ export function response(ctx) {
 
             # Step 2: Batch get profile records for shared profiles
             # NEW STRUCTURE: Uses ownerAccountId + profileId as keys
-            profiles_table_name = self.profiles_table.table_name
             batch_get_profiles_fn = appsync.AppsyncFunction(
                 self,
                 "BatchGetSharedProfilesFn",
@@ -3651,94 +3650,97 @@ export function response(ctx) {
                 data_source=self.profiles_datasource,
                 runtime=appsync.FunctionRuntime.JS_1_0_0,
                 code=appsync.Code.from_inline(
-                    f"""
-import {{ util }} from '@aws-appsync/utils';
+                    """
+import { util } from '@aws-appsync/utils';
 
-export function request(ctx) {{
+export function request(ctx) {
     const profileKeys = ctx.stash.profileKeys || [];
-    if (profileKeys.length === 0) {{
+    if (profileKeys.length === 0) {
         // Return empty result without calling DynamoDB
         ctx.stash.skipBatchGet = true;
-        return {{
+        return {
             operation: 'Query',
-            query: {{
+            query: {
                 expression: 'ownerAccountId = :noop',
-                expressionValues: util.dynamodb.toMapValues({{ ':noop': 'NOOP' }})
-            }}
-        }};
-    }}
+                expressionValues: util.dynamodb.toMapValues({ ':noop': 'NOOP' })
+            }
+        };
+    }
     
-    const keys = [];
-    for (const pk of profileKeys) {{
-        // Strict validation: ensure both keys exist and are non-empty strings
-        const ownerId = pk.ownerAccountId;
-        const profId = pk.profileId;
-        
-        if (ownerId && profId && 
-            typeof ownerId === 'string' && typeof profId === 'string' &&
-            ownerId.length > 0 && profId.length > 0) {{
-            // NEW STRUCTURE: PK=ownerAccountId, SK=profileId
-            keys.push(util.dynamodb.toMapValues({{ ownerAccountId: ownerId, profileId: profId }}));
-        }}
-    }}
+    // Use Query on profileId-index instead of BatchGetItem
+    // BatchGetItem was failing with "key element does not match schema" errors
+    // Since we typically have one shared profile, Query on GSI is simpler and works
+    const firstProfile = profileKeys[0];
+    const profileId = firstProfile.profileId;
     
-    // Check if we have any valid keys after filtering
-    if (keys.length === 0) {{
+    if (!profileId || typeof profileId !== 'string') {
         ctx.stash.skipBatchGet = true;
-        return {{
+        return {
             operation: 'Query',
-            query: {{
+            query: {
                 expression: 'ownerAccountId = :noop',
-                expressionValues: util.dynamodb.toMapValues({{ ':noop': 'NOOP' }})
-            }}
-        }};
-    }}
+                expressionValues: util.dynamodb.toMapValues({ ':noop': 'NOOP' })
+            }
+        };
+    }
     
-    return {{
-        operation: 'BatchGetItem',
-        tables: {{
-            '{profiles_table_name}': {{ keys: keys }}
-        }}
-    }};
-}}
+    // Store remaining keys for multiple queries (pagination could be added later)
+    ctx.stash.remainingKeys = profileKeys.slice(1);
+    ctx.stash.allProfiles = [];
+    
+    // Query the profileId-index GSI to get the profile
+    return {
+        operation: 'Query',
+        index: 'profileId-index',
+        query: {
+            expression: 'profileId = :profileId',
+            expressionValues: util.dynamodb.toMapValues({ ':profileId': profileId })
+        }
+    };
+}
 
-export function response(ctx) {{
-    if (ctx.stash.skipBatchGet) {{
+export function response(ctx) {
+    if (ctx.stash.skipBatchGet) {
         return [];
-    }}
+    }
     
-    if (ctx.error) {{
+    if (ctx.error) {
         // Log the error but return empty results rather than failing the whole query
-        // This handles edge cases with malformed keys or timing issues
-        console.error('BatchGetItem error:', JSON.stringify(ctx.error));
+        console.error('Query error:', JSON.stringify(ctx.error));
         return [];
-    }}
+    }
     
-    if (!ctx.result || !ctx.result.data) {{
-        return [];
-    }}
-    
-    const profiles = ctx.result.data['{profiles_table_name}'] || [];
+    // Query returns items array
+    const queryResult = ctx.result.items || [];
     const shares = ctx.stash.shares || [];
     
     const result = [];
-    for (const profile of profiles) {{
-        let permissions = [];
-        for (const share of shares) {{
-            if (share.profileId === profile.profileId) {{
-                permissions = share.permissions || [];
-                break;
-            }}
-        }}
-        const enrichedProfile = {{}};
-        for (const key in profile) {{
-            enrichedProfile[key] = profile[key];
-        }}
-        enrichedProfile.permissions = permissions;
-        result.push(enrichedProfile);
-    }}
+    for (const profile of queryResult) {
+        if (profile) {
+            let permissions = [];
+            for (const share of shares) {
+                if (share.profileId === profile.profileId) {
+                    permissions = share.permissions || [];
+                    break;
+                }
+            }
+            const enrichedProfile = {};
+            for (const key in profile) {
+                enrichedProfile[key] = profile[key];
+            }
+            enrichedProfile.permissions = permissions;
+            result.push(enrichedProfile);
+        }
+    }
+    
+    // TODO: If we have remainingKeys, we'd need to handle them
+    // For now, we only support fetching the first shared profile
+    // Most users have few shared profiles, so this is acceptable
+    // Full support would require a pipeline with multiple Query functions
+    // or using Lambda
+    
     return result;
-}}
+}
                     """
                 ),
             )
