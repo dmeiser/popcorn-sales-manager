@@ -160,3 +160,35 @@ class TestCreateSellerProfile:
             create_seller_profile(event, lambda_context)
 
         assert "Failed to create seller profile" in str(exc_info.value)
+
+    @patch("src.handlers.profile_operations.boto3.client")
+    def test_create_seller_profile_with_unit_type_and_number(
+        self,
+        mock_client: MagicMock,
+        appsync_event: Dict[str, Any],
+        lambda_context: Any,
+    ) -> None:
+        """Test profile creation with unit type and number."""
+        # Arrange
+        mock_dynamodb = MagicMock()
+        mock_client.return_value = mock_dynamodb
+
+        event = {
+            **appsync_event,
+            "arguments": {
+                "input": {
+                    "sellerName": "Pack 42 Scout",
+                    "unitType": "PACK",
+                    "unitNumber": "42",
+                }
+            },
+        }
+
+        # Act
+        result = create_seller_profile(event, lambda_context)
+
+        # Assert
+        assert result["sellerName"] == "Pack 42 Scout"
+        assert result["unitType"] == "PACK"
+        assert result["unitNumber"] == "42"
+        mock_dynamodb.transact_write_items.assert_called_once()

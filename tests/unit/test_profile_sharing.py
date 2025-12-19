@@ -194,3 +194,669 @@ class TestCreateProfileInvite:
 #   See cdk/cdk/cdk_stack.py - RevokeShareResolver
 #
 # For testing strategy for AppSync resolvers, see docs/APPSYNC_TESTING_STRATEGY.md
+
+
+class TestListMyShares:
+    """Tests for list_my_shares handler (Lambda resolver for listMyShares query)."""
+
+    def test_returns_profiles_shared_with_user(
+        self,
+        dynamodb_table: Any,
+        shares_table: Any,
+        another_account_id: str,
+        sample_account_id: str,
+        appsync_event: Dict[str, Any],
+        lambda_context: Any,
+    ) -> None:
+        """Test that list_my_shares returns profiles shared with the caller."""
+        from src.handlers.profile_sharing import list_my_shares
+
+        # Create a profile owned by sample_account_id
+        profile_id = "PROFILE#shared-profile-1"
+        owner_account_id = f"ACCOUNT#{sample_account_id}"
+        dynamodb_table.put_item(
+            Item={
+                "ownerAccountId": owner_account_id,
+                "profileId": profile_id,
+                "sellerName": "Shared Scout",
+                "unitType": "Pack",
+                "unitNumber": "42",
+                "createdAt": "2024-01-01T00:00:00Z",
+                "updatedAt": "2024-01-01T00:00:00Z",
+            }
+        )
+
+        # Create a share granting another_account_id access
+        shares_table.put_item(
+            Item={
+                "profileId": profile_id,
+                "targetAccountId": another_account_id,
+                "ownerAccountId": owner_account_id,
+                "permissions": ["READ"],
+                "createdAt": "2024-01-01T00:00:00Z",
+            }
+        )
+
+        # Call list_my_shares as another_account_id
+        event = {
+            **appsync_event,
+            "identity": {"sub": another_account_id},
+        }
+        result = list_my_shares(event, lambda_context)
+
+        # Assert
+        assert len(result) == 1
+        assert result[0]["profileId"] == profile_id
+        assert result[0]["ownerAccountId"] == sample_account_id  # Prefix stripped
+        assert result[0]["sellerName"] == "Shared Scout"
+        assert result[0]["permissions"] == ["READ"]
+        assert result[0]["isOwner"] is False
+
+    def test_returns_empty_array_when_no_shares(
+        self,
+        dynamodb_table: Any,
+        shares_table: Any,
+        sample_account_id: str,
+        appsync_event: Dict[str, Any],
+        lambda_context: Any,
+    ) -> None:
+        """Test that list_my_shares returns empty array when user has no shares."""
+        from src.handlers.profile_sharing import list_my_shares
+
+        # No shares created for this user
+        result = list_my_shares(appsync_event, lambda_context)
+
+        assert result == []
+
+    def test_returns_multiple_shared_profiles(
+        self,
+        dynamodb_table: Any,
+        shares_table: Any,
+        another_account_id: str,
+        sample_account_id: str,
+        appsync_event: Dict[str, Any],
+        lambda_context: Any,
+    ) -> None:
+        """Test that list_my_shares returns all profiles shared with user."""
+        from src.handlers.profile_sharing import list_my_shares
+
+        # Create two profiles with different owners
+        owner1 = f"ACCOUNT#{sample_account_id}"
+        owner2 = f"ACCOUNT#owner-two"
+        profile1 = "PROFILE#shared-p1"
+        profile2 = "PROFILE#shared-p2"
+
+        for owner, pid, name in [
+            (owner1, profile1, "Scout One"),
+            (owner2, profile2, "Scout Two"),
+        ]:
+            dynamodb_table.put_item(
+                Item={
+                    "ownerAccountId": owner,
+                    "profileId": pid,
+                    "sellerName": name,
+                    "createdAt": "2024-01-01T00:00:00Z",
+                    "updatedAt": "2024-01-01T00:00:00Z",
+                }
+            )
+            shares_table.put_item(
+                Item={
+                    "profileId": pid,
+                    "targetAccountId": another_account_id,
+                    "ownerAccountId": owner,
+                    "permissions": ["READ"],
+                    "createdAt": "2024-01-01T00:00:00Z",
+                }
+            )
+
+        # Call as another_account_id
+        event = {**appsync_event, "identity": {"sub": another_account_id}}
+        result = list_my_shares(event, lambda_context)
+
+        assert len(result) == 2
+        profile_ids = {r["profileId"] for r in result}
+        assert profile_ids == {profile1, profile2}
+
+    def test_includes_correct_permissions(
+        self,
+        dynamodb_table: Any,
+        shares_table: Any,
+        another_account_id: str,
+        sample_account_id: str,
+        appsync_event: Dict[str, Any],
+        lambda_context: Any,
+    ) -> None:
+        """Test that permissions are correctly included in response."""
+        from src.handlers.profile_sharing import list_my_shares
+
+        profile_id = "PROFILE#perm-test"
+        owner_id = f"ACCOUNT#{sample_account_id}"
+
+        dynamodb_table.put_item(
+            Item={
+                "ownerAccountId": owner_id,
+                "profileId": profile_id,
+                "sellerName": "Perm Test",
+                "createdAt": "2024-01-01T00:00:00Z",
+                "updatedAt": "2024-01-01T00:00:00Z",
+            }
+        )
+
+        shares_table.put_item(
+            Item={
+                "profileId": profile_id,
+                "targetAccountId": another_account_id,
+                "ownerAccountId": owner_id,
+                "permissions": ["READ", "WRITE"],
+                "createdAt": "2024-01-01T00:00:00Z",
+            }
+        )
+
+        event = {**appsync_event, "identity": {"sub": another_account_id}}
+        result = list_my_shares(event, lambda_context)
+
+        assert len(result) == 1
+        assert result[0]["permissions"] == ["READ", "WRITE"]
+
+    def test_deduplicates_shares_by_profile_id(
+        self,
+        dynamodb_table: Any,
+        shares_table: Any,
+        another_account_id: str,
+        sample_account_id: str,
+        appsync_event: Dict[str, Any],
+        lambda_context: Any,
+    ) -> None:
+        """Test that duplicate shares for same profile are deduplicated."""
+        from src.handlers.profile_sharing import list_my_shares
+
+        profile_id = "PROFILE#dedup-test"
+        owner_id = f"ACCOUNT#{sample_account_id}"
+
+        dynamodb_table.put_item(
+            Item={
+                "ownerAccountId": owner_id,
+                "profileId": profile_id,
+                "sellerName": "Dedup Test",
+                "createdAt": "2024-01-01T00:00:00Z",
+                "updatedAt": "2024-01-01T00:00:00Z",
+            }
+        )
+
+        # The dedup happens in Python code based on profileId key in dict
+        # We can simulate this if there were somehow two share records with same profileId
+        # But with PK=profileId, SK=targetAccountId this can't happen.
+        # Test the happy path to ensure dedup logic doesn't break normal flow.
+        shares_table.put_item(
+            Item={
+                "profileId": profile_id,
+                "targetAccountId": another_account_id,
+                "ownerAccountId": owner_id,
+                "permissions": ["READ"],
+                "createdAt": "2024-01-01T00:00:00Z",
+            }
+        )
+
+        event = {**appsync_event, "identity": {"sub": another_account_id}}
+        result = list_my_shares(event, lambda_context)
+
+        # Should return exactly one entry
+        assert len(result) == 1
+
+    def test_handles_share_without_profile(
+        self,
+        dynamodb_table: Any,
+        shares_table: Any,
+        another_account_id: str,
+        sample_account_id: str,
+        appsync_event: Dict[str, Any],
+        lambda_context: Any,
+    ) -> None:
+        """Test behavior when share exists but profile was deleted."""
+        from src.handlers.profile_sharing import list_my_shares
+
+        profile_id = "PROFILE#orphan-share"
+        owner_id = f"ACCOUNT#{sample_account_id}"
+
+        # Create share WITHOUT the profile
+        shares_table.put_item(
+            Item={
+                "profileId": profile_id,
+                "targetAccountId": another_account_id,
+                "ownerAccountId": owner_id,
+                "permissions": ["READ"],
+                "createdAt": "2024-01-01T00:00:00Z",
+            }
+        )
+
+        event = {**appsync_event, "identity": {"sub": another_account_id}}
+        result = list_my_shares(event, lambda_context)
+
+        # Profile doesn't exist so batch_get returns nothing - result is empty
+        assert result == []
+
+    def test_handles_invalid_share_data(
+        self,
+        dynamodb_table: Any,
+        shares_table: Any,
+        another_account_id: str,
+        sample_account_id: str,
+        appsync_event: Dict[str, Any],
+        lambda_context: Any,
+    ) -> None:
+        """Test that shares missing ownerAccountId are skipped."""
+        from src.handlers.profile_sharing import list_my_shares
+
+        # Create a valid profile and share
+        valid_profile_id = "PROFILE#valid-one"
+        owner_id = f"ACCOUNT#{sample_account_id}"
+        dynamodb_table.put_item(
+            Item={
+                "ownerAccountId": owner_id,
+                "profileId": valid_profile_id,
+                "sellerName": "Valid Scout",
+                "createdAt": "2024-01-01T00:00:00Z",
+                "updatedAt": "2024-01-01T00:00:00Z",
+            }
+        )
+
+        # Create a valid share
+        shares_table.put_item(
+            Item={
+                "profileId": valid_profile_id,
+                "targetAccountId": another_account_id,
+                "ownerAccountId": owner_id,
+                "permissions": ["READ"],
+                "createdAt": "2024-01-01T00:00:00Z",
+            }
+        )
+
+        # Create a share that's missing ownerAccountId (invalid data scenario)
+        invalid_profile_id = "PROFILE#invalid-share"
+        shares_table.put_item(
+            Item={
+                "profileId": invalid_profile_id,
+                "targetAccountId": another_account_id,
+                # ownerAccountId intentionally missing - should be skipped
+                "permissions": ["READ"],
+            }
+        )
+
+        event = {**appsync_event, "identity": {"sub": another_account_id}}
+        result = list_my_shares(event, lambda_context)
+
+        # Only the valid profile should be returned (invalid share skipped)
+        assert len(result) == 1
+        assert result[0]["profileId"] == valid_profile_id
+
+    def test_strips_account_prefix_from_owner_id(
+        self,
+        dynamodb_table: Any,
+        shares_table: Any,
+        another_account_id: str,
+        sample_account_id: str,
+        appsync_event: Dict[str, Any],
+        lambda_context: Any,
+    ) -> None:
+        """Test that ACCOUNT# prefix is stripped from ownerAccountId."""
+        from src.handlers.profile_sharing import list_my_shares
+
+        profile_id = "PROFILE#prefix-test"
+        owner_id_with_prefix = f"ACCOUNT#{sample_account_id}"
+
+        dynamodb_table.put_item(
+            Item={
+                "ownerAccountId": owner_id_with_prefix,
+                "profileId": profile_id,
+                "sellerName": "Prefix Test",
+                "createdAt": "2024-01-01T00:00:00Z",
+                "updatedAt": "2024-01-01T00:00:00Z",
+            }
+        )
+
+        shares_table.put_item(
+            Item={
+                "profileId": profile_id,
+                "targetAccountId": another_account_id,
+                "ownerAccountId": owner_id_with_prefix,
+                "permissions": ["READ"],
+                "createdAt": "2024-01-01T00:00:00Z",
+            }
+        )
+
+        event = {**appsync_event, "identity": {"sub": another_account_id}}
+        result = list_my_shares(event, lambda_context)
+
+        # ownerAccountId should have prefix stripped
+        assert result[0]["ownerAccountId"] == sample_account_id
+        # profileId should keep its prefix
+        assert result[0]["profileId"] == profile_id
+
+    def test_handles_profile_without_account_prefix(
+        self,
+        dynamodb_table: Any,
+        shares_table: Any,
+        another_account_id: str,
+        sample_account_id: str,
+        appsync_event: Dict[str, Any],
+        lambda_context: Any,
+    ) -> None:
+        """Test handling of profile without ACCOUNT# prefix (legacy data)."""
+        from src.handlers.profile_sharing import list_my_shares
+
+        profile_id = "PROFILE#no-prefix"
+        # Simulate legacy data without prefix
+        owner_id_no_prefix = sample_account_id
+
+        dynamodb_table.put_item(
+            Item={
+                "ownerAccountId": owner_id_no_prefix,
+                "profileId": profile_id,
+                "sellerName": "No Prefix",
+                "createdAt": "2024-01-01T00:00:00Z",
+                "updatedAt": "2024-01-01T00:00:00Z",
+            }
+        )
+
+        shares_table.put_item(
+            Item={
+                "profileId": profile_id,
+                "targetAccountId": another_account_id,
+                "ownerAccountId": owner_id_no_prefix,
+                "permissions": ["READ"],
+                "createdAt": "2024-01-01T00:00:00Z",
+            }
+        )
+
+        event = {**appsync_event, "identity": {"sub": another_account_id}}
+        result = list_my_shares(event, lambda_context)
+
+        # Without prefix, ownerAccountId returned as-is
+        assert result[0]["ownerAccountId"] == sample_account_id
+
+    def test_exception_wrapped_in_app_error(
+        self,
+        dynamodb_table: Any,
+        shares_table: Any,
+        another_account_id: str,
+        sample_account_id: str,
+        appsync_event: Dict[str, Any],
+        lambda_context: Any,
+    ) -> None:
+        """Test that generic exceptions are wrapped in AppError."""
+        from unittest.mock import patch
+
+        from src.handlers.profile_sharing import list_my_shares
+        from src.utils.errors import AppError, ErrorCode
+
+        # Create a valid share to trigger profile lookup
+        shares_table.put_item(
+            Item={
+                "profileId": "PROFILE#will-fail",
+                "targetAccountId": another_account_id,
+                "ownerAccountId": f"ACCOUNT#{sample_account_id}",
+                "permissions": ["READ"],
+                "createdAt": "2024-01-01T00:00:00Z",
+            }
+        )
+
+        event = {**appsync_event, "identity": {"sub": another_account_id}}
+
+        # Mock batch_get_item to raise an exception
+        with patch(
+            "src.handlers.profile_sharing.dynamodb.batch_get_item",
+            side_effect=Exception("Test error"),
+        ):
+            with pytest.raises(AppError) as exc_info:
+                list_my_shares(event, lambda_context)
+
+            assert exc_info.value.error_code == ErrorCode.INTERNAL_ERROR
+            assert "Failed to list shared profiles" in exc_info.value.message
+
+    def test_app_error_passed_through(
+        self,
+        dynamodb_table: Any,
+        shares_table: Any,
+        another_account_id: str,
+        sample_account_id: str,
+        appsync_event: Dict[str, Any],
+        lambda_context: Any,
+    ) -> None:
+        """Test that AppError exceptions are not wrapped."""
+        from unittest.mock import patch
+
+        from src.handlers.profile_sharing import list_my_shares
+        from src.utils.errors import AppError, ErrorCode
+
+        # Create a valid share
+        shares_table.put_item(
+            Item={
+                "profileId": "PROFILE#will-fail",
+                "targetAccountId": another_account_id,
+                "ownerAccountId": f"ACCOUNT#{sample_account_id}",
+                "permissions": ["READ"],
+                "createdAt": "2024-01-01T00:00:00Z",
+            }
+        )
+
+        event = {**appsync_event, "identity": {"sub": another_account_id}}
+
+        # Mock to raise AppError
+        original_error = AppError(ErrorCode.NOT_FOUND, "Profile not found")
+        with patch(
+            "src.handlers.profile_sharing.dynamodb.batch_get_item",
+            side_effect=original_error,
+        ):
+            with pytest.raises(AppError) as exc_info:
+                list_my_shares(event, lambda_context)
+
+            # The original AppError should pass through
+            assert exc_info.value.error_code == ErrorCode.NOT_FOUND
+            assert "Profile not found" in exc_info.value.message
+
+    def test_skips_profile_with_non_string_profile_id(
+        self,
+        dynamodb_table: Any,
+        shares_table: Any,
+        another_account_id: str,
+        sample_account_id: str,
+        appsync_event: Dict[str, Any],
+        lambda_context: Any,
+    ) -> None:
+        """Test that profiles with invalid profileId type are skipped."""
+        from unittest.mock import patch
+
+        from src.handlers.profile_sharing import list_my_shares
+
+        owner_id = f"ACCOUNT#{sample_account_id}"
+        valid_profile_id = "PROFILE#valid"
+
+        # Create a valid profile
+        dynamodb_table.put_item(
+            Item={
+                "ownerAccountId": owner_id,
+                "profileId": valid_profile_id,
+                "sellerName": "Valid",
+                "createdAt": "2024-01-01T00:00:00Z",
+                "updatedAt": "2024-01-01T00:00:00Z",
+            }
+        )
+
+        # Create share for valid profile
+        shares_table.put_item(
+            Item={
+                "profileId": valid_profile_id,
+                "targetAccountId": another_account_id,
+                "ownerAccountId": owner_id,
+                "permissions": ["READ"],
+                "createdAt": "2024-01-01T00:00:00Z",
+            }
+        )
+
+        event = {**appsync_event, "identity": {"sub": another_account_id}}
+
+        # Mock batch_get_item to return a profile with non-string profileId
+        mock_response = {
+            "Responses": {
+                "kernelworx-profiles-v2-ue1-dev": [
+                    {
+                        "ownerAccountId": owner_id,
+                        "profileId": 12345,  # Non-string profileId
+                        "sellerName": "Invalid Type",
+                    },
+                    {
+                        "ownerAccountId": owner_id,
+                        "profileId": valid_profile_id,
+                        "sellerName": "Valid",
+                        "createdAt": "2024-01-01T00:00:00Z",
+                        "updatedAt": "2024-01-01T00:00:00Z",
+                    },
+                ]
+            }
+        }
+        with patch(
+            "src.handlers.profile_sharing.dynamodb.batch_get_item",
+            return_value=mock_response,
+        ):
+            result = list_my_shares(event, lambda_context)
+
+        # Only valid profile returned
+        assert len(result) == 1
+        assert result[0]["profileId"] == valid_profile_id
+
+    def test_skips_profile_with_non_string_owner_id(
+        self,
+        dynamodb_table: Any,
+        shares_table: Any,
+        another_account_id: str,
+        sample_account_id: str,
+        appsync_event: Dict[str, Any],
+        lambda_context: Any,
+    ) -> None:
+        """Test that profiles with invalid ownerAccountId type are handled."""
+        from unittest.mock import patch
+
+        from src.handlers.profile_sharing import list_my_shares
+
+        owner_id = f"ACCOUNT#{sample_account_id}"
+        valid_profile_id = "PROFILE#valid"
+
+        # Create a valid profile
+        dynamodb_table.put_item(
+            Item={
+                "ownerAccountId": owner_id,
+                "profileId": valid_profile_id,
+                "sellerName": "Valid",
+                "createdAt": "2024-01-01T00:00:00Z",
+                "updatedAt": "2024-01-01T00:00:00Z",
+            }
+        )
+
+        # Create share for valid profile
+        shares_table.put_item(
+            Item={
+                "profileId": valid_profile_id,
+                "targetAccountId": another_account_id,
+                "ownerAccountId": owner_id,
+                "permissions": ["READ"],
+                "createdAt": "2024-01-01T00:00:00Z",
+            }
+        )
+
+        event = {**appsync_event, "identity": {"sub": another_account_id}}
+
+        # Mock batch_get_item to return a profile with non-string ownerAccountId
+        mock_response = {
+            "Responses": {
+                "kernelworx-profiles-v2-ue1-dev": [
+                    {
+                        "ownerAccountId": owner_id,
+                        "profileId": valid_profile_id,
+                        "sellerName": "Valid",
+                        "createdAt": "2024-01-01T00:00:00Z",
+                        "updatedAt": "2024-01-01T00:00:00Z",
+                    },
+                ]
+            }
+        }
+
+        # Simulate a profile with ownerAccountId = None
+        mock_response_with_invalid = {
+            "Responses": {
+                "kernelworx-profiles-v2-ue1-dev": [
+                    {
+                        "ownerAccountId": None,  # Invalid
+                        "profileId": valid_profile_id,
+                        "sellerName": "Invalid Owner",
+                    },
+                ]
+            }
+        }
+        with patch(
+            "src.handlers.profile_sharing.dynamodb.batch_get_item",
+            return_value=mock_response_with_invalid,
+        ):
+            result = list_my_shares(event, lambda_context)
+
+        # The profile with None owner should still be processed, but with empty string
+        assert len(result) == 1
+        assert result[0]["ownerAccountId"] == ""
+
+    def test_handles_unprocessed_keys(
+        self,
+        dynamodb_table: Any,
+        shares_table: Any,
+        another_account_id: str,
+        sample_account_id: str,
+        appsync_event: Dict[str, Any],
+        lambda_context: Any,
+    ) -> None:
+        """Test that unprocessed keys are logged and handled."""
+        from unittest.mock import patch
+
+        from src.handlers.profile_sharing import list_my_shares
+
+        owner_id = f"ACCOUNT#{sample_account_id}"
+        profile_id = "PROFILE#unprocessed-test"
+
+        # Create a share (profile doesn't need to exist for mock)
+        shares_table.put_item(
+            Item={
+                "profileId": profile_id,
+                "targetAccountId": another_account_id,
+                "ownerAccountId": owner_id,
+                "permissions": ["READ"],
+                "createdAt": "2024-01-01T00:00:00Z",
+            }
+        )
+
+        event = {**appsync_event, "identity": {"sub": another_account_id}}
+
+        # Mock response with unprocessed keys
+        mock_response = {
+            "Responses": {
+                "kernelworx-profiles-v2-ue1-dev": [
+                    {
+                        "ownerAccountId": owner_id,
+                        "profileId": profile_id,
+                        "sellerName": "Test",
+                        "createdAt": "2024-01-01T00:00:00Z",
+                        "updatedAt": "2024-01-01T00:00:00Z",
+                    }
+                ]
+            },
+            "UnprocessedKeys": {
+                "kernelworx-profiles-v2-ue1-dev": {
+                    "Keys": [{"ownerAccountId": "ACCOUNT#other", "profileId": "PROFILE#other"}]
+                }
+            },
+        }
+        with patch(
+            "src.handlers.profile_sharing.dynamodb.batch_get_item",
+            return_value=mock_response,
+        ):
+            result = list_my_shares(event, lambda_context)
+
+        # Should still return the successful profiles
+        assert len(result) == 1
+        assert result[0]["profileId"] == profile_id

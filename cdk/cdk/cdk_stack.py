@@ -635,6 +635,21 @@ class CdkStack(Stack):
         # NOTE: revoke_share Lambda REMOVED - replaced with VTL DynamoDB resolver
         # NOTE: update_season, delete_season Lambdas REMOVED - replaced with JS pipeline resolvers
 
+        # List My Shares Lambda - uses Lambda due to AppSync BatchGetItem intermittent issues
+        self.list_my_shares_fn = lambda_.Function(
+            self,
+            "ListMySharesFn",
+            function_name=rn("kernelworx-list-my-shares"),
+            runtime=lambda_.Runtime.PYTHON_3_13,
+            handler="handlers.profile_sharing.list_my_shares",
+            code=lambda_code,
+            layers=[self.shared_layer],
+            timeout=Duration.seconds(30),
+            memory_size=256,
+            role=self.lambda_execution_role,
+            environment=lambda_env,
+        )
+
         # Order Operations Lambda Functions
         # NOTE: create_order Lambda REMOVED - replaced with pipeline resolver
 
@@ -1172,6 +1187,12 @@ class CdkStack(Stack):
             # NOTE: share_profile_direct data source REMOVED - replaced with pipeline resolver
             # NOTE: revoke_share Lambda data source REMOVED - replaced with VTL resolver
             # NOTE: update_season, delete_season Lambda data sources REMOVED - replaced with pipeline resolvers
+
+            # List My Shares Lambda data source - uses Lambda due to AppSync BatchGetItem issues
+            self.list_my_shares_ds = self.api.add_lambda_data_source(
+                "ListMySharesDS",
+                lambda_function=self.list_my_shares_fn,
+            )
 
             # Lambda data sources for profile operations
             self.create_profile_ds = self.api.add_lambda_data_source(
@@ -3585,174 +3606,14 @@ export function response(ctx) {
                 ),
             )
             
-            # listMyShares - Pipeline resolver to get full profile data for shares
-            # Step 1: Query shares table GSI to get shares with ownerAccountId
-            # Step 2: BatchGetItem on profiles table to get full profiles, merge permissions
-            
-            # Step 1: Query shares for current user
-            list_my_shares_query_fn = appsync.AppsyncFunction(
-                self,
-                "ListMySharesQueryFn",
-                name=f"ListMySharesQueryFn_{env_name}",
-                api=self.api,
-                data_source=self.shares_datasource,
-                runtime=appsync.FunctionRuntime.JS_1_0_0,
-                code=appsync.Code.from_inline(
-                    """
-import { util } from '@aws-appsync/utils';
-
-export function request(ctx) {
-    // Query shares table GSI with caller's accountId
-    const accountId = ctx.identity.sub;
-    return {
-        operation: 'Query',
-        index: 'targetAccountId-index',
-        query: {
-            expression: 'targetAccountId = :targetAccountId',
-            expressionValues: util.dynamodb.toMapValues({ ':targetAccountId': accountId })
-        }
-    };
-}
-
-export function response(ctx) {
-    if (ctx.error) {
-        util.error(ctx.error.message, ctx.error.type);
-    }
-    
-    const shares = ctx.result.items || [];
-    
-    // Deduplicate by profileId and store shares in stash for later merging
-    const sharesByProfileId = {};
-    for (const share of shares) {
-        if (share.profileId && share.ownerAccountId && !sharesByProfileId[share.profileId]) {
-            sharesByProfileId[share.profileId] = {
-                profileId: share.profileId,
-                ownerAccountId: share.ownerAccountId,
-                permissions: share.permissions || []
-            };
-        }
-    }
-    
-    ctx.stash.sharesByProfileId = sharesByProfileId;
-    ctx.stash.profileKeys = Object.values(sharesByProfileId).map(s => ({
-        ownerAccountId: s.ownerAccountId,
-        profileId: s.profileId
-    }));
-    
-    return Object.values(sharesByProfileId);
-}
-                    """
-                ),
-            )
-            
-            # Step 2: BatchGetItem on profiles table
-            list_my_shares_batch_get_fn = appsync.AppsyncFunction(
-                self,
-                "ListMySharesBatchGetFn",
-                name=f"ListMySharesBatchGetFn_{env_name}",
-                api=self.api,
-                data_source=self.profiles_datasource,
-                runtime=appsync.FunctionRuntime.JS_1_0_0,
-                code=appsync.Code.from_inline(
-                    """
-import { util, runtime } from '@aws-appsync/utils';
-
-export function request(ctx) {
-    const keys = ctx.stash.profileKeys || [];
-    
-    // If no shares, skip the request entirely - use runtime.earlyReturn
-    if (keys.length === 0) {
-        return runtime.earlyReturn([]);
-    }
-    
-    // BatchGetItem supports up to 100 keys
-    // For now, take first 100 (pagination can be added later if needed)
-    const batchKeys = keys.slice(0, 100).map(k => util.dynamodb.toMapValues({
-        ownerAccountId: k.ownerAccountId,
-        profileId: k.profileId
-    }));
-    
-    return {
-        operation: 'BatchGetItem',
-        tables: {
-            '${PROFILES_TABLE}': {
-                keys: batchKeys,
-                consistentRead: false
-            }
-        }
-    };
-}
-
-export function response(ctx) {
-    if (ctx.error) {
-        util.error(ctx.error.message, ctx.error.type);
-    }
-    
-    const sharesByProfileId = ctx.stash.sharesByProfileId || {};
-    // Add ACCOUNT# prefix to match ownerAccountId format in profiles table
-    const callerAccountId = 'ACCOUNT#' + ctx.identity.sub;
-    
-    // Handle empty shares case
-    if (Object.keys(sharesByProfileId).length === 0) {
-        return [];
-    }
-    
-    // Get profiles from BatchGetItem response
-    const profiles = ctx.result.data && ctx.result.data['${PROFILES_TABLE}'] || [];
-    
-    // Helper to strip ACCOUNT# prefix for API response format
-    // Note: profileId keeps PROFILE# prefix, only ownerAccountId is stripped
-    function stripAccountPrefix(s) {
-        if (!s) return s;
-        if (s.startsWith('ACCOUNT#')) return s.substring(8);
-        return s;
-    }
-    
-    // Merge profile data with permissions
-    const result = [];
-    for (const profile of profiles) {
-        const share = sharesByProfileId[profile.profileId];
-        if (share) {
-            result.push({
-                profileId: profile.profileId,  // Keep PROFILE# prefix
-                ownerAccountId: stripAccountPrefix(profile.ownerAccountId),  // Strip ACCOUNT# prefix
-                sellerName: profile.sellerName,
-                unitType: profile.unitType || null,
-                unitNumber: profile.unitNumber || null,
-                createdAt: profile.createdAt,
-                updatedAt: profile.updatedAt,
-                isOwner: profile.ownerAccountId === callerAccountId,
-                permissions: share.permissions
-            });
-        }
-    }
-    
-    return result;
-}
-                    """.replace(
-                        "${PROFILES_TABLE}", self.profiles_table.table_name
-                    )
-                ),
-            )
-            
-            # Create listMyShares pipeline resolver
-            self.api.create_resolver(
-                "ListMySharesPipelineResolver",
+            # listMyShares - Lambda resolver for reliable profile fetching
+            # NOTE: Previously used a pipeline resolver with BatchGetItem, but AppSync's
+            # BatchGetItem has intermittent "key element does not match schema" errors.
+            # Using Lambda for reliable batch fetching with retry logic.
+            self.list_my_shares_ds.create_resolver(
+                "ListMySharesResolver",
                 type_name="Query",
                 field_name="listMyShares",
-                runtime=appsync.FunctionRuntime.JS_1_0_0,
-                pipeline_config=[list_my_shares_query_fn, list_my_shares_batch_get_fn],
-                code=appsync.Code.from_inline(
-                    """
-export function request(ctx) {
-    return {};
-}
-
-export function response(ctx) {
-    return ctx.prev.result;
-}
-                    """
-                ),
             )
 
             # getSeason - Get a specific season by ID with authorization

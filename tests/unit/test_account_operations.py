@@ -183,3 +183,44 @@ class TestUpdateMyAccount:
 
         with pytest.raises(ClientError):
             update_my_account(event, lambda_context)
+
+    def test_update_with_unit_type(
+        self,
+        dynamodb_table: Any,
+        sample_account_id: str,
+        appsync_event: Dict[str, Any],
+        lambda_context: Any,
+        monkeypatch: Any,
+    ) -> None:
+        """Test updating account with unit type field."""
+        monkeypatch.setenv("ACCOUNTS_TABLE_NAME", "kernelworx-accounts-ue1-dev")
+
+        # Create existing account
+        accounts_table = get_accounts_table()
+        account_id_key = f"ACCOUNT#{sample_account_id}"
+        accounts_table.put_item(
+            Item={
+                "accountId": account_id_key,
+                "email": "test@example.com",
+                "createdAt": datetime.now(timezone.utc).isoformat(),
+                "updatedAt": datetime.now(timezone.utc).isoformat(),
+            }
+        )
+
+        event = {
+            **appsync_event,
+            "arguments": {
+                "input": {
+                    "givenName": "Scout",
+                    "unitType": "PACK",
+                }
+            },
+        }
+
+        result = update_my_account(event, lambda_context)
+
+        assert result["givenName"] == "Scout"
+
+        # Verify unitType was stored in DynamoDB even though it's not returned
+        stored_item = accounts_table.get_item(Key={"accountId": account_id_key})
+        assert stored_item["Item"]["unitType"] == "PACK"
