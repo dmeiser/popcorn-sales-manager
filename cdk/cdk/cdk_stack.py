@@ -19,6 +19,8 @@ from aws_cdk import aws_route53_targets as targets
 from aws_cdk import aws_s3 as s3
 from constructs import Construct
 
+from cdk import resource_lookup
+
 # Region abbreviation mapping for resource naming
 # Pattern: {name}-{region_abbrev}-{env} e.g. kernelworx-ue1-dev
 REGION_ABBREVIATIONS = {
@@ -98,41 +100,53 @@ class CdkStack(Stack):
             self.api_domain = f"api.{env_name}.{base_domain}"
             self.cognito_domain = f"login.{env_name}.{base_domain}"
 
-        # ACM Certificate for AppSync API and CloudFront (must be in us-east-1 for CloudFront)
-        # This certificate is used for api.{domain} and {site_domain}
-        self.certificate = acm.Certificate(
-            self,
-            "Certificate",
-            domain_name=self.api_domain,
-            subject_alternative_names=[
-                self.site_domain,  # CloudFront distribution
-            ],
-            validation=acm.CertificateValidation.from_dns(self.hosted_zone),
-        )
+        # ACM Certificate for AppSync API and CloudFront - auto-import if exists
+        existing_cert_arn = resource_lookup.lookup_certificate(self.api_domain)
+        if existing_cert_arn:
+            self.certificate = acm.Certificate.from_certificate_arn(
+                self, "Certificate", existing_cert_arn
+            )
+        else:
+            self.certificate = acm.Certificate(
+                self,
+                "Certificate",
+                domain_name=self.api_domain,
+                subject_alternative_names=[
+                    self.site_domain,  # CloudFront distribution
+                ],
+                validation=acm.CertificateValidation.from_dns(self.hosted_zone),
+            )
+            self.certificate.apply_removal_policy(RemovalPolicy.RETAIN)
 
-        # Separate ACM Certificate for Cognito custom domain
-        # Must be in us-east-1 for Cognito
-        # Using DnsValidatedCertificate because it actually WAITS for the certificate
-        # to be issued (ISSUED status) before allowing dependent resources to proceed.
-        # The standard Certificate construct with from_dns() only creates DNS records
-        # but doesn't wait for validation, which causes Cognito UserPoolDomain to fail
-        # with "Invalid request provided" because it requires a fully validated certificate.
-        self.cognito_certificate = acm.DnsValidatedCertificate(
-            self,
-            "CognitoCertificate",
-            domain_name=self.cognito_domain,
-            hosted_zone=self.hosted_zone,
-            region="us-east-1",  # Cognito custom domains require us-east-1
-        )
+        # Separate ACM Certificate for Cognito custom domain - auto-import if exists
+        existing_cognito_cert_arn = resource_lookup.lookup_certificate(self.cognito_domain)
+        if existing_cognito_cert_arn:
+            self.cognito_certificate = acm.Certificate.from_certificate_arn(
+                self, "CognitoCertificate", existing_cognito_cert_arn
+            )
+        else:
+            # Using DnsValidatedCertificate because it WAITS for the certificate to be issued
+            self.cognito_certificate = acm.DnsValidatedCertificate(
+                self,
+                "CognitoCertificate",
+                domain_name=self.cognito_domain,
+                hosted_zone=self.hosted_zone,
+                region="us-east-1",  # Cognito custom domains require us-east-1
+            )
+            self.cognito_certificate.apply_removal_policy(RemovalPolicy.RETAIN)
 
         # ====================================================================
         # DynamoDB Table - Single Table Design
         # ====================================================================
 
-        # Check if we should import existing table
-        existing_table_name = self.node.try_get_context("table_name")
-        if existing_table_name:
-            self.table = dynamodb.Table.from_table_name(self, "PsmApp", existing_table_name)
+        # Auto-discover existing table by name pattern
+        psm_table_name = rn("kernelworx-app")
+        existing_psm_table = resource_lookup.lookup_dynamodb_table(psm_table_name)
+        
+        if existing_psm_table:
+            self.table = dynamodb.Table.from_table_arn(
+                self, "PsmApp", existing_psm_table["table_arn"]
+            )
         else:
             self.table = dynamodb.Table(
                 self,
@@ -239,66 +253,86 @@ class CdkStack(Stack):
         # New Multi-Table Design (Migration from Single-Table)
         # ====================================================================
 
-        # Accounts Table
-        self.accounts_table = dynamodb.Table(
-            self,
-            "AccountsTable",
-            table_name=rn("kernelworx-accounts"),
+        # Accounts Table - auto-import if exists
+        accounts_table_name = rn("kernelworx-accounts")
+        existing_accounts = resource_lookup.lookup_dynamodb_table(accounts_table_name)
+        if existing_accounts:
+            self.accounts_table = dynamodb.Table.from_table_arn(
+                self, "AccountsTable", existing_accounts["table_arn"]
+            )
+        else:
+            self.accounts_table = dynamodb.Table(
+                self,
+                "AccountsTable",
+                table_name=accounts_table_name,
             partition_key=dynamodb.Attribute(name="accountId", type=dynamodb.AttributeType.STRING),
             billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
             point_in_time_recovery_specification=dynamodb.PointInTimeRecoverySpecification(
                 point_in_time_recovery_enabled=True
             ),
             removal_policy=RemovalPolicy.RETAIN,
+            deletion_protection=True,
         )
+            # GSI for email lookup (account by email) - only for new tables
+            self.accounts_table.add_global_secondary_index(
+                index_name="email-index",
+                partition_key=dynamodb.Attribute(name="email", type=dynamodb.AttributeType.STRING),
+                projection_type=dynamodb.ProjectionType.ALL,
+            )
 
-        # GSI for email lookup (account by email)
-        self.accounts_table.add_global_secondary_index(
-            index_name="email-index",
-            partition_key=dynamodb.Attribute(name="email", type=dynamodb.AttributeType.STRING),
-            projection_type=dynamodb.ProjectionType.ALL,
-        )
-
-        # Catalogs Table
-        self.catalogs_table = dynamodb.Table(
-            self,
-            "CatalogsTable",
-            table_name=rn("kernelworx-catalogs"),
-            partition_key=dynamodb.Attribute(name="catalogId", type=dynamodb.AttributeType.STRING),
-            billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
-            point_in_time_recovery_specification=dynamodb.PointInTimeRecoverySpecification(
-                point_in_time_recovery_enabled=True
-            ),
-            removal_policy=RemovalPolicy.RETAIN,
-        )
-
-        # GSI for catalog owner lookup
-        self.catalogs_table.add_global_secondary_index(
-            index_name="ownerAccountId-index",
-            partition_key=dynamodb.Attribute(
-                name="ownerAccountId", type=dynamodb.AttributeType.STRING
-            ),
-            projection_type=dynamodb.ProjectionType.ALL,
-        )
-
-        # GSI for public catalog listing
-        self.catalogs_table.add_global_secondary_index(
-            index_name="isPublic-createdAt-index",
-            partition_key=dynamodb.Attribute(
-                name="isPublicStr", type=dynamodb.AttributeType.STRING
-            ),
-            sort_key=dynamodb.Attribute(name="createdAt", type=dynamodb.AttributeType.STRING),
-            projection_type=dynamodb.ProjectionType.ALL,
-        )
+        # Catalogs Table - auto-import if exists
+        catalogs_table_name = rn("kernelworx-catalogs")
+        existing_catalogs = resource_lookup.lookup_dynamodb_table(catalogs_table_name)
+        if existing_catalogs:
+            self.catalogs_table = dynamodb.Table.from_table_arn(
+                self, "CatalogsTable", existing_catalogs["table_arn"]
+            )
+        else:
+            self.catalogs_table = dynamodb.Table(
+                self,
+                "CatalogsTable",
+                table_name=catalogs_table_name,
+                partition_key=dynamodb.Attribute(name="catalogId", type=dynamodb.AttributeType.STRING),
+                billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
+                point_in_time_recovery_specification=dynamodb.PointInTimeRecoverySpecification(
+                    point_in_time_recovery_enabled=True
+                ),
+                removal_policy=RemovalPolicy.RETAIN,
+                deletion_protection=True,
+            )
+            # GSIs only for new tables
+            self.catalogs_table.add_global_secondary_index(
+                index_name="ownerAccountId-index",
+                partition_key=dynamodb.Attribute(
+                    name="ownerAccountId", type=dynamodb.AttributeType.STRING
+                ),
+                projection_type=dynamodb.ProjectionType.ALL,
+            )
+            self.catalogs_table.add_global_secondary_index(
+                index_name="isPublic-createdAt-index",
+                partition_key=dynamodb.Attribute(
+                    name="isPublicStr", type=dynamodb.AttributeType.STRING
+                ),
+                sort_key=dynamodb.Attribute(name="createdAt", type=dynamodb.AttributeType.STRING),
+                projection_type=dynamodb.ProjectionType.ALL,
+            )
 
         # Profiles Table - stores profile METADATA only
         # NEW STRUCTURE (V2): PK=ownerAccountId, SK=profileId
         # This enables direct query for listMyProfiles (no GSI needed)
         # Shares and invites are in separate tables now
-        self.profiles_table = dynamodb.Table(
-            self,
-            "ProfilesTableV2",
-            table_name=rn("kernelworx-profiles"),
+        # ProfilesTableV2 - auto-import if exists
+        profiles_table_name = rn("kernelworx-profiles")
+        existing_profiles_table = resource_lookup.lookup_dynamodb_table(profiles_table_name)
+        if existing_profiles_table:
+            self.profiles_table = dynamodb.Table.from_table_arn(
+                self, "ProfilesTableV2", existing_profiles_table["table_arn"]
+            )
+        else:
+            self.profiles_table = dynamodb.Table(
+                self,
+                "ProfilesTableV2",
+                table_name=profiles_table_name,
             partition_key=dynamodb.Attribute(
                 name="ownerAccountId", type=dynamodb.AttributeType.STRING
             ),
@@ -308,22 +342,30 @@ class CdkStack(Stack):
                 point_in_time_recovery_enabled=True
             ),
             removal_policy=RemovalPolicy.RETAIN,
+            deletion_protection=True,
         )
-
-        # GSI for direct profile lookup by profileId (sparse index for getProfile)
-        self.profiles_table.add_global_secondary_index(
-            index_name="profileId-index",
-            partition_key=dynamodb.Attribute(name="profileId", type=dynamodb.AttributeType.STRING),
-            projection_type=dynamodb.ProjectionType.ALL,
-        )
+            # GSI for direct profile lookup by profileId - only for new tables
+            self.profiles_table.add_global_secondary_index(
+                index_name="profileId-index",
+                partition_key=dynamodb.Attribute(name="profileId", type=dynamodb.AttributeType.STRING),
+                projection_type=dynamodb.ProjectionType.ALL,
+            )
 
         # Shares Table (NEW - separated from profiles for cleaner design)
         # PK: profileId, SK: targetAccountId
         # Enables direct query for "all shares for this profile"
-        self.shares_table = dynamodb.Table(
-            self,
-            "SharesTable",
-            table_name=rn("kernelworx-shares"),
+        # SharesTable - auto-import if exists
+        shares_table_name = rn("kernelworx-shares")
+        existing_shares_table = resource_lookup.lookup_dynamodb_table(shares_table_name)
+        if existing_shares_table:
+            self.shares_table = dynamodb.Table.from_table_arn(
+                self, "SharesTable", existing_shares_table["table_arn"]
+            )
+        else:
+            self.shares_table = dynamodb.Table(
+                self,
+                "SharesTable",
+                table_name=shares_table_name,
             partition_key=dynamodb.Attribute(name="profileId", type=dynamodb.AttributeType.STRING),
             sort_key=dynamodb.Attribute(name="targetAccountId", type=dynamodb.AttributeType.STRING),
             billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
@@ -331,55 +373,71 @@ class CdkStack(Stack):
                 point_in_time_recovery_enabled=True
             ),
             removal_policy=RemovalPolicy.RETAIN,
+            deletion_protection=True,
         )
-
-        # GSI for "profiles shared with me" query
-        self.shares_table.add_global_secondary_index(
-            index_name="targetAccountId-index",
-            partition_key=dynamodb.Attribute(
-                name="targetAccountId", type=dynamodb.AttributeType.STRING
-            ),
-            projection_type=dynamodb.ProjectionType.ALL,
-        )
+            # GSI for "profiles shared with me" query - only for new tables
+            self.shares_table.add_global_secondary_index(
+                index_name="targetAccountId-index",
+                partition_key=dynamodb.Attribute(
+                    name="targetAccountId", type=dynamodb.AttributeType.STRING
+                ),
+                projection_type=dynamodb.ProjectionType.ALL,
+            )
 
         # Invites Table (NEW - separated from profiles for cleaner design)
         # PK: inviteCode (enables direct lookup)
         # TTL: expiresAt (automatic cleanup of expired invites)
-        self.invites_table = dynamodb.Table(
-            self,
-            "InvitesTable",
-            table_name=rn("kernelworx-invites"),
+        # InvitesTable - auto-import if exists
+        invites_table_name = rn("kernelworx-invites")
+        existing_invites_table = resource_lookup.lookup_dynamodb_table(invites_table_name)
+        if existing_invites_table:
+            self.invites_table = dynamodb.Table.from_table_arn(
+                self, "InvitesTable", existing_invites_table["table_arn"]
+            )
+        else:
+            self.invites_table = dynamodb.Table(
+                self,
+                "InvitesTable",
+                table_name=invites_table_name,
             partition_key=dynamodb.Attribute(name="inviteCode", type=dynamodb.AttributeType.STRING),
             billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
             point_in_time_recovery_specification=dynamodb.PointInTimeRecoverySpecification(
                 point_in_time_recovery_enabled=True
             ),
             removal_policy=RemovalPolicy.RETAIN,
+            deletion_protection=True,
         )
-
-        # GSI for "invites for this profile" query
-        self.invites_table.add_global_secondary_index(
-            index_name="profileId-index",
-            partition_key=dynamodb.Attribute(name="profileId", type=dynamodb.AttributeType.STRING),
-            projection_type=dynamodb.ProjectionType.ALL,
-        )
-
-        # TTL for invites (automatic expiration)
-        cfn_invites_table = self.invites_table.node.default_child
-        cfn_invites_table.time_to_live_specification = (
-            dynamodb.CfnTable.TimeToLiveSpecificationProperty(
-                attribute_name="expiresAt",
-                enabled=True,
+            # GSI for "invites for this profile" query - only for new tables
+            self.invites_table.add_global_secondary_index(
+                index_name="profileId-index",
+                partition_key=dynamodb.Attribute(name="profileId", type=dynamodb.AttributeType.STRING),
+                projection_type=dynamodb.ProjectionType.ALL,
             )
-        )
+
+            # TTL for invites (automatic expiration) - only for new tables
+            cfn_invites_table = self.invites_table.node.default_child
+            cfn_invites_table.time_to_live_specification = (
+                dynamodb.CfnTable.TimeToLiveSpecificationProperty(
+                    attribute_name="expiresAt",
+                    enabled=True,
+                )
+            )
 
         # Seasons Table V2
         # NEW STRUCTURE: PK=profileId, SK=seasonId
         # This enables direct query for listSeasonsByProfile (no GSI needed)
-        self.seasons_table = dynamodb.Table(
-            self,
-            "SeasonsTableV2",
-            table_name=rn("kernelworx-seasons"),
+        # SeasonsTableV2 - auto-import if exists
+        seasons_table_name = rn("kernelworx-seasons")
+        existing_seasons_table = resource_lookup.lookup_dynamodb_table(seasons_table_name)
+        if existing_seasons_table:
+            self.seasons_table = dynamodb.Table.from_table_arn(
+                self, "SeasonsTableV2", existing_seasons_table["table_arn"]
+            )
+        else:
+            self.seasons_table = dynamodb.Table(
+                self,
+                "SeasonsTableV2",
+                table_name=seasons_table_name,
             partition_key=dynamodb.Attribute(name="profileId", type=dynamodb.AttributeType.STRING),
             sort_key=dynamodb.Attribute(name="seasonId", type=dynamodb.AttributeType.STRING),
             billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
@@ -387,29 +445,37 @@ class CdkStack(Stack):
                 point_in_time_recovery_enabled=True
             ),
             removal_policy=RemovalPolicy.RETAIN,
+            deletion_protection=True,
         )
+            # GSI for direct getSeason by seasonId - only for new tables
+            self.seasons_table.add_global_secondary_index(
+                index_name="seasonId-index",
+                partition_key=dynamodb.Attribute(name="seasonId", type=dynamodb.AttributeType.STRING),
+                projection_type=dynamodb.ProjectionType.ALL,
+            )
 
-        # GSI for direct getSeason by seasonId (sparse index)
-        self.seasons_table.add_global_secondary_index(
-            index_name="seasonId-index",
-            partition_key=dynamodb.Attribute(name="seasonId", type=dynamodb.AttributeType.STRING),
-            projection_type=dynamodb.ProjectionType.ALL,
-        )
-
-        # GSI for seasons by catalog (for checking catalog in-use before deletion)
-        self.seasons_table.add_global_secondary_index(
-            index_name="catalogId-index",
-            partition_key=dynamodb.Attribute(name="catalogId", type=dynamodb.AttributeType.STRING),
-            projection_type=dynamodb.ProjectionType.KEYS_ONLY,
-        )
+            # GSI for seasons by catalog - only for new tables
+            self.seasons_table.add_global_secondary_index(
+                index_name="catalogId-index",
+                partition_key=dynamodb.Attribute(name="catalogId", type=dynamodb.AttributeType.STRING),
+                projection_type=dynamodb.ProjectionType.KEYS_ONLY,
+            )
 
         # Orders Table
         # Orders Table V2: PK=seasonId, SK=orderId for efficient season-based queries
         # Direct order lookups use orderId-index GSI
-        self.orders_table = dynamodb.Table(
-            self,
-            "OrdersTableV2",
-            table_name=rn("kernelworx-orders"),
+        # OrdersTableV2 - auto-import if exists
+        orders_table_name = rn("kernelworx-orders")
+        existing_orders_table = resource_lookup.lookup_dynamodb_table(orders_table_name)
+        if existing_orders_table:
+            self.orders_table = dynamodb.Table.from_table_arn(
+                self, "OrdersTableV2", existing_orders_table["table_arn"]
+            )
+        else:
+            self.orders_table = dynamodb.Table(
+                self,
+                "OrdersTableV2",
+                table_name=orders_table_name,
             partition_key=dynamodb.Attribute(name="seasonId", type=dynamodb.AttributeType.STRING),
             sort_key=dynamodb.Attribute(name="orderId", type=dynamodb.AttributeType.STRING),
             billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
@@ -417,57 +483,55 @@ class CdkStack(Stack):
                 point_in_time_recovery_enabled=True
             ),
             removal_policy=RemovalPolicy.RETAIN,
+            deletion_protection=True,
         )
+            # GSI for direct order lookup by orderId - only for new tables
+            self.orders_table.add_global_secondary_index(
+                index_name="orderId-index",
+                partition_key=dynamodb.Attribute(name="orderId", type=dynamodb.AttributeType.STRING),
+                projection_type=dynamodb.ProjectionType.ALL,
+            )
 
-        # GSI for direct order lookup by orderId (for getOrder, updateOrder, deleteOrder)
-        self.orders_table.add_global_secondary_index(
-            index_name="orderId-index",
-            partition_key=dynamodb.Attribute(name="orderId", type=dynamodb.AttributeType.STRING),
-            projection_type=dynamodb.ProjectionType.ALL,
-        )
-
-        # GSI for orders by profile (cross-season order lookup)
-        self.orders_table.add_global_secondary_index(
-            index_name="profileId-index",
-            partition_key=dynamodb.Attribute(name="profileId", type=dynamodb.AttributeType.STRING),
-            sort_key=dynamodb.Attribute(name="createdAt", type=dynamodb.AttributeType.STRING),
-            projection_type=dynamodb.ProjectionType.ALL,
-        )
+            # GSI for orders by profile - only for new tables
+            self.orders_table.add_global_secondary_index(
+                index_name="profileId-index",
+                partition_key=dynamodb.Attribute(name="profileId", type=dynamodb.AttributeType.STRING),
+                sort_key=dynamodb.Attribute(name="createdAt", type=dynamodb.AttributeType.STRING),
+                projection_type=dynamodb.ProjectionType.ALL,
+            )
 
         # ====================================================================
         # S3 Buckets
         # ====================================================================
 
-        # Static assets bucket (for SPA hosting)
-        # Check if we should import existing bucket
-        existing_static_bucket = self.node.try_get_context("static_bucket_name")
-        if existing_static_bucket:
+        # Static assets bucket (for SPA hosting) - auto-import if exists
+        static_bucket_name = rn("kernelworx-static")
+        if resource_lookup.lookup_s3_bucket(static_bucket_name):
             self.static_assets_bucket = s3.Bucket.from_bucket_name(
-                self, "StaticAssets", existing_static_bucket
+                self, "StaticAssets", static_bucket_name
             )
         else:
             self.static_assets_bucket = s3.Bucket(
                 self,
                 "StaticAssets",
-                bucket_name=rn("kernelworx-static"),
+                bucket_name=static_bucket_name,
                 versioned=True,
                 encryption=s3.BucketEncryption.S3_MANAGED,
                 block_public_access=s3.BlockPublicAccess.BLOCK_ALL,
                 removal_policy=RemovalPolicy.RETAIN,
             )
 
-        # Exports bucket (for generated reports)
-        # Check if we should import existing bucket
-        existing_exports_bucket = self.node.try_get_context("exports_bucket_name")
-        if existing_exports_bucket:
+        # Exports bucket (for generated reports) - auto-import if exists
+        exports_bucket_name = rn("kernelworx-exports")
+        if resource_lookup.lookup_s3_bucket(exports_bucket_name):
             self.exports_bucket = s3.Bucket.from_bucket_name(
-                self, "Exports", existing_exports_bucket
+                self, "Exports", exports_bucket_name
             )
         else:
             self.exports_bucket = s3.Bucket(
                 self,
                 "Exports",
-                bucket_name=rn("kernelworx-exports"),
+                bucket_name=exports_bucket_name,
                 versioned=False,
                 encryption=s3.BucketEncryption.S3_MANAGED,
                 block_public_access=s3.BlockPublicAccess.BLOCK_ALL,
@@ -743,8 +807,27 @@ class CdkStack(Stack):
         # Cognito User Pool - Authentication (Essentials tier)
         # ====================================================================
 
-        # Check if we should import existing user pool
-        existing_user_pool_id = self.node.try_get_context("user_pool_id")
+        # Known User Pool IDs for each environment (prevents creating duplicates)
+        # DO NOT use lookup_user_pool_by_name - it may return wrong pool if
+        # multiple pools exist with similar names.
+        KNOWN_USER_POOL_IDS = {
+            "dev": "us-east-1_sDiuCOarb",
+            # Add prod when ready: "prod": "us-east-1_XXXXX",
+        }
+
+        # Check if we have a known pool ID for this environment
+        known_pool_id = KNOWN_USER_POOL_IDS.get(env_name)
+        existing_user_pool_id = None
+
+        if known_pool_id:
+            # Verify the known pool still exists
+            pool_info = resource_lookup.lookup_user_pool_by_id(known_pool_id)
+            if pool_info:
+                existing_user_pool_id = known_pool_id
+        else:
+            # Fallback to context parameter for unknown environments
+            existing_user_pool_id = self.node.try_get_context("user_pool_id")
+
         if existing_user_pool_id:
             # Import existing User Pool
             # Note: WebAuthn Relying Party ID must be configured manually via AWS Console
@@ -754,11 +837,11 @@ class CdkStack(Stack):
                 self, "UserPool", existing_user_pool_id
             )
 
-            # For imported pools, either import existing client or create new one
-            existing_client_id = self.node.try_get_context("user_pool_client_id")
-            if existing_client_id:
+            # For imported pools, find existing client or create new one
+            existing_client = resource_lookup.lookup_user_pool_client(existing_user_pool_id)
+            if existing_client:
                 self.user_pool_client = cognito.UserPoolClient.from_user_pool_client_id(
-                    self, "AppClient", existing_client_id
+                    self, "AppClient", existing_client["client_id"]
                 )
             else:
                 # Create new client for imported user pool
@@ -1005,11 +1088,34 @@ class CdkStack(Stack):
         # ====================================================================
 
         if existing_user_pool_id:
-            # For imported pools, import the existing custom domain
-            # (new pools already created their domain in the else block above)
-            self.user_pool_domain = cognito.UserPoolDomain.from_domain_name(
-                self, "UserPoolDomain", self.cognito_domain
-            )
+            # For imported pools, check if the custom domain exists
+            existing_domain = resource_lookup.lookup_user_pool_domain(existing_user_pool_id)
+            if existing_domain:
+                # Domain exists - import it
+                self.user_pool_domain = cognito.UserPoolDomain.from_domain_name(
+                    self, "UserPoolDomain", existing_domain
+                )
+                # Look up the CloudFront distribution and create Route53 record
+                existing_cf = resource_lookup.lookup_cognito_domain_cloudfront(existing_domain)
+                if existing_cf:
+                    # Create an alias record pointing to the existing CloudFront distribution
+                    # NOTE: We must use CfnRecordSet here because CloudFrontTarget requires
+                    # a real Distribution with distribution_id, which we don't have for
+                    # Cognito-managed CloudFront distributions
+                    self.cognito_domain_record = route53.CfnRecordSet(
+                        self,
+                        "CognitoDomainRecord",
+                        hosted_zone_id=self.hosted_zone.hosted_zone_id,
+                        name=self.cognito_domain,
+                        type="A",
+                        alias_target=route53.CfnRecordSet.AliasTargetProperty(
+                            # CloudFront hosted zone ID is always Z2FDTNDATAQYW2
+                            hosted_zone_id="Z2FDTNDATAQYW2",
+                            dns_name=existing_cf,
+                            evaluate_target_health=False,
+                        ),
+                    )
+                    self.cognito_domain_record.apply_removal_policy(RemovalPolicy.RETAIN)
 
         # Route53 record for Cognito custom domain
         # For imported pools, assume the record already exists
@@ -1045,13 +1151,14 @@ class CdkStack(Stack):
         # Read GraphQL schema from file
         schema_path = os.path.join(os.path.dirname(__file__), "..", "schema", "schema.graphql")
 
-        # Check if we should import existing API
-        existing_api_id = self.node.try_get_context("appsync_api_id")
-        if existing_api_id:
+        # Check for existing API - auto-discover by name or use context
+        api_name = rn("kernelworx-api")
+        existing_api = resource_lookup.lookup_appsync_api(api_name)
+        if existing_api:
             self.api = appsync.GraphqlApi.from_graphql_api_attributes(
                 self,
                 "Api",
-                graphql_api_id=existing_api_id,
+                graphql_api_id=existing_api["api_id"],
             )
         else:
             # Determine if logging should be enabled (configurable via ENABLE_APPSYNC_LOGGING env var)
@@ -5980,16 +6087,32 @@ export function response(ctx) {
         # CloudFront Distribution for SPA
         # ====================================================================
 
-        # Origin Access Identity for S3
-        self.origin_access_identity = cloudfront.OriginAccessIdentity(
-            self, "OAI", comment="OAI for Popcorn Sales Manager SPA"
-        )
+        # Check if we should import existing CloudFront distribution
+        existing_cf = resource_lookup.lookup_cloudfront_distribution(self.site_domain)
+        existing_oai = resource_lookup.lookup_oai("OAI for Popcorn Sales Manager")
+        
+        if existing_cf and existing_oai:
+            # Import existing CloudFront distribution
+            self.distribution = cloudfront.Distribution.from_distribution_attributes(
+                self,
+                "Distribution",
+                distribution_id=existing_cf["distribution_id"],
+                domain_name=existing_cf["domain_name"],
+            )
+            self.origin_access_identity = cloudfront.OriginAccessIdentity.from_origin_access_identity_id(
+                self, "OAI", existing_oai["oai_id"]
+            )
+        else:
+            # Create new Origin Access Identity for S3
+            self.origin_access_identity = cloudfront.OriginAccessIdentity(
+                self, "OAI", comment="OAI for Popcorn Sales Manager SPA"
+            )
 
-        # Grant CloudFront read access to static assets bucket
-        self.static_assets_bucket.grant_read(self.origin_access_identity)
+            # Grant CloudFront read access to static assets bucket
+            self.static_assets_bucket.grant_read(self.origin_access_identity)
 
-        # CloudFront distribution with custom domain
-        self.distribution = cloudfront.Distribution(
+            # CloudFront distribution with custom domain
+            self.distribution = cloudfront.Distribution(
             self,
             "Distribution",
             domain_names=[self.site_domain],
