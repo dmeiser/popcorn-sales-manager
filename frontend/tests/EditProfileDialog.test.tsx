@@ -20,7 +20,7 @@ describe('EditProfileDialog', () => {
     );
 
     expect(screen.getByText('Edit Scout')).toBeInTheDocument();
-    const nameInput = screen.getByLabelText(/Seller Name/i) as HTMLInputElement;
+    const nameInput = screen.getByLabelText(/Scout Name/i) as HTMLInputElement;
     expect(nameInput.value).toBe('Scout Alpha');
   });
 
@@ -85,7 +85,7 @@ describe('EditProfileDialog', () => {
       />
     );
 
-    const nameInput = screen.getByLabelText(/Seller Name/i);
+    const nameInput = screen.getByLabelText(/Scout Name/i);
     await user.clear(nameInput);
 
     const submitButton = screen.getByRole('button', { name: /Save Changes/i });
@@ -104,7 +104,7 @@ describe('EditProfileDialog', () => {
       />
     );
 
-    const nameInput = screen.getByLabelText(/Seller Name/i);
+    const nameInput = screen.getByLabelText(/Scout Name/i);
     await user.clear(nameInput);
     await user.type(nameInput, 'Scout Beta');
 
@@ -126,7 +126,7 @@ describe('EditProfileDialog', () => {
       />
     );
 
-    const nameInput = screen.getByLabelText(/Seller Name/i);
+    const nameInput = screen.getByLabelText(/Scout Name/i);
     await user.clear(nameInput);
     await user.type(nameInput, '  Scout Beta  ');
 
@@ -151,7 +151,7 @@ describe('EditProfileDialog', () => {
       />
     );
 
-    const nameInput = screen.getByLabelText(/Seller Name/i);
+    const nameInput = screen.getByLabelText(/Scout Name/i);
     await user.clear(nameInput);
     await user.type(nameInput, 'Scout Beta');
 
@@ -178,7 +178,7 @@ describe('EditProfileDialog', () => {
       />
     );
 
-    const nameInput = screen.getByLabelText(/Seller Name/i);
+    const nameInput = screen.getByLabelText(/Scout Name/i);
     await user.clear(nameInput);
     await user.type(nameInput, 'Scout Beta');
 
@@ -205,7 +205,7 @@ describe('EditProfileDialog', () => {
       />
     );
 
-    const nameInput = screen.getByLabelText(/Seller Name/i);
+    const nameInput = screen.getByLabelText(/Scout Name/i);
     await user.clear(nameInput);
     await user.type(nameInput, 'Scout Beta');
 
@@ -233,7 +233,7 @@ describe('EditProfileDialog', () => {
       />
     );
 
-    const nameInput = screen.getByLabelText(/Seller Name/i);
+    const nameInput = screen.getByLabelText(/Scout Name/i);
     await user.clear(nameInput);
     await user.type(nameInput, 'Scout Beta{Enter}');
 
@@ -254,7 +254,7 @@ describe('EditProfileDialog', () => {
       />
     );
 
-    const nameInput = screen.getByLabelText(/Seller Name/i) as HTMLInputElement;
+    const nameInput = screen.getByLabelText(/Scout Name/i) as HTMLInputElement;
     await user.clear(nameInput);
     await user.type(nameInput, 'Scout Beta');
     expect(nameInput.value).toBe('Scout Beta');
@@ -280,7 +280,7 @@ describe('EditProfileDialog', () => {
       />
     );
 
-    const nameInputReopened = screen.getByLabelText(/Seller Name/i) as HTMLInputElement;
+    const nameInputReopened = screen.getByLabelText(/Scout Name/i) as HTMLInputElement;
     expect(nameInputReopened.value).toBe('Scout Alpha');
   });
 
@@ -298,7 +298,7 @@ describe('EditProfileDialog', () => {
       />
     );
 
-    const nameInput = screen.getByLabelText(/Seller Name/i);
+    const nameInput = screen.getByLabelText(/Scout Name/i);
     await user.clear(nameInput);
     await user.type(nameInput, 'Scout Beta');
 

@@ -112,7 +112,7 @@ describe("SeasonSettingsPage", () => {
       });
 
       expect(
-        screen.getByText(/This season was created from a campaign link/)
+        screen.getByText(/This season was created from a shared campaign link/)
       ).toBeInTheDocument();
     });
 

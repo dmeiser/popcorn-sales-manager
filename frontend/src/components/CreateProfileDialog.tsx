@@ -61,7 +61,7 @@ export const CreateProfileDialog: React.FC<CreateProfileDialogProps> = ({
           <TextField
             autoFocus
             fullWidth
-            label="Seller Name"
+            label="Scout Name"
             placeholder="e.g., Scout's First and Last Name"
             value={sellerName}
             onChange={(e) => setSellerName(e.target.value)}
@@ -71,7 +71,7 @@ export const CreateProfileDialog: React.FC<CreateProfileDialogProps> = ({
               }
             }}
             disabled={loading}
-            helperText="Enter the name of the Scout or seller"
+            helperText="Enter the name of the Scout"
           />
         </Box>
       </DialogContent>

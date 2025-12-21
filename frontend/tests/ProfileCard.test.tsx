@@ -111,7 +111,7 @@ describe('ProfileCard', () => {
     expect(screen.getByText('Scout Epsilon')).toBeInTheDocument();
   });
 
-  test('renders View All Seasons button', () => {
+  test('renders View All Campaigns button', () => {
     render(
       <MockedProvider mocks={[]}>
         <BrowserRouter>
@@ -125,10 +125,10 @@ describe('ProfileCard', () => {
       </MockedProvider>
     );
 
-    expect(screen.getByText('View All Seasons')).toBeInTheDocument();
+    expect(screen.getByText('View All Campaigns')).toBeInTheDocument();
   });
 
-  test('navigates to all seasons page when View All Seasons clicked', async () => {
+  test('navigates to all seasons page when View All Campaigns clicked', async () => {
     const user = userEvent.setup();
 
     render(
@@ -144,7 +144,7 @@ describe('ProfileCard', () => {
       </MockedProvider>
     );
 
-    const button = screen.getByText('View All Seasons');
+    const button = screen.getByText('View All Campaigns');
     await user.click(button);
 
     expect(mockNavigate).toHaveBeenCalledWith('/scouts/profile-123/campaigns');

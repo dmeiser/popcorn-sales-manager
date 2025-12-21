@@ -109,15 +109,15 @@ describe("CreateSharedCampaignDialog", () => {
   });
 
   describe("Form fields", () => {
-    it("displays season name and year fields", async () => {
+    it("displays campaign name and year fields", async () => {
       renderWithProviders(createCatalogMocks(), defaultProps);
 
       // Use getByRole for MUI TextField components
       expect(
-        screen.getByRole("textbox", { name: /Season Name/i })
+        screen.getByRole("textbox", { name: /Campaign Name/i })
       ).toBeInTheDocument();
       expect(
-        screen.getByRole("spinbutton", { name: /Season Year/i })
+        screen.getByRole("spinbutton", { name: /Campaign Year/i })
       ).toBeInTheDocument();
     });
 

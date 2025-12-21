@@ -329,7 +329,7 @@ export const CreateSharedCampaignPage: React.FC = () => {
             <Stack spacing={2}>
               <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
                 <TextField
-                  label="Season Name"
+                  label="Campaign Name"
                   value={seasonName}
                   onChange={(e) => setSeasonName(e.target.value)}
                   placeholder="e.g., Fall, Spring"
@@ -337,7 +337,7 @@ export const CreateSharedCampaignPage: React.FC = () => {
                   fullWidth
                 />
                 <TextField
-                  label="Season Year"
+                  label="Campaign Year"
                   type="number"
                   value={seasonYear}
                   onChange={(e) =>

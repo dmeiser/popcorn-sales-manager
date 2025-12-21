@@ -72,7 +72,7 @@ export const EditProfileDialog: React.FC<EditProfileDialogProps> = ({
           <TextField
             autoFocus
             fullWidth
-            label="Seller Name"
+            label="Scout Name"
             value={sellerName}
             onChange={(e) => setSellerName(e.target.value)}
             onKeyPress={(e) => {

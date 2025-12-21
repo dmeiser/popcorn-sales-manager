@@ -334,7 +334,7 @@ describe.skip('ScoutsPage', () => {
       expect(screen.getByText(/You don't have any scouts yet/i)).toBeInTheDocument();
     });
 
-    const createButton = screen.getByRole('button', { name: /Create Seller/i });
+    const createButton = screen.getByRole('button', { name: /Create Scout/i });
     await user.click(createButton);
 
     expect(screen.getByRole('dialog')).toBeInTheDocument();
@@ -408,19 +408,19 @@ describe.skip('ScoutsPage', () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: /Create Seller/i })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /Create Scout/i })).toBeInTheDocument();
     });
 
     // Open dialog
-    const createButton = screen.getByRole('button', { name: /Create Seller/i });
+    const createButton = screen.getByRole('button', { name: /Create Scout/i });
     await user.click(createButton);
 
     // Fill in name
-    const nameInput = screen.getByLabelText(/Seller Name/i);
+    const nameInput = screen.getByLabelText(/Scout Name/i);
     await user.type(nameInput, 'New Scout');
 
     // Submit
-    const submitButton = screen.getByRole('button', { name: /Create Seller/i });
+    const submitButton = screen.getByRole('button', { name: /Create Scout/i });
     await user.click(submitButton);
 
     // Dialog should close
@@ -572,7 +572,7 @@ describe.skip('ScoutsPage', () => {
     await user.click(editButton);
 
     // Clear and type new name
-    const nameInput = screen.getByLabelText(/Seller Name/i);
+    const nameInput = screen.getByLabelText(/Scout Name/i);
     await user.clear(nameInput);
     await user.type(nameInput, 'Scout Updated');
 

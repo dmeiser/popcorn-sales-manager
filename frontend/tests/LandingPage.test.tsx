@@ -140,11 +140,11 @@ describe('LandingPage', () => {
     });
   });
 
-  it('shows "Go to Profiles" button when authenticated', async () => {
+  it('shows "Go to My Scouts" button when authenticated', async () => {
     renderWithAuth(true);
 
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: /go to profiles/i })).toBeInTheDocument();
+      expect(screen.getAllByRole('button', { name: /go to my scouts/i }).length).toBeGreaterThan(0);
     });
   });
 
@@ -165,17 +165,17 @@ describe('LandingPage', () => {
     });
   });
 
-  it('navigates to profiles when button clicked and user is authenticated', async () => {
+  it('navigates to scouts when button clicked and user is authenticated', async () => {
     const user = userEvent.setup();
 
     renderWithAuth(true);
 
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: /go to profiles/i })).toBeInTheDocument();
+      expect(screen.getAllByRole('button', { name: /go to my scouts/i }).length).toBeGreaterThan(0);
     });
 
-    const button = screen.getByRole('button', { name: /go to profiles/i });
-    await user.click(button);
+    const buttons = screen.getAllByRole('button', { name: /go to my scouts/i });
+    await user.click(buttons[0]);
 
     await waitFor(() => {
       expect(mockNavigate).toHaveBeenCalledWith('/scouts');
@@ -190,11 +190,11 @@ describe('LandingPage', () => {
     });
   });
 
-  it('shows "Go to My Profiles" CTA button when authenticated', async () => {
+  it('shows "Go to My Scouts" CTA button when authenticated', async () => {
     renderWithAuth(true);
 
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: /go to my profiles/i })).toBeInTheDocument();
+      expect(screen.getAllByRole('button', { name: /go to my scouts/i }).length).toBeGreaterThan(0);
     });
   });
 

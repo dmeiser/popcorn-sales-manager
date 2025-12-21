@@ -152,13 +152,13 @@ export const SeasonLayout: React.FC = () => {
           onClick={() => navigate("/scouts")}
           sx={{ textDecoration: "none", cursor: "pointer" }}
         >
-          Profiles
+          Scouts
         </Link>
         <Link
           component="button"
           variant="body1"
           onClick={() =>
-            navigate(`/scouts/${encodeURIComponent(profileId)}/seasons`)
+            navigate(`/scouts/${encodeURIComponent(profileId)}/campaigns`)
           }
           sx={{ textDecoration: "none", cursor: "pointer" }}
         >
@@ -175,7 +175,7 @@ export const SeasonLayout: React.FC = () => {
           edge="start"
           color="inherit"
           onClick={() =>
-            navigate(`/scouts/${encodeURIComponent(profileId)}/seasons`)
+            navigate(`/scouts/${encodeURIComponent(profileId)}/campaigns`)
           }
           sx={{ mr: 2 }}
         >

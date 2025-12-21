@@ -34,7 +34,7 @@ interface Catalog {
   catalogType: string;
 }
 
-interface CreateSharedCampaignDialogProps {
+interface CreateCampaignPrefillDialogProps {
   open: boolean;
   onClose: () => void;
   onSuccess: () => void;
@@ -98,8 +98,8 @@ const US_STATES = [
 const BASE_URL = window.location.origin;
 const MAX_CREATOR_MESSAGE_LENGTH = 300;
 
-export const CreateSharedCampaignDialog: React.FC<
-  CreateSharedCampaignDialogProps
+export const CreateCampaignPrefillDialog: React.FC<
+  CreateCampaignPrefillDialogProps
 > = ({ open, onClose, onSuccess, canCreate }) => {
   // Form state
   const [catalogId, setCatalogId] = useState("");

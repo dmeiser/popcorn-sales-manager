@@ -1,5 +1,5 @@
 /**
- * CampaignPrefillsPage - Manage campaign prefills (shareable season links)
+ * CampaignPrefillsPage - Manage campaign prefills (shareable campaign links)
  */
 
 import React, { useState } from "react";
@@ -240,7 +240,7 @@ export const SharedCampaignsPage: React.FC = () => {
             My Shared Campaigns
           </Typography>
           <Typography variant="body2" color="text.secondary">
-            Create shareable links that pre-fill season creation for your unit
+            Create shareable links that pre-fill campaign creation for your unit
             members. ({activePrefillCount}/{MAX_PREFILLS} active)
           </Typography>
         </Box>
@@ -289,7 +289,7 @@ export const SharedCampaignsPage: React.FC = () => {
                 <TableCell>Code</TableCell>
                 <TableCell>Description</TableCell>
                 <TableCell>Catalog</TableCell>
-                <TableCell>Season</TableCell>
+                <TableCell>Campaign</TableCell>
                 <TableCell>Unit</TableCell>
                 <TableCell>Status</TableCell>
                 <TableCell align="right">Actions</TableCell>
