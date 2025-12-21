@@ -24,8 +24,10 @@ import {
   InputLabel,
   Select,
   MenuItem,
+  Alert,
+  AlertTitle,
 } from "@mui/material";
-import { Delete as DeleteIcon } from "@mui/icons-material";
+import { Delete as DeleteIcon, Warning as WarningIcon } from "@mui/icons-material";
 import {
   GET_SEASON,
   UPDATE_SEASON,
@@ -42,6 +44,11 @@ interface Season {
   endDate?: string;
   catalogId: string;
   profileId: string;
+  prefillCode?: string;
+  unitType?: string;
+  unitNumber?: number;
+  city?: string;
+  state?: string;
 }
 
 interface Catalog {
@@ -65,6 +72,7 @@ export const SeasonSettingsPage: React.FC = () => {
   const [endDate, setEndDate] = useState("");
   const [catalogId, setCatalogId] = useState("");
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [unitChangeConfirmOpen, setUnitChangeConfirmOpen] = useState(false);
 
   // Fetch season
   const {
@@ -115,7 +123,21 @@ export const SeasonSettingsPage: React.FC = () => {
 
   const season = seasonData?.getSeason;
 
+  // Check if unit-related fields have changed (seasonName, catalogId)
+  const hasUnitRelatedChanges =
+    season?.prefillCode &&
+    (seasonName !== season.seasonName || catalogId !== season.catalogId);
+
+  const handleSaveClick = () => {
+    if (hasUnitRelatedChanges) {
+      setUnitChangeConfirmOpen(true);
+    } else {
+      handleSaveChanges();
+    }
+  };
+
   const handleSaveChanges = async () => {
+    setUnitChangeConfirmOpen(false);
     if (!seasonId || !seasonName.trim() || !catalogId) return;
 
     // Convert YYYY-MM-DD to ISO 8601 datetime
@@ -189,6 +211,17 @@ export const SeasonSettingsPage: React.FC = () => {
         <Typography variant="h6" gutterBottom>
           Basic Information
         </Typography>
+
+        {/* Warning for prefill-created seasons */}
+        {season?.prefillCode && (
+          <Alert severity="warning" icon={<WarningIcon />} sx={{ mb: 3 }}>
+            <AlertTitle>Campaign Season</AlertTitle>
+            This season was created from a campaign link. Changing the catalog,
+            season name, or unit information may cause this season to no longer
+            appear correctly in unit reports for your unit.
+          </Alert>
+        )}
+
         <Stack spacing={3}>
           <TextField
             fullWidth
@@ -232,7 +265,7 @@ export const SeasonSettingsPage: React.FC = () => {
           </FormControl>
           <Button
             variant="contained"
-            onClick={handleSaveChanges}
+            onClick={handleSaveClick}
             disabled={!hasChanges || updating}
           >
             {updating ? "Saving..." : "Save Changes"}
@@ -286,6 +319,31 @@ export const SeasonSettingsPage: React.FC = () => {
             variant="contained"
           >
             Delete Permanently
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Unit-Related Changes Confirmation Dialog */}
+      <Dialog
+        open={unitChangeConfirmOpen}
+        onClose={() => setUnitChangeConfirmOpen(false)}
+      >
+        <DialogTitle>Confirm Changes to Campaign Season</DialogTitle>
+        <DialogContent>
+          <Alert severity="warning" sx={{ mb: 2 }}>
+            <AlertTitle>This may affect unit reports</AlertTitle>
+            You are changing the season name or catalog of a season that was
+            created from a campaign link.
+          </Alert>
+          <Typography>
+            These changes may cause this season to no longer appear correctly in
+            unit reports for your unit. Are you sure you want to continue?
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setUnitChangeConfirmOpen(false)}>Cancel</Button>
+          <Button onClick={handleSaveChanges} color="warning" variant="contained">
+            Save Anyway
           </Button>
         </DialogActions>
       </Dialog>

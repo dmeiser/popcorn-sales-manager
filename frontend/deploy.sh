@@ -24,12 +24,28 @@ cd "$SCRIPT_DIR"
 # ============================================================
 echo "📡 Fetching configuration from CloudFormation..."
 
-# Get Cognito User Pool ID
+# Get Cognito User Pool ID (try direct lookup first, then from existing .env)
 USER_POOL_ID=$(aws cloudformation list-stack-resources \
     --stack-name "$STACK_NAME" \
     --query "StackResourceSummaries[?LogicalResourceId=='UserPool6BA7E5F2'].PhysicalResourceId" \
     --output text \
-    --region "$REGION")
+    --region "$REGION" 2>/dev/null || echo "")
+
+if [ -z "$USER_POOL_ID" ] || [ "$USER_POOL_ID" == "None" ]; then
+    # User Pool might be imported - check existing .env or use known value
+    if [ -f .env ]; then
+        USER_POOL_ID=$(grep VITE_COGNITO_USER_POOL_ID .env | cut -d= -f2)
+    fi
+fi
+
+if [ -z "$USER_POOL_ID" ] || [ "$USER_POOL_ID" == "None" ]; then
+    # Last resort - look up User Pool by name
+    POOL_NAME="kernelworx-users-ue1-${ENVIRONMENT}"
+    USER_POOL_ID=$(aws cognito-idp list-user-pools --max-results 50 \
+        --query "UserPools[?Name=='$POOL_NAME'].Id | [0]" \
+        --output text \
+        --region "$REGION" 2>/dev/null || echo "")
+fi
 
 if [ -z "$USER_POOL_ID" ] || [ "$USER_POOL_ID" == "None" ]; then
     echo "❌ Error: Could not find Cognito User Pool in stack $STACK_NAME"
@@ -72,10 +88,16 @@ S3_BUCKET=$(aws cloudformation list-stack-resources \
     --stack-name "$STACK_NAME" \
     --query "StackResourceSummaries[?LogicalResourceId=='StaticAssetsDDEE9873'].PhysicalResourceId" \
     --output text \
-    --region "$REGION")
+    --region "$REGION" 2>/dev/null || echo "")
 
 if [ -z "$S3_BUCKET" ] || [ "$S3_BUCKET" == "None" ]; then
-    echo "❌ Error: Could not find S3 bucket in stack $STACK_NAME"
+    # Fallback to naming convention
+    S3_BUCKET="kernelworx-static-ue1-${ENVIRONMENT}"
+fi
+
+# Verify bucket exists
+if ! aws s3api head-bucket --bucket "$S3_BUCKET" 2>/dev/null; then
+    echo "❌ Error: S3 bucket $S3_BUCKET does not exist"
     exit 1
 fi
 echo "   S3 Bucket: $S3_BUCKET"
@@ -85,10 +107,22 @@ CF_DISTRIBUTION=$(aws cloudformation list-stack-resources \
     --stack-name "$STACK_NAME" \
     --query "StackResourceSummaries[?ResourceType=='AWS::CloudFront::Distribution'].PhysicalResourceId" \
     --output text \
-    --region "$REGION")
+    --region "$REGION" 2>/dev/null || echo "")
 
 if [ -z "$CF_DISTRIBUTION" ] || [ "$CF_DISTRIBUTION" == "None" ]; then
-    echo "❌ Error: Could not find CloudFront distribution in stack $STACK_NAME"
+    # Fallback: Find distribution by domain alias
+    if [ "$ENVIRONMENT" == "prod" ]; then
+        SITE_ALIAS="kernelworx.app"
+    else
+        SITE_ALIAS="${ENVIRONMENT}.kernelworx.app"
+    fi
+    CF_DISTRIBUTION=$(aws cloudfront list-distributions \
+        --query "DistributionList.Items[?contains(Aliases.Items, '$SITE_ALIAS')].Id | [0]" \
+        --output text 2>/dev/null || echo "")
+fi
+
+if [ -z "$CF_DISTRIBUTION" ] || [ "$CF_DISTRIBUTION" == "None" ]; then
+    echo "❌ Error: Could not find CloudFront distribution for $STACK_NAME"
     exit 1
 fi
 echo "   CloudFront Distribution: $CF_DISTRIBUTION"

@@ -23,6 +23,8 @@ import { AcceptInvitePage } from "./pages/AcceptInvitePage";
 import { AdminPage } from "./pages/AdminPage";
 import { CatalogsPage } from "./pages/CatalogsPage";
 import { UnitReportsPage } from "./pages/UnitReportsPage";
+import { CreateSeasonPage } from "./pages/CreateSeasonPage";
+import { CampaignPrefillsPage } from "./pages/CampaignPrefillsPage";
 import { apolloClient } from "./lib/apollo";
 import { theme } from "./lib/theme";
 import { AppLayout } from "./components/AppLayout";
@@ -39,6 +41,31 @@ function App() {
               <Route path="/" element={<LandingPage />} />
               <Route path="/login" element={<LoginPage />} />
               <Route path="/signup" element={<SignupPage />} />
+
+              {/* Campaign prefill short-link route */}
+              <Route
+                path="/c/:prefillCode"
+                element={
+                  <ProtectedRoute>
+                    <AppLayout>
+                      <CreateSeasonPage />
+                    </AppLayout>
+                  </ProtectedRoute>
+                }
+              />
+
+              {/* Manual create season route */}
+              <Route
+                path="/create-season"
+                element={
+                  <ProtectedRoute>
+                    <AppLayout>
+                      <CreateSeasonPage />
+                    </AppLayout>
+                  </ProtectedRoute>
+                }
+              />
+
               <Route
                 path="/accept-invite"
                 element={
@@ -134,6 +161,17 @@ function App() {
                   <ProtectedRoute>
                     <AppLayout>
                       <UnitReportsPage />
+                    </AppLayout>
+                  </ProtectedRoute>
+                }
+              />
+
+              <Route
+                path="/campaign-prefills"
+                element={
+                  <ProtectedRoute>
+                    <AppLayout>
+                      <CampaignPrefillsPage />
                     </AppLayout>
                   </ProtectedRoute>
                 }

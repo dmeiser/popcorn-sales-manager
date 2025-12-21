@@ -4,7 +4,7 @@
 
 import React from "react";
 import { useParams } from "react-router-dom";
-import { useMutation, useQuery } from "@apollo/client/react";
+import { useQuery } from "@apollo/client/react";
 import {
   Box,
   Typography,
@@ -26,7 +26,7 @@ import {
   ExpandMore as ExpandMoreIcon,
   ExpandLess as ExpandLessIcon,
 } from "@mui/icons-material";
-import { REQUEST_SEASON_REPORT, LIST_ORDERS_BY_SEASON } from "../lib/graphql";
+import { LIST_ORDERS_BY_SEASON } from "../lib/graphql";
 import { downloadAsCSV, downloadAsXLSX } from "../lib/reportExport";
 
 interface LineItem {
@@ -52,13 +52,6 @@ interface Order {
   totalAmount: number;
 }
 
-interface ReportResult {
-  reportId: string;
-  reportUrl?: string;
-  status: string;
-  expiresAt?: string;
-}
-
 export const ReportsPage: React.FC = () => {
   const { seasonId: encodedSeasonId } = useParams<{ seasonId: string }>();
   const seasonId = encodedSeasonId ? decodeURIComponent(encodedSeasonId) : "";
@@ -82,14 +75,6 @@ export const ReportsPage: React.FC = () => {
   }>(LIST_ORDERS_BY_SEASON, {
     variables: { seasonId },
     skip: !seasonId,
-  });
-
-  const [_requestReport, { loading: _loading, error: _error }] = useMutation<{
-    requestSeasonReport: ReportResult;
-  }>(REQUEST_SEASON_REPORT, {
-    onCompleted: (_data) => {
-      // Report generated
-    },
   });
 
   const orders = ordersData?.listOrdersBySeason || [];

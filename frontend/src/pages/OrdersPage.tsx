@@ -58,6 +58,12 @@ interface Order {
   notes?: string;
 }
 
+interface ProfilePermissions {
+  profileId: string;
+  isOwner: boolean;
+  permissions?: string[];
+}
+
 export const OrdersPage: React.FC = () => {
   const { profileId: encodedProfileId, seasonId: encodedSeasonId } = useParams<{
     profileId: string;
@@ -80,7 +86,7 @@ export const OrdersPage: React.FC = () => {
   }, [isMobile]);
 
   // Fetch profile (for permissions check)
-  const { data: profileData } = useQuery<{ getProfile: any }>(GET_PROFILE, {
+  const { data: profileData } = useQuery<{ getProfile: ProfilePermissions }>(GET_PROFILE, {
     variables: { profileId },
     skip: !profileId,
   });

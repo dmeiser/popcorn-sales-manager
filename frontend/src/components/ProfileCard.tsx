@@ -1,5 +1,8 @@
 /**
  * ProfileCard component - Display a single seller profile with latest season stats
+ *
+ * Note: Unit fields have been moved to Season level as part of the Campaign Prefill
+ * refactor. Unit information is now displayed on seasons, not profiles.
  */
 
 import React from "react";
@@ -37,8 +40,6 @@ interface Season {
 interface ProfileCardProps {
   profileId: string;
   sellerName: string;
-  unitType?: string;
-  unitNumber?: number;
   isOwner: boolean;
   permissions: string[];
 }
@@ -46,8 +47,6 @@ interface ProfileCardProps {
 export const ProfileCard: React.FC<ProfileCardProps> = ({
   profileId,
   sellerName,
-  unitType,
-  unitNumber,
   isOwner,
   permissions,
 }) => {
@@ -109,13 +108,6 @@ export const ProfileCard: React.FC<ProfileCardProps> = ({
             >
               {sellerName}
             </Typography>
-            {(unitType || unitNumber) && (
-              <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                {unitType && unitNumber
-                  ? `${unitType} ${unitNumber}`
-                  : unitType || `Unit ${unitNumber}`}
-              </Typography>
-            )}
             <Stack direction="row" spacing={1} flexWrap="wrap" sx={{ mb: 2 }}>
               {isOwner && <Chip label="Owner" color="primary" size="small" />}
               {!isOwner && permissions.includes("WRITE") && (

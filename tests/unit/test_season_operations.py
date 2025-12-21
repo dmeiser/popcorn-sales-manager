@@ -496,7 +496,10 @@ class TestCreateSeason:
         # Create a proper TransactionCanceledException mock
         transaction_exception = ClientError(
             {
-                "Error": {"Code": "TransactionCanceledException", "Message": "Transaction cancelled"},
+                "Error": {
+                    "Code": "TransactionCanceledException",
+                    "Message": "Transaction cancelled",
+                },
                 "CancellationReasons": [{"Code": "None"}, {"Code": "ConditionalCheckFailed"}],
             },
             "TransactWriteItems",
@@ -545,7 +548,10 @@ class TestCreateSeason:
         # Simulate a different kind of transaction error (no ConditionalCheckFailed)
         transaction_exception = ClientError(
             {
-                "Error": {"Code": "TransactionCanceledException", "Message": "Transaction cancelled"},
+                "Error": {
+                    "Code": "TransactionCanceledException",
+                    "Message": "Transaction cancelled",
+                },
                 "CancellationReasons": [{"Code": "ThrottlingError"}],
             },
             "TransactWriteItems",

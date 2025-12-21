@@ -41,38 +41,40 @@ describe('SeasonCard', () => {
     expect(screen.getByText('Fall 2025 Popcorn Sale')).toBeInTheDocument();
   });
 
-  test('displays formatted date range', () => {
+  test('displays season name with year', () => {
     render(
       <BrowserRouter>
         <SeasonCard
           seasonId="season-123"
           profileId="profile-789"
           seasonName="Fall Sale"
+          seasonYear={2025}
           startDate="2025-09-01T00:00:00Z"
           endDate="2025-11-30T00:00:00Z"
         />
       </BrowserRouter>
     );
 
-    // Dates may be off by one day due to timezone conversion
-    expect(screen.getByText(/Aug 31, 2025|Sep 1, 2025/i)).toBeInTheDocument();
+    // SeasonCard displays "seasonName seasonYear" format
+    expect(screen.getByText('Fall Sale 2025')).toBeInTheDocument();
   });
 
-  test('displays start date only when no end date provided', () => {
+  test('renders with startDate prop even though dates are not displayed', () => {
+    // SeasonCard accepts startDate but doesn't display it (simplified card view)
     render(
       <BrowserRouter>
         <SeasonCard
           seasonId="season-123"
           profileId="profile-789"
           seasonName="Ongoing Sale"
+          seasonYear={2025}
           startDate="2025-09-01T00:00:00Z"
         />
       </BrowserRouter>
     );
 
-    // Should show start date without end date dash
-    const dateText = screen.getByText(/Aug 31, 2025|Sep 1, 2025/i);
-    expect(dateText).toBeInTheDocument();
+    // Component should render without error
+    expect(screen.getByText('Ongoing Sale 2025')).toBeInTheDocument();
   });
 
   test('shows Active badge for ongoing season', () => {

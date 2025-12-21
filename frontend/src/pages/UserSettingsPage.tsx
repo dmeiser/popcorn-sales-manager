@@ -79,6 +79,15 @@ interface Account {
   updatedAt: string;
 }
 
+// Helper to extract error message from unknown error
+const getErrorMessage = (err: unknown, fallback: string): string => {
+  if (err instanceof Error) return err.message;
+  if (typeof err === "object" && err !== null && "message" in err) {
+    return String((err as { message: unknown }).message);
+  }
+  return fallback;
+};
+
 export const UserSettingsPage: React.FC = () => {
   const navigate = useNavigate();
   const { logout, account: authAccount } = useAuth();
@@ -174,7 +183,7 @@ export const UserSettingsPage: React.FC = () => {
         mfaPreference.enabled?.includes("TOTP") ||
           mfaPreference.preferred === "TOTP",
       );
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Failed to load MFA status:", err);
     }
   };
@@ -183,7 +192,7 @@ export const UserSettingsPage: React.FC = () => {
     try {
       const result = await listWebAuthnCredentials();
       setPasskeys(result.credentials || []);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Failed to load passkeys:", err);
       // Passkeys might not be configured yet - don't show error to user
     }
@@ -214,11 +223,10 @@ export const UserSettingsPage: React.FC = () => {
       setCurrentPassword("");
       setNewPassword("");
       setConfirmPassword("");
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Password change failed:", err);
       setPasswordError(
-        err.message ||
-          "Failed to change password. Please check your current password.",
+        getErrorMessage(err, "Failed to change password. Please check your current password."),
       );
     } finally {
       setPasswordLoading(false);
@@ -247,8 +255,8 @@ export const UserSettingsPage: React.FC = () => {
           }
         }
         await loadPasskeys();
-      } catch (err: any) {
-        setMfaError("Failed to remove passkeys: " + err.message);
+      } catch (err: unknown) {
+        setMfaError(getErrorMessage(err, "Failed to remove passkeys"));
         return;
       }
     }
@@ -265,9 +273,9 @@ export const UserSettingsPage: React.FC = () => {
 
       setMfaSetupCode(totpSetupDetails.sharedSecret);
       setQrCodeUrl(qrDataUrl);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("MFA setup failed:", err);
-      setMfaError(err.message || "Failed to set up MFA");
+      setMfaError(getErrorMessage(err, "Failed to set up MFA"));
     } finally {
       setMfaLoading(false);
     }
@@ -288,10 +296,10 @@ export const UserSettingsPage: React.FC = () => {
       setMfaSetupCode(null);
       setQrCodeUrl(null);
       setMfaVerificationCode("");
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("MFA verification failed:", err);
       setMfaError(
-        err.message || "Invalid verification code. Please try again.",
+        getErrorMessage(err, "Invalid verification code. Please try again."),
       );
     } finally {
       setMfaLoading(false);
@@ -315,9 +323,9 @@ export const UserSettingsPage: React.FC = () => {
       await updateMFAPreference({ totp: "DISABLED" });
       setMfaEnabled(false);
       setMfaSuccess(false);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Disable MFA failed:", err);
-      setMfaError(err.message || "Failed to disable MFA");
+      setMfaError(getErrorMessage(err, "Failed to disable MFA"));
     } finally {
       setMfaLoading(false);
     }
@@ -344,8 +352,8 @@ export const UserSettingsPage: React.FC = () => {
       try {
         await updateMFAPreference({ totp: "DISABLED" });
         setMfaEnabled(false);
-      } catch (err: any) {
-        setPasskeyError("Failed to disable MFA: " + err.message);
+      } catch (err: unknown) {
+        setPasskeyError(getErrorMessage(err, "Failed to disable MFA"));
         return;
       }
     }
@@ -359,11 +367,10 @@ export const UserSettingsPage: React.FC = () => {
       setPasskeySuccess(true);
       setPasskeyName("");
       await loadPasskeys(); // Reload the list
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Passkey registration failed:", err);
       setPasskeyError(
-        err.message ||
-          "Failed to register passkey. Make sure your browser supports passkeys and you have a compatible authenticator.",
+        getErrorMessage(err, "Failed to register passkey. Make sure your browser supports passkeys and you have a compatible authenticator."),
       );
     } finally {
       setPasskeyLoading(false);
@@ -382,9 +389,9 @@ export const UserSettingsPage: React.FC = () => {
     try {
       await deleteWebAuthnCredential({ credentialId });
       await loadPasskeys(); // Reload the list
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Delete passkey failed:", err);
-      setPasskeyError(err.message || "Failed to delete passkey");
+      setPasskeyError(getErrorMessage(err, "Failed to delete passkey"));
     } finally {
       setPasskeyLoading(false);
     }
@@ -480,8 +487,8 @@ export const UserSettingsPage: React.FC = () => {
           `Unexpected response: ${output.nextStep.updateAttributeStep}`,
         );
       }
-    } catch (err: any) {
-      setEmailUpdateError(err.message || "Failed to request email update");
+    } catch (err: unknown) {
+      setEmailUpdateError(getErrorMessage(err, "Failed to request email update"));
     } finally {
       setEmailUpdateLoading(false);
     }
@@ -510,8 +517,8 @@ export const UserSettingsPage: React.FC = () => {
         await logout();
         navigate("/");
       }, 3000);
-    } catch (err: any) {
-      setEmailUpdateError(err.message || "Invalid verification code");
+    } catch (err: unknown) {
+      setEmailUpdateError(getErrorMessage(err, "Invalid verification code"));
     } finally {
       setEmailUpdateLoading(false);
     }

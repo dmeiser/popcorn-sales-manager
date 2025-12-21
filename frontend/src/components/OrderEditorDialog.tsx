@@ -137,7 +137,6 @@ export const OrderEditorDialog: React.FC<OrderEditorDialogProps> = ({
   };
 
   // Initialize form when dialog opens
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (open) {
       if (order) {
@@ -345,19 +344,19 @@ export const OrderEditorDialog: React.FC<OrderEditorDialogProps> = ({
         }
       }
       if (error.networkError) {
-        console.error("Network Error:", err.networkError);
+        console.error("Network Error:", error.networkError);
         console.error(
           "Network Error statusCode:",
-          err.networkError?.statusCode,
+          error.networkError?.statusCode,
         );
-        console.error("Network Error result:", err.networkError?.result);
+        console.error("Network Error result:", error.networkError?.result);
       }
-      if (err.clientErrors) {
-        console.error("Client Errors:", err.clientErrors);
+      if (error.clientErrors) {
+        console.error("Client Errors:", error.clientErrors);
       }
-      console.error("STRINGIFIED ERROR:", JSON.stringify(err, null, 2));
+      console.error("STRINGIFIED ERROR:", JSON.stringify(error, null, 2));
       alert(
-        `Error: ${err.message}\n\nCheck console for full details.\n\nIs there a network request in DevTools?`,
+        `Error: ${error.message}\n\nCheck console for full details.\n\nIs there a network request in DevTools?`,
       );
     }
   };

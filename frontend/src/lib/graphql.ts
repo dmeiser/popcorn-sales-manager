@@ -13,8 +13,6 @@ export const SELLER_PROFILE_FRAGMENT = gql`
     profileId
     ownerAccountId
     sellerName
-    unitType
-    unitNumber
     createdAt
     updatedAt
     isOwner
@@ -31,6 +29,11 @@ export const SEASON_FRAGMENT = gql`
     startDate
     endDate
     catalogId
+    unitType
+    unitNumber
+    city
+    state
+    prefillCode
     createdAt
     updatedAt
     totalOrders
@@ -281,14 +284,10 @@ export const CREATE_SELLER_PROFILE = gql`
   ${SELLER_PROFILE_FRAGMENT}
   mutation CreateSellerProfile(
     $sellerName: String!
-    $unitType: String
-    $unitNumber: Int
   ) {
     createSellerProfile(
       input: {
         sellerName: $sellerName
-        unitType: $unitType
-        unitNumber: $unitNumber
       }
     ) {
       ...SellerProfileFields
@@ -298,20 +297,8 @@ export const CREATE_SELLER_PROFILE = gql`
 
 export const UPDATE_SELLER_PROFILE = gql`
   ${SELLER_PROFILE_FRAGMENT}
-  mutation UpdateSellerProfile(
-    $profileId: ID!
-    $sellerName: String!
-    $unitType: String
-    $unitNumber: Int
-  ) {
-    updateSellerProfile(
-      input: {
-        profileId: $profileId
-        sellerName: $sellerName
-        unitType: $unitType
-        unitNumber: $unitNumber
-      }
-    ) {
+  mutation UpdateSellerProfile($profileId: ID!, $sellerName: String!) {
+    updateSellerProfile(input: { profileId: $profileId, sellerName: $sellerName }) {
       ...SellerProfileFields
     }
   }
@@ -520,5 +507,134 @@ export const LIST_UNIT_CATALOGS = gql`
     ) {
       ...CatalogFields
     }
+  }
+`;
+
+// ============================================================================
+// Campaign Prefill Fragment
+// ============================================================================
+
+export const CAMPAIGN_PREFILL_FRAGMENT = gql`
+  fragment CampaignPrefillFields on CampaignPrefill {
+    prefillCode
+    catalogId
+    catalog {
+      catalogId
+      catalogName
+    }
+    seasonName
+    seasonYear
+    startDate
+    endDate
+    unitType
+    unitNumber
+    city
+    state
+    createdBy
+    createdByName
+    creatorMessage
+    description
+    isActive
+    createdAt
+  }
+`;
+
+// ============================================================================
+// Campaign Prefill Queries
+// ============================================================================
+
+export const GET_CAMPAIGN_PREFILL = gql`
+  ${CAMPAIGN_PREFILL_FRAGMENT}
+  query GetCampaignPrefill($prefillCode: String!) {
+    getCampaignPrefill(prefillCode: $prefillCode) {
+      ...CampaignPrefillFields
+    }
+  }
+`;
+
+export const LIST_MY_CAMPAIGN_PREFILLS = gql`
+  ${CAMPAIGN_PREFILL_FRAGMENT}
+  query ListMyCampaignPrefills {
+    listMyCampaignPrefills {
+      ...CampaignPrefillFields
+    }
+  }
+`;
+
+export const FIND_CAMPAIGN_PREFILLS = gql`
+  ${CAMPAIGN_PREFILL_FRAGMENT}
+  query FindCampaignPrefills(
+    $unitType: String!
+    $unitNumber: Int!
+    $city: String!
+    $state: String!
+    $seasonName: String!
+    $seasonYear: Int!
+  ) {
+    findCampaignPrefills(
+      unitType: $unitType
+      unitNumber: $unitNumber
+      city: $city
+      state: $state
+      seasonName: $seasonName
+      seasonYear: $seasonYear
+    ) {
+      ...CampaignPrefillFields
+    }
+  }
+`;
+
+// ============================================================================
+// Unit Season Catalogs Query (replacement for listUnitCatalogs)
+// ============================================================================
+
+export const LIST_UNIT_SEASON_CATALOGS = gql`
+  ${CATALOG_FRAGMENT}
+  query ListUnitSeasonCatalogs(
+    $unitType: String!
+    $unitNumber: Int!
+    $city: String!
+    $state: String!
+    $seasonName: String!
+    $seasonYear: Int!
+  ) {
+    listUnitSeasonCatalogs(
+      unitType: $unitType
+      unitNumber: $unitNumber
+      city: $city
+      state: $state
+      seasonName: $seasonName
+      seasonYear: $seasonYear
+    ) {
+      ...CatalogFields
+    }
+  }
+`;
+
+// ============================================================================
+// Campaign Prefill Mutations
+// ============================================================================
+
+export const CREATE_CAMPAIGN_PREFILL = gql`
+  ${CAMPAIGN_PREFILL_FRAGMENT}
+  mutation CreateCampaignPrefill($input: CreateCampaignPrefillInput!) {
+    createCampaignPrefill(input: $input) {
+      ...CampaignPrefillFields
+    }
+  }
+`;
+
+export const UPDATE_CAMPAIGN_PREFILL = gql`
+  ${CAMPAIGN_PREFILL_FRAGMENT}
+  mutation UpdateCampaignPrefill($input: UpdateCampaignPrefillInput!) {
+    updateCampaignPrefill(input: $input) {
+      ...CampaignPrefillFields
+    }
+  }
+`;
+
+export const DELETE_CAMPAIGN_PREFILL = gql`
+  mutation DeleteCampaignPrefill($prefillCode: String!) {
+    deleteCampaignPrefill(prefillCode: $prefillCode)
   }
 `;

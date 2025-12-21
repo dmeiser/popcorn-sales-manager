@@ -226,16 +226,15 @@ export const AdminPage: React.FC = () => {
                   >
                     <Box>
                       <Typography variant="subtitle1" fontWeight="medium">
-                        {catalog.catalogName}
+                        {catalog.name}
                       </Typography>
                       <Typography variant="body2" color="text.secondary">
-                        {catalog.catalogType} • {catalog.products?.length || 0}{" "}
-                        products
+                        {catalog.description}
                       </Typography>
                     </Box>
                     <Chip
-                      label={catalog.isPublic ? "Public" : "Private"}
-                      color={catalog.isPublic ? "success" : "default"}
+                      label={catalog.isActive ? "Active" : "Inactive"}
+                      color={catalog.isActive ? "success" : "default"}
                       size="small"
                     />
                   </Stack>

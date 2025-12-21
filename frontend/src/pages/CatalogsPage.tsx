@@ -2,7 +2,7 @@
  * CatalogsPage - Manage product catalogs (public and user-owned)
  */
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { useQuery, useMutation, useLazyQuery } from "@apollo/client/react";
 import { useAuth } from "../contexts/AuthContext";
 import {
@@ -92,14 +92,17 @@ export const CatalogsPage: React.FC = () => {
   }>(LIST_MY_SHARES);
 
   // Get all user's profile IDs (owned + shared)
-  const allUserProfiles = [
-    ...(myProfilesData?.listMyProfiles || []).map((p) => ({
-      profileId: p.profileId,
-    })),
-    ...(sharedProfilesData?.listMyShares || []).map((p) => ({
-      profileId: p.profileId,
-    })),
-  ];
+  const allUserProfiles = useMemo(
+    () => [
+      ...(myProfilesData?.listMyProfiles || []).map((p) => ({
+        profileId: p.profileId,
+      })),
+      ...(sharedProfilesData?.listMyShares || []).map((p) => ({
+        profileId: p.profileId,
+      })),
+    ],
+    [myProfilesData, sharedProfilesData],
+  );
 
   // State to track catalogs in use
   const [catalogsInUse, setCatalogsInUse] = useState<Set<string>>(new Set());

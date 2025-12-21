@@ -198,7 +198,7 @@ export const UnitReportsPage: React.FC = () => {
     XLSX.utils.book_append_sheet(wb, summarySheet, "Seller Summary");
 
     // Sheet 2: Detailed Orders
-    const detailedData: any[][] = [
+    const detailedData: (string | number)[][] = [
       [
         "Seller",
         "Customer",

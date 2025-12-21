@@ -1,5 +1,9 @@
 /**
  * CreateProfileDialog component - Dialog for creating a new seller profile
+ *
+ * Note: Unit fields (unitType, unitNumber) have been moved to Season level
+ * as part of the Campaign Prefill refactor. Unit information is now attached
+ * to individual seasons rather than profiles.
  */
 
 import React, { useState } from "react";
@@ -11,28 +15,13 @@ import {
   Button,
   TextField,
   Box,
-  MenuItem,
 } from "@mui/material";
 
 interface CreateProfileDialogProps {
   open: boolean;
   onClose: () => void;
-  onSubmit: (
-    sellerName: string,
-    unitType?: string,
-    unitNumber?: number,
-  ) => Promise<void>;
+  onSubmit: (sellerName: string) => Promise<void>;
 }
-
-const UNIT_TYPES = [
-  { value: "", label: "None" },
-  { value: "Pack", label: "Pack (Cub Scouts)" },
-  { value: "Troop", label: "Troop (Scouts BSA)" },
-  { value: "Crew", label: "Crew (Venturing)" },
-  { value: "Ship", label: "Ship (Sea Scouts)" },
-  { value: "Post", label: "Post (Exploring)" },
-  { value: "Club", label: "Club (Exploring)" },
-];
 
 export const CreateProfileDialog: React.FC<CreateProfileDialogProps> = ({
   open,
@@ -40,8 +29,6 @@ export const CreateProfileDialog: React.FC<CreateProfileDialogProps> = ({
   onSubmit,
 }) => {
   const [sellerName, setSellerName] = useState("");
-  const [unitType, setUnitType] = useState("");
-  const [unitNumber, setUnitNumber] = useState("");
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async () => {
@@ -49,17 +36,8 @@ export const CreateProfileDialog: React.FC<CreateProfileDialogProps> = ({
 
     setLoading(true);
     try {
-      const parsedUnitNumber = unitNumber.trim()
-        ? parseInt(unitNumber.trim(), 10)
-        : undefined;
-      await onSubmit(
-        sellerName.trim(),
-        unitType || undefined,
-        parsedUnitNumber,
-      );
+      await onSubmit(sellerName.trim());
       setSellerName("");
-      setUnitType("");
-      setUnitNumber("");
       onClose();
     } catch (error) {
       console.error("Failed to create profile:", error);
@@ -71,8 +49,6 @@ export const CreateProfileDialog: React.FC<CreateProfileDialogProps> = ({
   const handleClose = () => {
     if (!loading) {
       setSellerName("");
-      setUnitType("");
-      setUnitNumber("");
       onClose();
     }
   };
@@ -96,39 +72,6 @@ export const CreateProfileDialog: React.FC<CreateProfileDialogProps> = ({
             }}
             disabled={loading}
             helperText="Enter the name of the Scout or seller"
-          />
-
-          <TextField
-            fullWidth
-            select
-            label="Unit Type (Optional)"
-            value={unitType}
-            onChange={(e) => setUnitType(e.target.value)}
-            disabled={loading}
-            helperText="Select the type of Scouting unit"
-          >
-            {UNIT_TYPES.map((option) => (
-              <MenuItem key={option.value} value={option.value}>
-                {option.label}
-              </MenuItem>
-            ))}
-          </TextField>
-
-          <TextField
-            fullWidth
-            type="number"
-            label="Unit Number (Optional)"
-            placeholder="e.g., 123"
-            value={unitNumber}
-            onChange={(e) => setUnitNumber(e.target.value)}
-            disabled={loading}
-            helperText="Enter the unit number if applicable"
-            slotProps={{
-              htmlInput: {
-                min: 1,
-                step: 1,
-              },
-            }}
           />
         </Box>
       </DialogContent>

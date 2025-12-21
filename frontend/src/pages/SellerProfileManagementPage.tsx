@@ -37,7 +37,6 @@ import {
   Chip,
   Checkbox,
   FormControlLabel,
-  MenuItem,
 } from "@mui/material";
 import {
   Delete as DeleteIcon,
@@ -58,8 +57,6 @@ interface Profile {
   profileId: string;
   accountId: string;
   sellerName: string;
-  unitType?: string;
-  unitNumber?: number;
   email?: string;
   phone?: string;
   createdAt: string;
@@ -98,8 +95,6 @@ export const SellerProfileManagementPage: React.FC = () => {
   const navigate = useNavigate();
 
   const [profileName, setProfileName] = useState("");
-  const [unitType, setUnitType] = useState("");
-  const [unitNumber, setUnitNumber] = useState("");
   const [updating, setUpdating] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deletingProfile, setDeletingProfile] = useState(false);
@@ -145,12 +140,6 @@ export const SellerProfileManagementPage: React.FC = () => {
   React.useEffect(() => {
     if (profileData?.getProfile) {
       setProfileName(profileData.getProfile.sellerName);
-      setUnitType(profileData.getProfile.unitType || "");
-      setUnitNumber(
-        profileData.getProfile.unitNumber
-          ? String(profileData.getProfile.unitNumber)
-          : "",
-      );
     }
   }, [profileData]);
 
@@ -199,15 +188,10 @@ export const SellerProfileManagementPage: React.FC = () => {
 
     setUpdating(true);
     try {
-      const parsedUnitNumber = unitNumber.trim()
-        ? parseInt(unitNumber.trim(), 10)
-        : undefined;
       await updateProfile({
         variables: {
           profileId,
           sellerName: profileName.trim(),
-          unitType: unitType || undefined,
-          unitNumber: parsedUnitNumber,
         },
       });
     } finally {
@@ -299,50 +283,10 @@ export const SellerProfileManagementPage: React.FC = () => {
               disabled={updating}
             />
 
-            <TextField
-              fullWidth
-              select
-              label="Unit Type (Optional)"
-              value={unitType}
-              onChange={(e) => setUnitType(e.target.value)}
-              disabled={updating}
-              helperText="Select the type of Scouting unit"
-            >
-              <MenuItem value="">None</MenuItem>
-              <MenuItem value="Pack">Pack (Cub Scouts)</MenuItem>
-              <MenuItem value="Troop">Troop (Scouts BSA)</MenuItem>
-              <MenuItem value="Crew">Crew (Venturing)</MenuItem>
-              <MenuItem value="Ship">Ship (Sea Scouts)</MenuItem>
-              <MenuItem value="Post">Post (Exploring)</MenuItem>
-              <MenuItem value="Club">Club (Exploring)</MenuItem>
-            </TextField>
-
-            <TextField
-              fullWidth
-              type="number"
-              label="Unit Number (Optional)"
-              value={unitNumber}
-              onChange={(e) => setUnitNumber(e.target.value)}
-              disabled={updating}
-              helperText="Enter the unit number if applicable"
-              slotProps={{
-                htmlInput: {
-                  min: 1,
-                  step: 1,
-                },
-              }}
-            />
-
             <Button
               variant="contained"
               onClick={handleSaveChanges}
-              disabled={
-                updating ||
-                (profileName === profile.sellerName &&
-                  unitType === (profile.unitType || "") &&
-                  unitNumber ===
-                    (profile.unitNumber ? String(profile.unitNumber) : ""))
-              }
+              disabled={updating || profileName === profile.sellerName}
             >
               {updating ? "Saving..." : "Save Changes"}
             </Button>

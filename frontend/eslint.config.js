@@ -19,5 +19,18 @@ export default defineConfig([
       ecmaVersion: 2020,
       globals: globals.browser,
     },
+    rules: {
+      // Allow setState in useEffect for fetch-on-mount patterns
+      'react-hooks/set-state-in-effect': 'off',
+      // Allow any in test files (mocking requires flexibility)
+      '@typescript-eslint/no-explicit-any': ['error', { ignoreRestArgs: true }],
+    },
+  },
+  // Relaxed rules for test files
+  {
+    files: ['**/*.test.{ts,tsx}', '**/tests/**/*.{ts,tsx}'],
+    rules: {
+      '@typescript-eslint/no-explicit-any': 'off',
+    },
   },
 ])

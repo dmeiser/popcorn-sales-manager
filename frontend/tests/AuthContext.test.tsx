@@ -11,6 +11,25 @@ import { AuthProvider, useAuth } from '../src/contexts/AuthContext';
 import * as amplifyAuth from 'aws-amplify/auth';
 import * as amplifyUtils from 'aws-amplify/utils';
 
+// Mock Apollo client
+vi.mock('../src/lib/apollo', () => ({
+  apolloClient: {
+    query: vi.fn().mockResolvedValue({
+      data: {
+        getMyAccount: {
+          accountId: 'user-123',
+          email: 'test@example.com',
+          displayName: 'User',
+          givenName: 'Test',
+          familyName: 'User',
+          isAdmin: false,
+        },
+      },
+    }),
+    clearStore: vi.fn().mockResolvedValue(undefined),
+  },
+}));
+
 // Mock AWS Amplify
 vi.mock('aws-amplify/auth', () => ({
   fetchAuthSession: vi.fn(),

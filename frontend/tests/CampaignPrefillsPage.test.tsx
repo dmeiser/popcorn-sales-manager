@@ -1,0 +1,414 @@
+/**
+ * CampaignPrefillsPage Tests
+ */
+
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { MockedProvider } from "@apollo/client/testing/react";
+import { MemoryRouter } from "react-router-dom";
+import { CampaignPrefillsPage } from "../src/pages/CampaignPrefillsPage";
+import {
+  LIST_MY_CAMPAIGN_PREFILLS,
+  LIST_PUBLIC_CATALOGS,
+  LIST_MY_CATALOGS,
+} from "../src/lib/graphql";
+
+// Mock QRCode
+vi.mock("qrcode", () => ({
+  default: {
+    toDataURL: vi.fn().mockResolvedValue("data:image/png;base64,mockqrcode"),
+  },
+}));
+
+// Mock clipboard API
+Object.assign(navigator, {
+  clipboard: {
+    writeText: vi.fn().mockResolvedValue(undefined),
+  },
+});
+
+const mockPrefills = [
+  {
+    __typename: "CampaignPrefill",
+    prefillCode: "PACK123F25",
+    catalogId: "catalog-1",
+    catalog: {
+      __typename: "Catalog",
+      catalogId: "catalog-1",
+      catalogName: "Official Popcorn 2025",
+    },
+    seasonName: "Fall",
+    seasonYear: 2025,
+    startDate: "2025-09-01",
+    endDate: "2025-12-01",
+    unitType: "Pack",
+    unitNumber: 123,
+    city: "Springfield",
+    state: "IL",
+    createdBy: "account-1",
+    createdByName: "John Leader",
+    creatorMessage: "Join our pack's sale!",
+    description: "Fall 2025 campaign for Pack 123",
+    isActive: true,
+    createdAt: "2025-01-15T00:00:00.000Z",
+  },
+  {
+    __typename: "CampaignPrefill",
+    prefillCode: "TROOP456S25",
+    catalogId: "catalog-1",
+    catalog: {
+      __typename: "Catalog",
+      catalogId: "catalog-1",
+      catalogName: "Official Popcorn 2025",
+    },
+    seasonName: "Spring",
+    seasonYear: 2025,
+    startDate: null,
+    endDate: null,
+    unitType: "Troop",
+    unitNumber: 456,
+    city: "Chicago",
+    state: "IL",
+    createdBy: "account-1",
+    createdByName: "John Leader",
+    creatorMessage: null,
+    description: null,
+    isActive: false,
+    createdAt: "2025-01-10T00:00:00.000Z",
+  },
+];
+
+// Base mocks that should be included in all tests
+const baseMocks = () => [
+  {
+    request: {
+      query: LIST_PUBLIC_CATALOGS,
+    },
+    result: {
+      data: {
+        listPublicCatalogs: [
+          { catalogId: "catalog-1", catalogName: "Official Popcorn 2025", catalogType: "ADMIN_MANAGED" },
+        ],
+      },
+    },
+  },
+  {
+    request: {
+      query: LIST_MY_CATALOGS,
+    },
+    result: {
+      data: {
+        listMyCatalogs: [],
+      },
+    },
+  },
+];
+
+const createListMock = (prefills = mockPrefills) => ({
+  request: {
+    query: LIST_MY_CAMPAIGN_PREFILLS,
+  },
+  result: {
+    data: {
+      listMyCampaignPrefills: prefills,
+    },
+  },
+});
+
+const createCatalogMocks = () => [
+  {
+    request: {
+      query: LIST_PUBLIC_CATALOGS,
+    },
+    result: {
+      data: {
+        listPublicCatalogs: [
+          { catalogId: "catalog-1", catalogName: "Official Popcorn 2025", catalogType: "ADMIN_MANAGED" },
+        ],
+      },
+    },
+  },
+  {
+    request: {
+      query: LIST_MY_CATALOGS,
+    },
+    result: {
+      data: {
+        listMyCatalogs: [],
+      },
+    },
+  },
+];
+
+const renderWithProviders = (mocks: any[]) => {
+  // Always include base mocks for catalog queries triggered by CreateCampaignPrefillDialog
+  const allMocks = [...baseMocks(), ...mocks];
+  return render(
+    <MockedProvider mocks={allMocks}>
+      <MemoryRouter>
+        <CampaignPrefillsPage />
+      </MemoryRouter>
+    </MockedProvider>
+  );
+};
+
+describe("CampaignPrefillsPage", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  describe("List display", () => {
+    it("shows loading state initially", () => {
+      renderWithProviders([createListMock()]);
+      expect(screen.getByRole("progressbar")).toBeInTheDocument();
+    });
+
+    it("displays prefills in table after loading", async () => {
+      renderWithProviders([createListMock()]);
+
+      await waitFor(() => {
+        expect(screen.getByText("PACK123F25")).toBeInTheDocument();
+      });
+
+      expect(screen.getByText("Fall 2025")).toBeInTheDocument();
+      expect(screen.getByText("Pack 123")).toBeInTheDocument();
+      // Both prefills use the same catalog, so there are multiple elements
+      expect(screen.getAllByText("Official Popcorn 2025")).toHaveLength(2);
+    });
+
+    it("shows active and inactive status chips", async () => {
+      renderWithProviders([createListMock()]);
+
+      await waitFor(() => {
+        expect(screen.getByText("PACK123F25")).toBeInTheDocument();
+      });
+
+      expect(screen.getByText("Active")).toBeInTheDocument();
+      expect(screen.getByText("Inactive")).toBeInTheDocument();
+    });
+
+    it("shows empty state when no prefills exist", async () => {
+      renderWithProviders([createListMock([])]);
+
+      await waitFor(() => {
+        expect(screen.getByText("No Campaign Prefills Yet")).toBeInTheDocument();
+      });
+
+      expect(
+        screen.getByText(/Create a campaign prefill to generate shareable links/)
+      ).toBeInTheDocument();
+    });
+
+    it("shows prefill count in header", async () => {
+      renderWithProviders([createListMock()]);
+
+      await waitFor(() => {
+        expect(screen.getByText(/1\/50 active/)).toBeInTheDocument();
+      });
+    });
+  });
+
+  describe("Copy link functionality", () => {
+    it("copies link to clipboard when copy button clicked", async () => {
+      renderWithProviders([createListMock()]);
+
+      await waitFor(() => {
+        expect(screen.getByText("PACK123F25")).toBeInTheDocument();
+      });
+
+      const copyButtons = screen.getAllByLabelText("Copy link");
+      fireEvent.click(copyButtons[0]);
+
+      await waitFor(() => {
+        expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
+          expect.stringContaining("/c/PACK123F25")
+        );
+      });
+    });
+  });
+
+  describe("QR code download", () => {
+    it("downloads QR code when button clicked", async () => {
+      renderWithProviders([createListMock()]);
+
+      await waitFor(() => {
+        expect(screen.getByText("PACK123F25")).toBeInTheDocument();
+      });
+
+      // Store original createElement to restore later
+      const originalCreateElement = document.createElement.bind(document);
+      
+      // Mock createElement and click
+      const mockLink = {
+        href: "",
+        download: "",
+        click: vi.fn(),
+        setAttribute: vi.fn(),
+      };
+      
+      const createElementSpy = vi.spyOn(document, "createElement").mockImplementation((tagName: string) => {
+        if (tagName === "a") {
+          return mockLink as unknown as HTMLElement;
+        }
+        return originalCreateElement(tagName);
+      });
+      vi.spyOn(document.body, "appendChild").mockImplementation(() => mockLink as any);
+      vi.spyOn(document.body, "removeChild").mockImplementation(() => mockLink as any);
+
+      const qrButtons = screen.getAllByLabelText("Download QR code");
+      fireEvent.click(qrButtons[0]);
+
+      await waitFor(() => {
+        expect(mockLink.click).toHaveBeenCalled();
+      });
+
+      // Restore mocks
+      createElementSpy.mockRestore();
+    });
+  });
+
+  describe("Create dialog", () => {
+    it("opens create dialog when button clicked", async () => {
+      const mocks = [createListMock(), ...createCatalogMocks()];
+      renderWithProviders(mocks);
+
+      await waitFor(() => {
+        expect(screen.getByText("PACK123F25")).toBeInTheDocument();
+      });
+
+      const createButton = screen.getByRole("button", {
+        name: /Create Campaign Prefill/i,
+      });
+      fireEvent.click(createButton);
+
+      await waitFor(() => {
+        expect(
+          screen.getByText(/If someone stops sharing their profile with you/)
+        ).toBeInTheDocument();
+      });
+    });
+
+    it("disables create button when at 50 prefills", async () => {
+      // Create 50 active prefills
+      const fiftyPrefills = Array.from({ length: 50 }, (_, i) => ({
+        ...mockPrefills[0],
+        prefillCode: `PREFILL${i}`,
+        isActive: true,
+      }));
+
+      renderWithProviders([createListMock(fiftyPrefills)]);
+
+      await waitFor(() => {
+        expect(screen.getByText(/50\/50 active/)).toBeInTheDocument();
+      });
+
+      const createButtons = screen.getAllByRole("button", {
+        name: /Create Campaign Prefill/i,
+      });
+      // The button in the header should be disabled
+      expect(createButtons[0]).toBeDisabled();
+    });
+  });
+
+  describe("Deactivate dialog", () => {
+    it("opens deactivate confirmation when deactivate clicked", async () => {
+      renderWithProviders([createListMock()]);
+
+      await waitFor(() => {
+        expect(screen.getByText("PACK123F25")).toBeInTheDocument();
+      });
+
+      const deactivateButtons = screen.getAllByLabelText("Deactivate");
+      fireEvent.click(deactivateButtons[0]);
+
+      await waitFor(() => {
+        expect(
+          screen.getByText("Deactivate Campaign Prefill?")
+        ).toBeInTheDocument();
+      });
+
+      expect(
+        screen.getByText(/The link will no longer work for new season creation/)
+      ).toBeInTheDocument();
+    });
+
+    it("closes deactivate dialog when cancel clicked", async () => {
+      renderWithProviders([createListMock()]);
+
+      await waitFor(() => {
+        expect(screen.getByText("PACK123F25")).toBeInTheDocument();
+      });
+
+      const deactivateButtons = screen.getAllByLabelText("Deactivate");
+      fireEvent.click(deactivateButtons[0]);
+
+      await waitFor(() => {
+        expect(
+          screen.getByText("Deactivate Campaign Prefill?")
+        ).toBeInTheDocument();
+      });
+
+      const cancelButton = screen.getByRole("button", { name: "Cancel" });
+      fireEvent.click(cancelButton);
+
+      await waitFor(() => {
+        expect(
+          screen.queryByText("Deactivate Campaign Prefill?")
+        ).not.toBeInTheDocument();
+      });
+    });
+
+    it("does not show deactivate button for inactive prefills", async () => {
+      renderWithProviders([createListMock()]);
+
+      await waitFor(() => {
+        expect(screen.getByText("TROOP456S25")).toBeInTheDocument();
+      });
+
+      // There should only be one deactivate button (for the active prefill)
+      const deactivateButtons = screen.getAllByLabelText("Deactivate");
+      expect(deactivateButtons).toHaveLength(1);
+    });
+  });
+
+  describe("Edit dialog", () => {
+    it("opens edit dialog when edit button clicked", async () => {
+      renderWithProviders([createListMock()]);
+
+      await waitFor(() => {
+        expect(screen.getByText("PACK123F25")).toBeInTheDocument();
+      });
+
+      const editButtons = screen.getAllByLabelText("Edit");
+      fireEvent.click(editButtons[0]);
+
+      await waitFor(() => {
+        expect(screen.getByText("Edit Campaign Prefill")).toBeInTheDocument();
+      });
+
+      // Should show read-only info
+      expect(screen.getByText("Campaign Details (Read-Only)")).toBeInTheDocument();
+    });
+  });
+
+  describe("Error handling", () => {
+    it("displays error message when query fails", async () => {
+      const errorMock = {
+        request: {
+          query: LIST_MY_CAMPAIGN_PREFILLS,
+        },
+        error: new Error("Network error"),
+      };
+
+      renderWithProviders([errorMock]);
+
+      await waitFor(() => {
+        expect(screen.getByText(/Failed to load campaign prefills/)).toBeInTheDocument();
+      });
+    });
+  });
+});

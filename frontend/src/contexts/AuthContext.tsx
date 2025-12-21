@@ -66,8 +66,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         setHasValidTokens(true);
 
         // Get user info and account data
-        const user = await getCurrentUser();
-        const accountData = await fetchAccountData(user.userId);
+        await getCurrentUser();
+        const accountData = await fetchAccountData();
 
         if (accountData) {
           // Check admin status from JWT token claims, NOT from DynamoDB
@@ -244,7 +244,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
 /**
  * Hook to access auth context
+ * Note: This hook is intentionally exported alongside the provider component.
+ * This is a common React pattern for context providers.
  */
+// eslint-disable-next-line react-refresh/only-export-components
 export const useAuth = (): AuthContextValue => {
   const context = useContext(AuthContext);
   if (!context) {

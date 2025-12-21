@@ -53,8 +53,6 @@ type SellerProfile {
   profileId: ID!
   ownerAccountId: ID!
   sellerName: String!
-  unitType: String
-  unitNumber: Int
   createdAt: AWSDateTime!
   updatedAt: AWSDateTime!
   isOwner: Boolean!
@@ -231,15 +229,11 @@ type SeasonReport {
 
 input CreateSellerProfileInput {
   sellerName: String!
-  unitType: String
-  unitNumber: Int
 }
 
 input UpdateSellerProfileInput {
   profileId: ID!
   sellerName: String!
-  unitType: String
-  unitNumber: Int
 }
 
 input CreateSeasonInput {

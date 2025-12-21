@@ -39,8 +39,6 @@ import {
 interface Profile {
   profileId: string;
   sellerName: string;
-  unitType?: string;
-  unitNumber?: number;
   isOwner: boolean;
   permissions: string[];
 }
@@ -48,8 +46,6 @@ interface Profile {
 interface EditingProfile {
   profileId: string;
   sellerName: string;
-  unitType?: string;
-  unitNumber?: number;
 }
 
 export const ProfilesPage: React.FC = () => {
@@ -201,22 +197,13 @@ export const ProfilesPage: React.FC = () => {
     },
   });
 
-  const handleCreateProfile = async (
-    sellerName: string,
-    unitType?: string,
-    unitNumber?: number,
-  ) => {
-    await createProfile({ variables: { sellerName, unitType, unitNumber } });
+  const handleCreateProfile = async (sellerName: string) => {
+    await createProfile({ variables: { sellerName } });
   };
 
-  const handleUpdateProfile = async (
-    profileId: string,
-    sellerName: string,
-    unitType?: string,
-    unitNumber?: number,
-  ) => {
+  const handleUpdateProfile = async (profileId: string, sellerName: string) => {
     await updateProfile({
-      variables: { profileId, sellerName, unitType, unitNumber },
+      variables: { profileId, sellerName },
     });
   };
 
@@ -321,8 +308,6 @@ export const ProfilesPage: React.FC = () => {
                 <ProfileCard
                   profileId={profile.profileId}
                   sellerName={profile.sellerName}
-                  unitType={profile.unitType}
-                  unitNumber={profile.unitNumber}
                   isOwner={profile.isOwner}
                   permissions={profile.permissions}
                 />
@@ -345,8 +330,6 @@ export const ProfilesPage: React.FC = () => {
                 <ProfileCard
                   profileId={profile.profileId}
                   sellerName={profile.sellerName}
-                  unitType={profile.unitType}
-                  unitNumber={profile.unitNumber}
                   isOwner={profile.isOwner}
                   permissions={profile.permissions}
                 />
@@ -376,8 +359,6 @@ export const ProfilesPage: React.FC = () => {
           open={true}
           profileId={editingProfile.profileId}
           currentName={editingProfile.sellerName}
-          currentUnitType={editingProfile.unitType}
-          currentUnitNumber={editingProfile.unitNumber}
           onClose={() => setEditingProfile(null)}
           onSubmit={handleUpdateProfile}
         />

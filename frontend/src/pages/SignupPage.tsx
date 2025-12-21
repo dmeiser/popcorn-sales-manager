@@ -120,20 +120,21 @@ export const SignupPage: React.FC = () => {
         setSuccess("Account created successfully!");
         setTimeout(() => navigate("/login"), 1500);
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Signup failed:", err);
+      const error = err as { name?: string; message?: string };
 
       // Provide user-friendly error messages
-      if (err.name === "UsernameExistsException") {
+      if (error.name === "UsernameExistsException") {
         setError("An account with this email already exists");
-      } else if (err.name === "InvalidPasswordException") {
+      } else if (error.name === "InvalidPasswordException") {
         setError(
           "Password does not meet requirements: minimum 8 characters with uppercase, lowercase, numbers, and symbols",
         );
-      } else if (err.name === "InvalidParameterException") {
-        setError(err.message || "Invalid input. Please check your information");
+      } else if (error.name === "InvalidParameterException") {
+        setError(error.message || "Invalid input. Please check your information");
       } else {
-        setError(err.message || "Signup failed. Please try again");
+        setError(error.message || "Signup failed. Please try again");
       }
     } finally {
       setLoading(false);
@@ -215,7 +216,7 @@ export const SignupPage: React.FC = () => {
             console.log("User is authenticated despite autoSignIn failure");
             await refreshSession();
             navigate("/profiles");
-          } catch (sessionError) {
+          } catch {
             // User is not authenticated, redirect to login
             console.log("User is not authenticated, redirecting to login");
             setSuccess("Please log in with your new account");
@@ -223,15 +224,16 @@ export const SignupPage: React.FC = () => {
           }
         }
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Email verification failed:", err);
+      const error = err as { name?: string; message?: string };
 
-      if (err.name === "CodeMismatchException") {
+      if (error.name === "CodeMismatchException") {
         setError("Invalid verification code. Please check and try again");
-      } else if (err.name === "ExpiredCodeException") {
+      } else if (error.name === "ExpiredCodeException") {
         setError("Verification code expired. Please request a new one");
       } else {
-        setError(err.message || "Verification failed. Please try again");
+        setError(error.message || "Verification failed. Please try again");
       }
     } finally {
       setLoading(false);

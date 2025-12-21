@@ -75,7 +75,7 @@ describe('ProfileCard', () => {
     expect(screen.getByText('Editor')).toBeInTheDocument();
   });
 
-  test('displays Viewer badge for shared profiles with READ-only permission', () => {
+  test('displays Read-only badge for shared profiles with READ-only permission', () => {
     render(
       <MockedProvider mocks={[]}>
         <BrowserRouter>
@@ -89,7 +89,7 @@ describe('ProfileCard', () => {
       </MockedProvider>
     );
 
-    expect(screen.getByText('Viewer')).toBeInTheDocument();
+    expect(screen.getByText('Read-only')).toBeInTheDocument();
   });
 
   test('shows loading or empty state when no seasons loaded', () => {

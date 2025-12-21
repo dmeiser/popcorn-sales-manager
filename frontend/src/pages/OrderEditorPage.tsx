@@ -52,6 +52,43 @@ interface Product {
   price: number;
 }
 
+interface Catalog {
+  products: Product[];
+}
+
+interface SeasonData {
+  seasonId: string;
+  catalog?: Catalog;
+}
+
+interface ProfileData {
+  profileId: string;
+  isOwner: boolean;
+  permissions?: string[];
+}
+
+interface OrderAddress {
+  street?: string;
+  city?: string;
+  state?: string;
+  zipCode?: string;
+}
+
+interface OrderLineItem {
+  productId: string;
+  quantity: number;
+}
+
+interface OrderData {
+  orderId: string;
+  customerName?: string;
+  customerPhone?: string;
+  customerAddress?: OrderAddress;
+  paymentMethod?: string;
+  notes?: string;
+  lineItems: OrderLineItem[];
+}
+
 export const OrderEditorPage: React.FC = () => {
   const {
     profileId: encodedProfileId,
@@ -82,20 +119,20 @@ export const OrderEditorPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
 
   // Fetch season data for products
-  const { data: seasonData } = useQuery<{ getSeason: any }>(GET_SEASON, {
+  const { data: seasonData } = useQuery<{ getSeason: SeasonData }>(GET_SEASON, {
     variables: { seasonId },
     skip: !seasonId,
   });
 
   // Fetch profile for permissions
-  const { data: profileData } = useQuery<{ getProfile: any }>(GET_PROFILE, {
+  const { data: profileData } = useQuery<{ getProfile: ProfileData }>(GET_PROFILE, {
     variables: { profileId },
     skip: !profileId,
   });
 
   // Fetch existing order if editing
   const { data: orderData, loading: orderLoading } = useQuery<{
-    getOrder: any;
+    getOrder: OrderData;
   }>(GET_ORDER, {
     variables: { orderId },
     skip: !orderId,
@@ -119,7 +156,7 @@ export const OrderEditorPage: React.FC = () => {
       setPaymentMethod(order.paymentMethod || "CASH");
       setNotes(order.notes || "");
       setLineItems(
-        order.lineItems.map((item: any) => ({
+        order.lineItems.map((item: OrderLineItem) => ({
           productId: item.productId,
           quantity: item.quantity,
         })),
@@ -232,8 +269,9 @@ export const OrderEditorPage: React.FC = () => {
       navigate(
         `/profiles/${encodeURIComponent(profileId)}/seasons/${encodeURIComponent(seasonId)}/orders`,
       );
-    } catch (err: any) {
-      setError(err.message || "Failed to save order");
+    } catch (err: unknown) {
+      const error = err as { message?: string };
+      setError(error.message || "Failed to save order");
       setLoading(false);
     }
   };
