@@ -3,7 +3,7 @@
  *
  * Provides branded login interface with:
  * - Email/password authentication
- * - Social login buttons (Google, Facebook, Apple)
+ * - Social login buttons (Google, Facebook)
  * - Password reset flow
  * - Link to signup page
  */
@@ -24,7 +24,6 @@ import {
 import {
   Google as GoogleIcon,
   Facebook as FacebookIcon,
-  Apple as AppleIcon,
   Fingerprint as FingerprintIcon,
 } from "@mui/icons-material";
 import { useNavigate, useLocation } from "react-router-dom";
@@ -44,16 +43,16 @@ export const LoginPage: React.FC = () => {
   const [showMfa, setShowMfa] = useState(false);
   const [showPasskeyPrompt, setShowPasskeyPrompt] = useState(false);
 
-  // If already logged in, redirect to profiles
-  useEffect(() => {
-    if (isAuthenticated) {
-      navigate("/profiles", { replace: true });
-    }
-  }, [isAuthenticated, navigate]);
-
   // Get the redirect path from location state (defaults to /profiles)
   const from = (location.state as { from?: { pathname?: string } } | undefined)
     ?.from?.pathname || "/profiles";
+
+  // If already logged in, redirect to intended destination
+  useEffect(() => {
+    if (isAuthenticated) {
+      navigate(from, { replace: true });
+    }
+  }, [isAuthenticated, navigate, from]);
 
   const handleEmailLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -212,7 +211,7 @@ export const LoginPage: React.FC = () => {
     }
   };
 
-  const handleSocialLogin = async (provider: "Google" | "Facebook" | "Apple") => {
+  const handleSocialLogin = async (provider: "Google" | "Facebook") => {
     setError(null);
     setLoading(true);
 
@@ -423,16 +422,6 @@ export const LoginPage: React.FC = () => {
                 disabled={loading}
               >
                 Continue with Facebook
-              </Button>
-              <Button
-                variant="outlined"
-                fullWidth
-                size="large"
-                startIcon={<AppleIcon />}
-                onClick={() => handleSocialLogin("Apple")}
-                disabled={loading}
-              >
-                Continue with Apple
               </Button>
             </Stack>
 

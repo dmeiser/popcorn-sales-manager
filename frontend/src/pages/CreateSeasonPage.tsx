@@ -47,7 +47,6 @@ import {
   CREATE_SEASON,
   LIST_SEASONS_BY_PROFILE,
 } from "../lib/graphql";
-import { useAuth } from "../contexts/AuthContext";
 
 // Types
 interface CampaignPrefill {
@@ -155,7 +154,6 @@ export const CreateSeasonPage: React.FC = () => {
   const { prefillCode } = useParams<{ prefillCode: string }>();
   const navigate = useNavigate();
   const location = useLocation();
-  const { isAuthenticated, loading: authLoading } = useAuth();
 
   // Redirect state from login
   const savedPrefillCode = location.state?.prefillCode;
@@ -244,23 +242,6 @@ export const CreateSeasonPage: React.FC = () => {
       { query: LIST_SEASONS_BY_PROFILE, variables: { profileId } },
     ],
   });
-
-  // Redirect unauthenticated users to login
-  useEffect(() => {
-    if (!authLoading && !isAuthenticated && effectivePrefillCode) {
-      // Save the prefillCode to sessionStorage for OAuth redirect
-      sessionStorage.setItem('oauth_redirect', `/c/${effectivePrefillCode}`);
-      
-      // Save the prefillCode and redirect to login
-      navigate("/login", {
-        state: {
-          from: { pathname: `/c/${effectivePrefillCode}` },
-          prefillCode: effectivePrefillCode,
-        },
-        replace: true,
-      });
-    }
-  }, [authLoading, isAuthenticated, effectivePrefillCode, navigate]);
 
   // Auto-select profile if only one exists
   useEffect(() => {
@@ -442,7 +423,7 @@ export const CreateSeasonPage: React.FC = () => {
   };
 
   // Loading states
-  if (authLoading || (effectivePrefillCode && prefillLoading)) {
+  if (effectivePrefillCode && prefillLoading) {
     return (
       <Box
         display="flex"

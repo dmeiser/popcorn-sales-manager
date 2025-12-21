@@ -1,7 +1,7 @@
 """
 Cognito Pre-Sign-Up Lambda Trigger
 
-Automatically links federated identity providers (Google, Facebook, Apple) to existing
+Automatically links federated identity providers (Google, Facebook) to existing
 Cognito users with the same verified email. This prevents duplicate accounts when a user
 signs up with email/password first, then later signs in with a social provider.
 
