@@ -59,14 +59,14 @@ class TestListUnitCatalogs:
         """Sample seasons for profiles."""
         return [
             {
-                "seasonId": "SEASON#season1",
+                "seasonId": "CAMPAIGN#season1",
                 "profileId": "PROFILE#profile1",
                 "seasonName": "Fall",
                 "seasonYear": 2024,
                 "catalogId": "catalog-123",
             },
             {
-                "seasonId": "SEASON#season2",
+                "seasonId": "CAMPAIGN#season2",
                 "profileId": "PROFILE#profile2",
                 "seasonName": "Fall",
                 "seasonYear": 2024,
@@ -119,7 +119,7 @@ class TestListUnitCatalogs:
                 return {
                     "Items": [
                         {
-                            "seasonId": "SEASON#season1",
+                            "seasonId": "CAMPAIGN#season1",
                             "profileId": "PROFILE#profile1",
                             "catalogId": "catalog-123",
                         }
@@ -129,7 +129,7 @@ class TestListUnitCatalogs:
                 return {
                     "Items": [
                         {
-                            "seasonId": "SEASON#season2",
+                            "seasonId": "CAMPAIGN#season2",
                             "profileId": "PROFILE#profile2",
                             "catalogId": "catalog-456",
                         }
@@ -237,7 +237,7 @@ class TestListUnitCatalogs:
         mock_check_access.return_value = True
         # Season without catalogId
         mock_seasons_table.query.return_value = {
-            "Items": [{"seasonId": "SEASON#season1", "profileId": "PROFILE#profile1"}]
+            "Items": [{"seasonId": "CAMPAIGN#season1", "profileId": "PROFILE#profile1"}]
         }
 
         # Act
@@ -267,7 +267,7 @@ class TestListUnitCatalogs:
         mock_check_access.return_value = True
         # Both profiles use the same catalog
         mock_seasons_table.query.return_value = {
-            "Items": [{"seasonId": "SEASON#season1", "catalogId": "catalog-123"}]
+            "Items": [{"seasonId": "CAMPAIGN#season1", "catalogId": "catalog-123"}]
         }
         mock_catalogs_table.get_item.return_value = {"Item": sample_catalogs["catalog-123"]}
 
@@ -299,8 +299,8 @@ class TestListUnitCatalogs:
         mock_check_access.return_value = True
         mock_seasons_table.query.return_value = {
             "Items": [
-                {"seasonId": "SEASON#season1", "catalogId": "catalog-123"},
-                {"seasonId": "SEASON#season2", "catalogId": "catalog-fail"},
+                {"seasonId": "CAMPAIGN#season1", "catalogId": "catalog-123"},
+                {"seasonId": "CAMPAIGN#season2", "catalogId": "catalog-fail"},
             ]
         }
 
@@ -339,7 +339,7 @@ class TestListUnitCatalogs:
         mock_profiles_table.scan.return_value = {"Items": sample_profiles[:1]}
         mock_check_access.return_value = True
         mock_seasons_table.query.return_value = {
-            "Items": [{"seasonId": "SEASON#season1", "catalogId": "catalog-deleted"}]
+            "Items": [{"seasonId": "CAMPAIGN#season1", "catalogId": "catalog-deleted"}]
         }
         mock_catalogs_table.get_item.return_value = {}  # No Item key = not found
 
@@ -419,8 +419,8 @@ class TestListUnitCatalogs:
         # Season with non-string catalogId (should be filtered out)
         mock_seasons_table.query.return_value = {
             "Items": [
-                {"seasonId": "SEASON#season1", "catalogId": 12345},  # Non-string
-                {"seasonId": "SEASON#season2", "catalogId": None},  # None
+                {"seasonId": "CAMPAIGN#season1", "catalogId": 12345},  # Non-string
+                {"seasonId": "CAMPAIGN#season2", "catalogId": None},  # None
             ]
         }
 
@@ -466,13 +466,13 @@ class TestListUnitSeasonCatalogs:
         """Sample seasons from GSI3 query."""
         return [
             {
-                "seasonId": "SEASON#season1",
+                "seasonId": "CAMPAIGN#season1",
                 "profileId": "PROFILE#profile1",
                 "catalogId": "catalog-123",
                 "unitSeasonKey": "Pack#158#Springfield#IL#Fall#2024",
             },
             {
-                "seasonId": "SEASON#season2",
+                "seasonId": "CAMPAIGN#season2",
                 "profileId": "PROFILE#profile2",
                 "catalogId": "catalog-456",
                 "unitSeasonKey": "Pack#158#Springfield#IL#Fall#2024",
@@ -632,12 +632,12 @@ class TestListUnitSeasonCatalogs:
         # Arrange - Both seasons use the same catalog
         seasons = [
             {
-                "seasonId": "SEASON#season1",
+                "seasonId": "CAMPAIGN#season1",
                 "profileId": "PROFILE#profile1",
                 "catalogId": "catalog-123",
             },
             {
-                "seasonId": "SEASON#season2",
+                "seasonId": "CAMPAIGN#season2",
                 "profileId": "PROFILE#profile2",
                 "catalogId": "catalog-123",
             },
@@ -721,8 +721,8 @@ class TestListUnitSeasonCatalogs:
         # Arrange
         mock_seasons_table.query.return_value = {
             "Items": [
-                {"seasonId": "SEASON#season1", "profileId": "PROFILE#profile1"},  # No catalogId
-                {"seasonId": "SEASON#season2", "profileId": "PROFILE#profile2", "catalogId": None},
+                {"seasonId": "CAMPAIGN#season1", "profileId": "PROFILE#profile1"},  # No catalogId
+                {"seasonId": "CAMPAIGN#season2", "profileId": "PROFILE#profile2", "catalogId": None},
             ]
         }
         mock_check_access.return_value = True

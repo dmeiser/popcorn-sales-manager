@@ -27,9 +27,9 @@ describe('SeasonCard', () => {
     render(
       <BrowserRouter>
         <SeasonCard
-          seasonId="season-123-456"
+          campaignId="season-123-456"
           profileId="profile-789"
-          seasonName="Fall 2025 Popcorn Sale"
+          campaignName="Fall 2025 Popcorn Sale"
           startDate="2025-09-01T00:00:00Z"
           endDate="2025-11-30T00:00:00Z"
           totalOrders={25}
@@ -45,17 +45,17 @@ describe('SeasonCard', () => {
     render(
       <BrowserRouter>
         <SeasonCard
-          seasonId="season-123"
+          campaignId="season-123"
           profileId="profile-789"
-          seasonName="Fall Sale"
-          seasonYear={2025}
+          campaignName="Fall Sale"
+          campaignYear={2025}
           startDate="2025-09-01T00:00:00Z"
           endDate="2025-11-30T00:00:00Z"
         />
       </BrowserRouter>
     );
 
-    // SeasonCard displays "seasonName seasonYear" format
+    // SeasonCard displays "campaignName campaignYear" format
     expect(screen.getByText('Fall Sale 2025')).toBeInTheDocument();
   });
 
@@ -64,10 +64,10 @@ describe('SeasonCard', () => {
     render(
       <BrowserRouter>
         <SeasonCard
-          seasonId="season-123"
+          campaignId="season-123"
           profileId="profile-789"
-          seasonName="Ongoing Sale"
-          seasonYear={2025}
+          campaignName="Ongoing Sale"
+          campaignYear={2025}
           startDate="2025-09-01T00:00:00Z"
         />
       </BrowserRouter>
@@ -85,9 +85,9 @@ describe('SeasonCard', () => {
     render(
       <BrowserRouter>
         <SeasonCard
-          seasonId="season-123"
+          campaignId="season-123"
           profileId="profile-789"
-          seasonName="Active Sale"
+          campaignName="Active Sale"
           startDate="2025-01-01T00:00:00Z"
           endDate={futureDate.toISOString()}
         />
@@ -101,9 +101,9 @@ describe('SeasonCard', () => {
     render(
       <BrowserRouter>
         <SeasonCard
-          seasonId="season-123"
+          campaignId="season-123"
           profileId="profile-789"
-          seasonName="Ongoing Sale"
+          campaignName="Ongoing Sale"
           startDate="2025-01-01T00:00:00Z"
         />
       </BrowserRouter>
@@ -118,9 +118,9 @@ describe('SeasonCard', () => {
     render(
       <BrowserRouter>
         <SeasonCard
-          seasonId="season-123"
+          campaignId="season-123"
           profileId="profile-789"
-          seasonName="Past Sale"
+          campaignName="Past Sale"
           startDate="2019-09-01T00:00:00Z"
           endDate={pastDate.toISOString()}
         />
@@ -134,9 +134,9 @@ describe('SeasonCard', () => {
     render(
       <BrowserRouter>
         <SeasonCard
-          seasonId="season-123"
+          campaignId="season-123"
           profileId="profile-789"
-          seasonName="Sale"
+          campaignName="Sale"
           startDate="2025-01-01T00:00:00Z"
           totalOrders={1}
         />
@@ -150,9 +150,9 @@ describe('SeasonCard', () => {
     render(
       <BrowserRouter>
         <SeasonCard
-          seasonId="season-123"
+          campaignId="season-123"
           profileId="profile-789"
-          seasonName="Sale"
+          campaignName="Sale"
           startDate="2025-01-01T00:00:00Z"
           totalOrders={42}
         />
@@ -166,9 +166,9 @@ describe('SeasonCard', () => {
     render(
       <BrowserRouter>
         <SeasonCard
-          seasonId="season-123"
+          campaignId="season-123"
           profileId="profile-789"
-          seasonName="Sale"
+          campaignName="Sale"
           startDate="2025-01-01T00:00:00Z"
         />
       </BrowserRouter>
@@ -181,9 +181,9 @@ describe('SeasonCard', () => {
     render(
       <BrowserRouter>
         <SeasonCard
-          seasonId="season-123"
+          campaignId="season-123"
           profileId="profile-789"
-          seasonName="Sale"
+          campaignName="Sale"
           startDate="2025-01-01T00:00:00Z"
           totalRevenue={1234.567}
         />
@@ -197,9 +197,9 @@ describe('SeasonCard', () => {
     render(
       <BrowserRouter>
         <SeasonCard
-          seasonId="season-123"
+          campaignId="season-123"
           profileId="profile-789"
-          seasonName="Sale"
+          campaignName="Sale"
           startDate="2025-01-01T00:00:00Z"
         />
       </BrowserRouter>
@@ -214,9 +214,9 @@ describe('SeasonCard', () => {
     render(
       <BrowserRouter>
         <SeasonCard
-          seasonId="season-123"
+          campaignId="season-123"
           profileId="profile-789"
-          seasonName="Sale"
+          campaignName="Sale"
           startDate="2025-01-01T00:00:00Z"
         />
       </BrowserRouter>

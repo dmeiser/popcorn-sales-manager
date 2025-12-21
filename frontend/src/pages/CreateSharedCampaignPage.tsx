@@ -27,8 +27,8 @@ import { ArrowBack as BackIcon, Save as SaveIcon } from "@mui/icons-material";
 import {
   LIST_PUBLIC_CATALOGS,
   LIST_MY_CATALOGS,
-  CREATE_CAMPAIGN_PREFILL,
-  LIST_MY_CAMPAIGN_PREFILLS,
+  CREATE_SHARED_CAMPAIGN,
+  LIST_MY_SHARED_CAMPAIGNS,
 } from "../lib/graphql";
 
 interface Catalog {
@@ -38,7 +38,7 @@ interface Catalog {
   isDeleted?: boolean;
 }
 
-interface CampaignPrefill {
+interface SharedCampaign {
   prefillCode: string;
   isActive: boolean;
 }
@@ -106,8 +106,8 @@ export const CreateSharedCampaignPage: React.FC = () => {
 
   // Form state
   const [catalogId, setCatalogId] = useState("");
-  const [seasonName, setSeasonName] = useState("");
-  const [seasonYear, setSeasonYear] = useState(new Date().getFullYear());
+  const [campaignName, setSeasonName] = useState("");
+  const [campaignYear, setSeasonYear] = useState(new Date().getFullYear());
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [unitType, setUnitType] = useState("");
@@ -121,8 +121,8 @@ export const CreateSharedCampaignPage: React.FC = () => {
 
   // Fetch active prefill count
   const { data: prefillsData } = useQuery<{
-    listMyCampaignPrefills: CampaignPrefill[];
-  }>(LIST_MY_CAMPAIGN_PREFILLS, { fetchPolicy: "network-only" });
+    listMyCampaignPrefills: SharedCampaign[];
+  }>(LIST_MY_SHARED_CAMPAIGNS, { fetchPolicy: "network-only" });
   const prefills = prefillsData?.listMyCampaignPrefills || [];
   const activePrefillCount = prefills.filter((p) => p.isActive).length;
   const canCreate = activePrefillCount < MAX_ACTIVE_PREFILLS;
@@ -150,13 +150,13 @@ export const CreateSharedCampaignPage: React.FC = () => {
   const catalogsLoading = publicLoading || myLoading;
 
   // Create mutation
-  const [createPrefill] = useMutation(CREATE_CAMPAIGN_PREFILL);
+  const [createPrefill] = useMutation(CREATE_SHARED_CAMPAIGN);
 
   const isFormValid = () => {
     return (
       catalogId &&
-      seasonName.trim() &&
-      seasonYear &&
+      campaignName.trim() &&
+      campaignYear &&
       unitType &&
       unitNumber &&
       city.trim() &&
@@ -180,8 +180,8 @@ export const CreateSharedCampaignPage: React.FC = () => {
         variables: {
           input: {
             catalogId,
-            seasonName: seasonName.trim(),
-            seasonYear,
+            campaignName: campaignName.trim(),
+            campaignYear,
             // Convert date strings to ISO datetime format for AWSDateTime
             ...(startDate && { startDate: new Date(startDate).toISOString() }),
             ...(endDate && { endDate: new Date(endDate).toISOString() }),
@@ -330,7 +330,7 @@ export const CreateSharedCampaignPage: React.FC = () => {
               <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
                 <TextField
                   label="Campaign Name"
-                  value={seasonName}
+                  value={campaignName}
                   onChange={(e) => setSeasonName(e.target.value)}
                   placeholder="e.g., Fall, Spring"
                   required
@@ -339,7 +339,7 @@ export const CreateSharedCampaignPage: React.FC = () => {
                 <TextField
                   label="Campaign Year"
                   type="number"
-                  value={seasonYear}
+                  value={campaignYear}
                   onChange={(e) =>
                     setSeasonYear(parseInt(e.target.value, 10) || 0)
                   }

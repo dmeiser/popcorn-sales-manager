@@ -63,7 +63,7 @@ class TestGetUnitReport:
         """Sample seasons returned from GSI3 query."""
         return [
             {
-                "seasonId": "SEASON#season1",
+                "seasonId": "CAMPAIGN#season1",
                 "profileId": "PROFILE#profile1",
                 "seasonName": "Fall",
                 "seasonYear": 2024,
@@ -71,7 +71,7 @@ class TestGetUnitReport:
                 "unitSeasonKey": "Pack#158#Springfield#IL#Fall#2024",
             },
             {
-                "seasonId": "SEASON#season2",
+                "seasonId": "CAMPAIGN#season2",
                 "profileId": "PROFILE#profile2",
                 "seasonName": "Fall",
                 "seasonYear": 2024,
@@ -84,10 +84,10 @@ class TestGetUnitReport:
     def sample_orders(self) -> Dict[str, list[Dict[str, Any]]]:
         """Sample orders by season."""
         return {
-            "SEASON#season1": [
+            "CAMPAIGN#season1": [
                 {
                     "orderId": "ORDER#order1",
-                    "seasonId": "SEASON#season1",
+                    "seasonId": "CAMPAIGN#season1",
                     "customerName": "Customer 1",
                     "orderDate": "2024-10-01T12:00:00Z",
                     "totalAmount": Decimal("100.00"),
@@ -102,10 +102,10 @@ class TestGetUnitReport:
                     ],
                 },
             ],
-            "SEASON#season2": [
+            "CAMPAIGN#season2": [
                 {
                     "orderId": "ORDER#order2",
-                    "seasonId": "SEASON#season2",
+                    "seasonId": "CAMPAIGN#season2",
                     "customerName": "Customer 2",
                     "orderDate": "2024-10-02T12:00:00Z",
                     "totalAmount": Decimal("200.00"),
@@ -148,8 +148,8 @@ class TestGetUnitReport:
 
         # Return orders for each season
         mock_orders_table.query.side_effect = [
-            {"Items": sample_orders["SEASON#season1"]},
-            {"Items": sample_orders["SEASON#season2"]},
+            {"Items": sample_orders["CAMPAIGN#season1"]},
+            {"Items": sample_orders["CAMPAIGN#season2"]},
         ]
 
         # Act
@@ -244,7 +244,7 @@ class TestGetUnitReport:
         # Mock profile lookups using query on profileId-index
         self._setup_profile_query_mock(mock_profiles_table, sample_profiles)
 
-        mock_orders_table.query.return_value = {"Items": sample_orders["SEASON#season1"]}
+        mock_orders_table.query.return_value = {"Items": sample_orders["CAMPAIGN#season1"]}
 
         # Act
         result = get_unit_report(event, lambda_context)
@@ -317,8 +317,8 @@ class TestGetUnitReport:
         mock_profiles_table.get_item.side_effect = get_item_side_effect
 
         mock_orders_table.query.side_effect = [
-            {"Items": sample_orders["SEASON#season1"]},
-            {"Items": sample_orders["SEASON#season2"]},
+            {"Items": sample_orders["CAMPAIGN#season1"]},
+            {"Items": sample_orders["CAMPAIGN#season2"]},
         ]
 
         # Act
@@ -396,7 +396,7 @@ class TestGetUnitReport:
         # Arrange - Same profile has TWO seasons for the same unit+season
         multi_seasons = [
             {
-                "seasonId": "SEASON#season1",
+                "seasonId": "CAMPAIGN#season1",
                 "profileId": "PROFILE#profile1",
                 "seasonName": "Fall",
                 "seasonYear": 2024,
@@ -404,7 +404,7 @@ class TestGetUnitReport:
                 "unitSeasonKey": "Pack#158#Springfield#IL#Fall#2024",
             },
             {
-                "seasonId": "SEASON#season1b",
+                "seasonId": "CAMPAIGN#season1b",
                 "profileId": "PROFILE#profile1",  # Same profile!
                 "seasonName": "Fall",
                 "seasonYear": 2024,
@@ -423,7 +423,7 @@ class TestGetUnitReport:
             "Items": [
                 {
                     "orderId": "ORDER#order1",
-                    "seasonId": "SEASON#season1",
+                    "seasonId": "CAMPAIGN#season1",
                     "customerName": "Customer 1",
                     "orderDate": "2024-10-01T12:00:00Z",
                     "totalAmount": Decimal("50.00"),
@@ -460,7 +460,7 @@ class TestGetUnitReport:
         # Arrange - Only one profile/season
         single_season = [
             {
-                "seasonId": "SEASON#season1",
+                "seasonId": "CAMPAIGN#season1",
                 "profileId": "PROFILE#profile1",
                 "seasonName": "Fall",
                 "seasonYear": 2024,
@@ -484,7 +484,7 @@ class TestGetUnitReport:
             "Items": [
                 {
                     "orderId": "ORDER#order1",
-                    "seasonId": "SEASON#season1",
+                    "seasonId": "CAMPAIGN#season1",
                     "customerName": "Customer 1",
                     "orderDate": "2024-10-01T12:00:00Z",
                     "totalAmount": Decimal("100.00"),
@@ -500,7 +500,7 @@ class TestGetUnitReport:
                 },
                 {
                     "orderId": "ORDER#order2",
-                    "seasonId": "SEASON#season1",
+                    "seasonId": "CAMPAIGN#season1",
                     "customerName": "Customer 2",
                     "orderDate": "2024-10-02T12:00:00Z",
                     "totalAmount": Decimal("150.00"),
@@ -569,8 +569,8 @@ class TestGetUnitReport:
         mock_profiles_table.get_item.side_effect = get_item_side_effect
 
         mock_orders_table.query.side_effect = [
-            {"Items": sample_orders["SEASON#season1"]},
-            {"Items": sample_orders["SEASON#season2"]},
+            {"Items": sample_orders["CAMPAIGN#season1"]},
+            {"Items": sample_orders["CAMPAIGN#season2"]},
         ]
 
         # Act

@@ -34,7 +34,7 @@ import {
 } from "@mui/icons-material";
 import { SeasonSummaryTiles } from "../components/SeasonSummaryTiles";
 import {
-  LIST_ORDERS_BY_SEASON,
+  LIST_ORDERS_BY_CAMPAIGN,
   DELETE_ORDER,
   GET_PROFILE,
 } from "../lib/graphql";
@@ -65,14 +65,14 @@ interface ProfilePermissions {
 }
 
 export const OrdersPage: React.FC = () => {
-  const { profileId: encodedProfileId, seasonId: encodedSeasonId } = useParams<{
+  const { profileId: encodedProfileId, campaignId: encodedSeasonId } = useParams<{
     profileId: string;
-    seasonId: string;
+    campaignId: string;
   }>();
   const profileId = encodedProfileId
     ? decodeURIComponent(encodedProfileId)
     : "";
-  const seasonId = encodedSeasonId ? decodeURIComponent(encodedSeasonId) : "";
+  const campaignId = encodedSeasonId ? decodeURIComponent(encodedSeasonId) : "";
   const navigate = useNavigate();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("md"));
@@ -100,9 +100,9 @@ export const OrdersPage: React.FC = () => {
     loading: ordersLoading,
     error: ordersError,
     refetch: refetchOrders,
-  } = useQuery<{ listOrdersBySeason: Order[] }>(LIST_ORDERS_BY_SEASON, {
-    variables: { seasonId },
-    skip: !seasonId,
+  } = useQuery<{ listOrdersBySeason: Order[] }>(LIST_ORDERS_BY_CAMPAIGN, {
+    variables: { campaignId },
+    skip: !campaignId,
   });
 
   // Delete order mutation
@@ -119,13 +119,13 @@ export const OrdersPage: React.FC = () => {
 
   const handleCreateOrder = () => {
     navigate(
-      `/scouts/${encodeURIComponent(profileId)}/campaigns/${encodeURIComponent(seasonId)}/orders/new`,
+      `/scouts/${encodeURIComponent(profileId)}/campaigns/${encodeURIComponent(campaignId)}/orders/new`,
     );
   };
 
   const handleEditOrder = (orderId: string) => {
     navigate(
-      `/scouts/${encodeURIComponent(profileId)}/campaigns/${encodeURIComponent(seasonId)}/orders/${encodeURIComponent(orderId)}/edit`,
+      `/scouts/${encodeURIComponent(profileId)}/campaigns/${encodeURIComponent(campaignId)}/orders/${encodeURIComponent(orderId)}/edit`,
     );
   };
 
@@ -207,7 +207,7 @@ export const OrdersPage: React.FC = () => {
         </Button>
         <Collapse in={summaryExpanded}>
           <Box mb={2}>
-            <SeasonSummaryTiles seasonId={seasonId} />
+            <SeasonSummaryTiles campaignId={campaignId} />
           </Box>
         </Collapse>
       </Box>

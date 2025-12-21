@@ -218,7 +218,7 @@ class TestCreateSeason:
         assert result["seasonName"] == "Fall"
         assert result["seasonYear"] == 2024
         assert result["catalogId"] == "catalog-abc"
-        assert result["seasonId"].startswith("SEASON#")
+        assert result["seasonId"].startswith("CAMPAIGN#")
         mock_dynamodb_client.transact_write_items.assert_called_once()
 
     @patch("src.handlers.season_operations.dynamodb_client")

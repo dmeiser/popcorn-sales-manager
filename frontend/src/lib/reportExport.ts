@@ -112,7 +112,7 @@ function prepareReportData(orders: Order[]) {
   return { headers, rows, allProducts };
 }
 
-export function downloadAsCSV(orders: Order[], seasonId: string): void {
+export function downloadAsCSV(orders: Order[], campaignId: string): void {
   const { rows } = prepareReportData(orders);
 
   // Convert to CSV
@@ -126,7 +126,7 @@ export function downloadAsCSV(orders: Order[], seasonId: string): void {
   const url = URL.createObjectURL(blob);
 
   link.setAttribute("href", url);
-  link.setAttribute("download", `season-${seasonId}.csv`);
+  link.setAttribute("download", `season-${campaignId}.csv`);
   link.style.visibility = "hidden";
 
   document.body.appendChild(link);
@@ -134,7 +134,7 @@ export function downloadAsCSV(orders: Order[], seasonId: string): void {
   document.body.removeChild(link);
 }
 
-export function downloadAsXLSX(orders: Order[], seasonId: string): void {
+export function downloadAsXLSX(orders: Order[], campaignId: string): void {
   const { rows } = prepareReportData(orders);
 
   // Create workbook
@@ -170,5 +170,5 @@ export function downloadAsXLSX(orders: Order[], seasonId: string): void {
   XLSX.utils.book_append_sheet(wb, ws, "Orders");
 
   // Download
-  XLSX.writeFile(wb, `season-${seasonId}.xlsx`);
+  XLSX.writeFile(wb, `season-${campaignId}.xlsx`);
 }

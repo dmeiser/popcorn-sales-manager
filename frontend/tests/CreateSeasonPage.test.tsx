@@ -14,7 +14,7 @@
  * TODO: When unskipping these tests:
  * - Set up MemoryRouter with proper route configuration
  * - Mock AuthContext with authenticated/unauthenticated states
- * - Mock all Apollo queries: GET_CAMPAIGN_PREFILL, LIST_MY_PROFILES, etc.
+ * - Mock all Apollo queries: GET_SHARED_CAMPAIGN, LIST_MY_PROFILES, etc.
  */
 
 import { describe, test, expect, vi } from "vitest";
@@ -202,24 +202,24 @@ describe.skip("CreateSeasonPage", () => {
 });
 
 describe.skip("CreateSeasonPage - Prefill Mode", () => {
-  // These tests would require mocking GET_CAMPAIGN_PREFILL with a valid prefill response
+  // These tests would require mocking GET_SHARED_CAMPAIGN with a valid prefill response
   test("shows locked fields when prefill code is provided", async () => {
-    // TODO: Add GET_CAMPAIGN_PREFILL mock
+    // TODO: Add GET_SHARED_CAMPAIGN mock
     expect(true).toBe(true);
   });
 
   test("displays creator message banner", async () => {
-    // TODO: Add GET_CAMPAIGN_PREFILL mock with creatorMessage
+    // TODO: Add GET_SHARED_CAMPAIGN mock with creatorMessage
     expect(true).toBe(true);
   });
 
   test("shows share checkbox with warning text", async () => {
-    // TODO: Add GET_CAMPAIGN_PREFILL mock
+    // TODO: Add GET_SHARED_CAMPAIGN mock
     expect(true).toBe(true);
   });
 
   test("share checkbox is checked by default", async () => {
-    // TODO: Add GET_CAMPAIGN_PREFILL mock
+    // TODO: Add GET_SHARED_CAMPAIGN mock
     expect(true).toBe(true);
   });
 });

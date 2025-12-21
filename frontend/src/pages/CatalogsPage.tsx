@@ -37,7 +37,7 @@ import {
   LIST_MY_CATALOGS,
   LIST_MY_PROFILES,
   LIST_MY_SHARES,
-  LIST_SEASONS_BY_PROFILE,
+  LIST_CAMPAIGNS_BY_PROFILE,
   CREATE_CATALOG,
   UPDATE_CATALOG,
   DELETE_CATALOG,
@@ -110,8 +110,8 @@ export const CatalogsPage: React.FC = () => {
 
   // Lazy query for fetching seasons
   const [fetchSeasons] = useLazyQuery<{
-    listSeasonsByProfile: Array<{ catalogId: string }>;
-  }>(LIST_SEASONS_BY_PROFILE);
+    listCampaignsByProfile: Array<{ catalogId: string }>;
+  }>(LIST_CAMPAIGNS_BY_PROFILE);
 
   // Fetch seasons for all profiles and determine catalog usage
   useEffect(() => {
@@ -126,7 +126,7 @@ export const CatalogsPage: React.FC = () => {
               variables: { profileId: profile.profileId },
             });
 
-            data?.listSeasonsByProfile.forEach((season) => {
+            data?.listCampaignsByProfile.forEach((season) => {
               if (season.catalogId) {
                 catalogIds.add(season.catalogId);
               }

@@ -441,11 +441,11 @@ class CdkStack(Stack):
                 )
             )
 
-        # Seasons Table V2
-        # NEW STRUCTURE: PK=profileId, SK=seasonId
-        # This enables direct query for listSeasonsByProfile (no GSI needed)
-        # SeasonsTableV2 - auto-import if exists
-        seasons_table_name = rn("kernelworx-seasons")
+        # Campaigns Table V2
+        # NEW STRUCTURE: PK=profileId, SK=seasonId (note: seasonId contains campaign data)
+        # This enables direct query for listCampaignsByProfile (no GSI needed)
+        # CampaignsTableV2 - auto-import if exists
+        seasons_table_name = rn("kernelworx-campaigns")
         existing_seasons_table = resource_lookup.lookup_dynamodb_table(seasons_table_name)
         if existing_seasons_table:
             self.seasons_table = dynamodb.Table.from_table_arn(
@@ -530,11 +530,11 @@ class CdkStack(Stack):
                 projection_type=dynamodb.ProjectionType.ALL,
             )
 
-        # Campaign Prefills Table
+        # Shared Campaigns Table
         # PK: prefillCode (enables direct lookup)
-        # GSI1: createdBy + createdAt (for "my prefills" listing)
-        # GSI2: unitSeasonKey (for unit+season discovery)
-        prefills_table_name = rn("kernelworx-campaign-prefills")
+        # GSI1: createdBy + createdAt (for "my shared campaigns" listing)
+        # GSI2: unitSeasonKey (for unit+campaign discovery)
+        prefills_table_name = rn("kernelworx-shared-campaigns")
         existing_prefills_table = resource_lookup.lookup_dynamodb_table(prefills_table_name)
         if existing_prefills_table:
             self.prefills_table = dynamodb.Table.from_table_arn(
@@ -2472,7 +2472,7 @@ export function response(ctx) {
         self.api.create_resolver(
             "UpdateSeasonPipelineResolverV2",
             type_name="Mutation",
-            field_name="updateSeason",
+            field_name="updateCampaign",
             runtime=appsync.FunctionRuntime.JS_1_0_0,
             pipeline_config=[
                 lookup_season_fn,
@@ -2692,7 +2692,7 @@ export function response(ctx) {
         self.api.create_resolver(
             "DeleteSeasonPipelineResolverV2",
             type_name="Mutation",
-            field_name="deleteSeason",
+            field_name="deleteCampaign",
             runtime=appsync.FunctionRuntime.JS_1_0_0,
             pipeline_config=[
                 lookup_season_for_delete_fn,
@@ -4088,7 +4088,7 @@ export function response(ctx) {
         self.api.create_resolver(
             "GetSeasonResolver",
             type_name="Query",
-            field_name="getSeason",
+            field_name="getCampaign",
             runtime=appsync.FunctionRuntime.JS_1_0_0,
             pipeline_config=[
                 query_season_fn,
@@ -4169,7 +4169,7 @@ export function response(ctx) {
         self.api.create_resolver(
             "ListSeasonsByProfileResolver",
             type_name="Query",
-            field_name="listSeasonsByProfile",
+            field_name="listCampaignsByProfile",
             runtime=appsync.FunctionRuntime.JS_1_0_0,
             pipeline_config=[
                 verify_profile_read_access_fn,
@@ -5283,7 +5283,7 @@ export function response(ctx) {
         self.prefills_datasource.create_resolver(
             "GetCampaignPrefillResolver",
             type_name="Query",
-            field_name="getCampaignPrefill",
+            field_name="getSharedCampaign",
             request_mapping_template=appsync.MappingTemplate.from_string(
                 """
 {
@@ -5319,7 +5319,7 @@ export function response(ctx) {
         self.api.create_resolver(
             "ListMyCampaignPrefillsResolver",
             type_name="Query",
-            field_name="listMyCampaignPrefills",
+            field_name="listMySharedCampaigns",
             data_source=self.prefills_datasource,
             runtime=appsync.FunctionRuntime.JS_1_0_0,
             code=appsync.Code.from_inline(
@@ -5361,7 +5361,7 @@ export function response(ctx) {
         self.api.create_resolver(
             "FindCampaignPrefillsResolver",
             type_name="Query",
-            field_name="findCampaignPrefills",
+            field_name="findSharedCampaigns",
             data_source=self.prefills_datasource,
             runtime=appsync.FunctionRuntime.JS_1_0_0,
             code=appsync.Code.from_inline(
@@ -5619,7 +5619,7 @@ export function response(ctx) {
         self.api.create_resolver(
             "CreateCampaignPrefillPipelineResolver",
             type_name="Mutation",
-            field_name="createCampaignPrefill",
+            field_name="createSharedCampaign",
             runtime=appsync.FunctionRuntime.JS_1_0_0,
             pipeline_config=[
                 count_user_prefills_fn,
@@ -5749,7 +5749,7 @@ export function response(ctx) {
         self.api.create_resolver(
             "UpdateCampaignPrefillPipelineResolver",
             type_name="Mutation",
-            field_name="updateCampaignPrefill",
+            field_name="updateSharedCampaign",
             runtime=appsync.FunctionRuntime.JS_1_0_0,
             pipeline_config=[get_prefill_for_update_fn, update_prefill_fn],
             code=appsync.Code.from_inline(
@@ -5835,7 +5835,7 @@ export function response(ctx) {
         self.api.create_resolver(
             "DeleteCampaignPrefillPipelineResolver",
             type_name="Mutation",
-            field_name="deleteCampaignPrefill",
+            field_name="deleteSharedCampaign",
             runtime=appsync.FunctionRuntime.JS_1_0_0,
             pipeline_config=[get_prefill_for_delete_fn, delete_prefill_fn],
             code=appsync.Code.from_inline(
@@ -6777,7 +6777,7 @@ export function response(ctx) {
         self.season_operations_ds.create_resolver(
             "CreateSeasonResolver",  # Keep same logical ID to replace old resolver
             type_name="Mutation",
-            field_name="createSeason",
+            field_name="createCampaign",
         )
 
         # NOTE: updateSeason Lambda resolver REMOVED - replaced with pipeline resolver above
@@ -6788,7 +6788,7 @@ export function response(ctx) {
         self.request_season_report_ds.create_resolver(
             "RequestSeasonReportResolver",
             type_name="Mutation",
-            field_name="requestSeasonReport",
+            field_name="requestCampaignReport",
         )
 
         # getUnitReport - Generate unit-level sales report (Lambda resolver)
@@ -6809,7 +6809,7 @@ export function response(ctx) {
         self.list_unit_season_catalogs_ds.create_resolver(
             "ListUnitSeasonCatalogsResolver",
             type_name="Query",
-            field_name="listUnitSeasonCatalogs",
+            field_name="listUnitCampaignCatalogs",
         )
 
         # updateMyAccount - Update user metadata in DynamoDB (Lambda resolver)

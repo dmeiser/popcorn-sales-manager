@@ -20,12 +20,12 @@ export const SELLER_PROFILE_FRAGMENT = gql`
   }
 `;
 
-export const SEASON_FRAGMENT = gql`
-  fragment SeasonFields on Season {
-    seasonId
+export const CAMPAIGN_FRAGMENT = gql`
+  fragment CampaignFields on Campaign {
+    campaignId
     profileId
-    seasonName
-    seasonYear
+    campaignName
+    campaignYear
     startDate
     endDate
     catalogId
@@ -45,7 +45,7 @@ export const ORDER_FRAGMENT = gql`
   fragment OrderFields on Order {
     orderId
     profileId
-    seasonId
+    campaignId
     customerName
     customerPhone
     customerAddress {
@@ -171,20 +171,20 @@ export const GET_PROFILE = gql`
   }
 `;
 
-export const LIST_SEASONS_BY_PROFILE = gql`
-  ${SEASON_FRAGMENT}
-  query ListSeasonsByProfile($profileId: ID!) {
-    listSeasonsByProfile(profileId: $profileId) {
-      ...SeasonFields
+export const LIST_CAMPAIGNS_BY_PROFILE = gql`
+  ${CAMPAIGN_FRAGMENT}
+  query ListCampaignsByProfile($profileId: ID!) {
+    listCampaignsByProfile(profileId: $profileId) {
+      ...CampaignFields
     }
   }
 `;
 
-export const GET_SEASON = gql`
-  ${SEASON_FRAGMENT}
-  query GetSeason($seasonId: ID!) {
-    getSeason(seasonId: $seasonId) {
-      ...SeasonFields
+export const GET_CAMPAIGN = gql`
+  ${CAMPAIGN_FRAGMENT}
+  query GetCampaign($campaignId: ID!) {
+    getCampaign(campaignId: $campaignId) {
+      ...CampaignFields
       catalog {
         catalogId
         catalogName
@@ -200,10 +200,10 @@ export const GET_SEASON = gql`
   }
 `;
 
-export const LIST_ORDERS_BY_SEASON = gql`
+export const LIST_ORDERS_BY_CAMPAIGN = gql`
   ${ORDER_FRAGMENT}
-  query ListOrdersBySeason($seasonId: ID!) {
-    listOrdersBySeason(seasonId: $seasonId) {
+  query ListOrdersByCampaign($campaignId: ID!) {
+    listOrdersByCampaign(campaignId: $campaignId) {
       ...OrderFields
     }
   }
@@ -306,27 +306,27 @@ export const DELETE_SELLER_PROFILE = gql`
   }
 `;
 
-export const CREATE_SEASON = gql`
-  ${SEASON_FRAGMENT}
-  mutation CreateSeason($input: CreateSeasonInput!) {
-    createSeason(input: $input) {
-      ...SeasonFields
+export const CREATE_CAMPAIGN = gql`
+  ${CAMPAIGN_FRAGMENT}
+  mutation CreateCampaign($input: CreateCampaignInput!) {
+    createCampaign(input: $input) {
+      ...CampaignFields
     }
   }
 `;
 
-export const UPDATE_SEASON = gql`
-  ${SEASON_FRAGMENT}
-  mutation UpdateSeason($input: UpdateSeasonInput!) {
-    updateSeason(input: $input) {
-      ...SeasonFields
+export const UPDATE_CAMPAIGN = gql`
+  ${CAMPAIGN_FRAGMENT}
+  mutation UpdateCampaign($input: UpdateCampaignInput!) {
+    updateCampaign(input: $input) {
+      ...CampaignFields
     }
   }
 `;
 
-export const DELETE_SEASON = gql`
-  mutation DeleteSeason($seasonId: ID!) {
-    deleteSeason(seasonId: $seasonId)
+export const DELETE_CAMPAIGN = gql`
+  mutation DeleteCampaign($campaignId: ID!) {
+    deleteCampaign(campaignId: $campaignId)
   }
 `;
 
@@ -354,11 +354,11 @@ export const DELETE_ORDER = gql`
   }
 `;
 
-export const REQUEST_SEASON_REPORT = gql`
-  mutation RequestSeasonReport($input: RequestSeasonReportInput!) {
-    requestSeasonReport(input: $input) {
+export const REQUEST_CAMPAIGN_REPORT = gql`
+  mutation RequestCampaignReport($input: RequestCampaignReportInput!) {
+    requestCampaignReport(input: $input) {
       reportId
-      seasonId
+      campaignId
       profileId
       reportUrl
       status
@@ -449,8 +449,8 @@ export const GET_UNIT_REPORT = gql`
     $unitNumber: Int!
     $city: String
     $state: String
-    $seasonName: String!
-    $seasonYear: Int!
+    $campaignName: String!
+    $campaignYear: Int!
     $catalogId: ID!
   ) {
     getUnitReport(
@@ -458,14 +458,14 @@ export const GET_UNIT_REPORT = gql`
       unitNumber: $unitNumber
       city: $city
       state: $state
-      seasonName: $seasonName
-      seasonYear: $seasonYear
+      campaignName: $campaignName
+      campaignYear: $campaignYear
       catalogId: $catalogId
     ) {
       unitType
       unitNumber
-      seasonName
-      seasonYear
+      campaignName
+      campaignYear
       totalSales
       totalOrders
       sellers {
@@ -496,14 +496,14 @@ export const LIST_UNIT_CATALOGS = gql`
   query ListUnitCatalogs(
     $unitType: String!
     $unitNumber: Int!
-    $seasonName: String!
-    $seasonYear: Int!
+    $campaignName: String!
+    $campaignYear: Int!
   ) {
     listUnitCatalogs(
       unitType: $unitType
       unitNumber: $unitNumber
-      seasonName: $seasonName
-      seasonYear: $seasonYear
+      campaignName: $campaignName
+      campaignYear: $campaignYear
     ) {
       ...CatalogFields
     }
@@ -514,16 +514,16 @@ export const LIST_UNIT_CATALOGS = gql`
 // Campaign Prefill Fragment
 // ============================================================================
 
-export const CAMPAIGN_PREFILL_FRAGMENT = gql`
-  fragment CampaignPrefillFields on CampaignPrefill {
+export const SHARED_CAMPAIGN_FRAGMENT = gql`
+  fragment SharedCampaignFields on SharedCampaign {
     prefillCode
     catalogId
     catalog {
       catalogId
       catalogName
     }
-    seasonName
-    seasonYear
+    campaignName
+    campaignYear
     startDate
     endDate
     unitType
@@ -543,43 +543,43 @@ export const CAMPAIGN_PREFILL_FRAGMENT = gql`
 // Campaign Prefill Queries
 // ============================================================================
 
-export const GET_CAMPAIGN_PREFILL = gql`
-  ${CAMPAIGN_PREFILL_FRAGMENT}
-  query GetCampaignPrefill($prefillCode: String!) {
-    getCampaignPrefill(prefillCode: $prefillCode) {
-      ...CampaignPrefillFields
+export const GET_SHARED_CAMPAIGN = gql`
+  ${SHARED_CAMPAIGN_FRAGMENT}
+  query GetSharedCampaign($prefillCode: String!) {
+    getSharedCampaign(prefillCode: $prefillCode) {
+      ...SharedCampaignFields
     }
   }
 `;
 
-export const LIST_MY_CAMPAIGN_PREFILLS = gql`
-  ${CAMPAIGN_PREFILL_FRAGMENT}
-  query ListMyCampaignPrefills {
-    listMyCampaignPrefills {
-      ...CampaignPrefillFields
+export const LIST_MY_SHARED_CAMPAIGNS = gql`
+  ${SHARED_CAMPAIGN_FRAGMENT}
+  query ListMySharedCampaigns {
+    listMySharedCampaigns {
+      ...SharedCampaignFields
     }
   }
 `;
 
-export const FIND_CAMPAIGN_PREFILLS = gql`
-  ${CAMPAIGN_PREFILL_FRAGMENT}
-  query FindCampaignPrefills(
+export const FIND_SHARED_CAMPAIGNS = gql`
+  ${SHARED_CAMPAIGN_FRAGMENT}
+  query FindSharedCampaigns(
     $unitType: String!
     $unitNumber: Int!
     $city: String!
     $state: String!
-    $seasonName: String!
-    $seasonYear: Int!
+    $campaignName: String!
+    $campaignYear: Int!
   ) {
-    findCampaignPrefills(
+    findSharedCampaigns(
       unitType: $unitType
       unitNumber: $unitNumber
       city: $city
       state: $state
-      seasonName: $seasonName
-      seasonYear: $seasonYear
+      campaignName: $campaignName
+      campaignYear: $campaignYear
     ) {
-      ...CampaignPrefillFields
+      ...SharedCampaignFields
     }
   }
 `;
@@ -588,23 +588,23 @@ export const FIND_CAMPAIGN_PREFILLS = gql`
 // Unit Season Catalogs Query (replacement for listUnitCatalogs)
 // ============================================================================
 
-export const LIST_UNIT_SEASON_CATALOGS = gql`
+export const LIST_UNIT_CAMPAIGN_CATALOGS = gql`
   ${CATALOG_FRAGMENT}
-  query ListUnitSeasonCatalogs(
+  query ListUnitCampaignCatalogs(
     $unitType: String!
     $unitNumber: Int!
     $city: String!
     $state: String!
-    $seasonName: String!
-    $seasonYear: Int!
+    $campaignName: String!
+    $campaignYear: Int!
   ) {
-    listUnitSeasonCatalogs(
+    listUnitCampaignCatalogs(
       unitType: $unitType
       unitNumber: $unitNumber
       city: $city
       state: $state
-      seasonName: $seasonName
-      seasonYear: $seasonYear
+      campaignName: $campaignName
+      campaignYear: $campaignYear
     ) {
       ...CatalogFields
     }
@@ -615,26 +615,26 @@ export const LIST_UNIT_SEASON_CATALOGS = gql`
 // Campaign Prefill Mutations
 // ============================================================================
 
-export const CREATE_CAMPAIGN_PREFILL = gql`
-  ${CAMPAIGN_PREFILL_FRAGMENT}
-  mutation CreateCampaignPrefill($input: CreateCampaignPrefillInput!) {
-    createCampaignPrefill(input: $input) {
-      ...CampaignPrefillFields
+export const CREATE_SHARED_CAMPAIGN = gql`
+  ${SHARED_CAMPAIGN_FRAGMENT}
+  mutation CreateSharedCampaign($input: CreateSharedCampaignInput!) {
+    createSharedCampaign(input: $input) {
+      ...SharedCampaignFields
     }
   }
 `;
 
-export const UPDATE_CAMPAIGN_PREFILL = gql`
-  ${CAMPAIGN_PREFILL_FRAGMENT}
-  mutation UpdateCampaignPrefill($input: UpdateCampaignPrefillInput!) {
-    updateCampaignPrefill(input: $input) {
-      ...CampaignPrefillFields
+export const UPDATE_SHARED_CAMPAIGN = gql`
+  ${SHARED_CAMPAIGN_FRAGMENT}
+  mutation UpdateSharedCampaign($input: UpdateSharedCampaignInput!) {
+    updateSharedCampaign(input: $input) {
+      ...SharedCampaignFields
     }
   }
 `;
 
-export const DELETE_CAMPAIGN_PREFILL = gql`
-  mutation DeleteCampaignPrefill($prefillCode: String!) {
-    deleteCampaignPrefill(prefillCode: $prefillCode)
+export const DELETE_SHARED_CAMPAIGN = gql`
+  mutation DeleteSharedCampaign($prefillCode: String!) {
+    deleteSharedCampaign(prefillCode: $prefillCode)
   }
 `;

@@ -26,7 +26,7 @@ import {
   ExpandMore as ExpandMoreIcon,
   ExpandLess as ExpandLessIcon,
 } from "@mui/icons-material";
-import { LIST_ORDERS_BY_SEASON } from "../lib/graphql";
+import { LIST_ORDERS_BY_CAMPAIGN } from "../lib/graphql";
 import { downloadAsCSV, downloadAsXLSX } from "../lib/reportExport";
 
 interface LineItem {
@@ -53,8 +53,8 @@ interface Order {
 }
 
 export const ReportsPage: React.FC = () => {
-  const { seasonId: encodedSeasonId } = useParams<{ seasonId: string }>();
-  const seasonId = encodedSeasonId ? decodeURIComponent(encodedSeasonId) : "";
+  const { campaignId: encodedSeasonId } = useParams<{ campaignId: string }>();
+  const campaignId = encodedSeasonId ? decodeURIComponent(encodedSeasonId) : "";
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("md"));
 
@@ -72,9 +72,9 @@ export const ReportsPage: React.FC = () => {
 
   const { data: ordersData, loading: ordersLoading } = useQuery<{
     listOrdersBySeason: Order[];
-  }>(LIST_ORDERS_BY_SEASON, {
-    variables: { seasonId },
-    skip: !seasonId,
+  }>(LIST_ORDERS_BY_CAMPAIGN, {
+    variables: { campaignId },
+    skip: !campaignId,
   });
 
   const orders = ordersData?.listOrdersBySeason || [];
@@ -184,7 +184,7 @@ export const ReportsPage: React.FC = () => {
                     <Button
                       size="small"
                       startIcon={<DownloadIcon />}
-                      onClick={() => downloadAsCSV(orders, seasonId)}
+                      onClick={() => downloadAsCSV(orders, campaignId)}
                       variant="outlined"
                     >
                       CSV
@@ -192,7 +192,7 @@ export const ReportsPage: React.FC = () => {
                     <Button
                       size="small"
                       startIcon={<DownloadIcon />}
-                      onClick={() => downloadAsXLSX(orders, seasonId)}
+                      onClick={() => downloadAsXLSX(orders, campaignId)}
                       variant="outlined"
                     >
                       XLSX

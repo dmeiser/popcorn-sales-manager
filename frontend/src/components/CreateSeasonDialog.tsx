@@ -25,8 +25,8 @@ interface CreateSeasonDialogProps {
   open: boolean;
   onClose: () => void;
   onSubmit: (
-    seasonName: string,
-    seasonYear: number,
+    campaignName: string,
+    campaignYear: number,
     catalogId: string,
     startDate?: string,
     endDate?: string,
@@ -45,8 +45,8 @@ export const CreateSeasonDialog: React.FC<CreateSeasonDialogProps> = ({
   onClose,
   onSubmit,
 }) => {
-  const [seasonName, setSeasonName] = useState("");
-  const [seasonYear, setSeasonYear] = useState(new Date().getFullYear());
+  const [campaignName, setSeasonName] = useState("");
+  const [campaignYear, setSeasonYear] = useState(new Date().getFullYear());
   const [catalogId, setCatalogId] = useState("");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
@@ -75,13 +75,13 @@ export const CreateSeasonDialog: React.FC<CreateSeasonDialogProps> = ({
   const catalogsLoading = publicLoading || myLoading;
 
   const handleSubmit = async () => {
-    if (!seasonName.trim() || !catalogId) return;
+    if (!campaignName.trim() || !catalogId) return;
 
     setLoading(true);
     try {
       await onSubmit(
-        seasonName.trim(),
-        seasonYear,
+        campaignName.trim(),
+        campaignYear,
         catalogId,
         startDate || undefined,
         endDate || undefined,
@@ -111,7 +111,7 @@ export const CreateSeasonDialog: React.FC<CreateSeasonDialogProps> = ({
     }
   };
 
-  const isFormValid = seasonName.trim() && catalogId;
+  const isFormValid = campaignName.trim() && catalogId;
 
   return (
     <Dialog open={open} onClose={handleClose} maxWidth="sm" fullWidth>
@@ -122,7 +122,7 @@ export const CreateSeasonDialog: React.FC<CreateSeasonDialogProps> = ({
           <TextField
             fullWidth
             label="Season Name"
-            value={seasonName}
+            value={campaignName}
             onChange={(e) => setSeasonName(e.target.value)}
             disabled={loading}
             helperText="Name for this sales season (e.g., Fall 2025, Spring Fundraiser)"
@@ -133,7 +133,7 @@ export const CreateSeasonDialog: React.FC<CreateSeasonDialogProps> = ({
             fullWidth
             label="Year"
             type="number"
-            value={seasonYear}
+            value={campaignYear}
             onChange={(e) => setSeasonYear(parseInt(e.target.value, 10))}
             disabled={loading}
             inputProps={{

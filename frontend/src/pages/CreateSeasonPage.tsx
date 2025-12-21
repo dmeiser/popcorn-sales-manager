@@ -39,25 +39,25 @@ import {
   Info as InfoIcon,
 } from "@mui/icons-material";
 import {
-  GET_CAMPAIGN_PREFILL,
-  FIND_CAMPAIGN_PREFILLS,
+  GET_SHARED_CAMPAIGN,
+  FIND_SHARED_CAMPAIGNS,
   LIST_MY_PROFILES,
   LIST_PUBLIC_CATALOGS,
   LIST_MY_CATALOGS,
-  CREATE_SEASON,
-  LIST_SEASONS_BY_PROFILE,
+  CREATE_CAMPAIGN,
+  LIST_CAMPAIGNS_BY_PROFILE,
 } from "../lib/graphql";
 
 // Types
-interface CampaignPrefill {
+interface SharedCampaign {
   prefillCode: string;
   catalogId: string;
   catalog: {
     catalogId: string;
     catalogName: string;
   };
-  seasonName: string;
-  seasonYear: number;
+  campaignName: string;
+  campaignYear: number;
   startDate: string | null;
   endDate: string | null;
   unitType: string;
@@ -162,8 +162,8 @@ export const CreateSeasonPage: React.FC = () => {
 
   // Form state
   const [profileId, setProfileId] = useState("");
-  const [seasonName, setSeasonName] = useState("Fall");
-  const [seasonYear, setSeasonYear] = useState(new Date().getFullYear());
+  const [campaignName, setSeasonName] = useState("Fall");
+  const [campaignYear, setSeasonYear] = useState(new Date().getFullYear());
   const [catalogId, setCatalogId] = useState("");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
@@ -185,8 +185,8 @@ export const CreateSeasonPage: React.FC = () => {
     data: prefillData,
     loading: prefillLoading,
     error: prefillError,
-  } = useQuery<{ getCampaignPrefill: CampaignPrefill | null }>(
-    GET_CAMPAIGN_PREFILL,
+  } = useQuery<{ getCampaignPrefill: SharedCampaign | null }>(
+    GET_SHARED_CAMPAIGN,
     {
       variables: { prefillCode: effectivePrefillCode },
       skip: !effectivePrefillCode,
@@ -240,22 +240,22 @@ export const CreateSeasonPage: React.FC = () => {
 
   // Lazy query for prefill discovery in manual mode
   const [findPrefills, { data: discoveredPrefillsData }] = useLazyQuery<{
-    findCampaignPrefills: CampaignPrefill[];
-  }>(FIND_CAMPAIGN_PREFILLS);
+    findCampaignPrefills: SharedCampaign[];
+  }>(FIND_SHARED_CAMPAIGNS);
 
   const discoveredPrefills = discoveredPrefillsData?.findCampaignPrefills || [];
 
   // Create season mutation
   const [createSeason] = useMutation<{
     createSeason: {
-      seasonId: string;
-      seasonName: string;
-      seasonYear: number;
+      campaignId: string;
+      campaignName: string;
+      campaignYear: number;
     };
-  }>(CREATE_SEASON, {
+  }>(CREATE_CAMPAIGN, {
     refetchQueries: [
       { query: LIST_MY_PROFILES },
-      { query: LIST_SEASONS_BY_PROFILE, variables: { profileId } },
+      { query: LIST_CAMPAIGNS_BY_PROFILE, variables: { profileId } },
     ],
   });
 
@@ -295,8 +295,8 @@ export const CreateSeasonPage: React.FC = () => {
   // Set form values from prefill when loaded
   useEffect(() => {
     if (prefill && prefill.isActive) {
-      setSeasonName(prefill.seasonName);
-      setSeasonYear(prefill.seasonYear);
+      setSeasonName(prefill.campaignName);
+      setSeasonYear(prefill.campaignYear);
       setCatalogId(prefill.catalogId);
       setStartDate(prefill.startDate || "");
       setEndDate(prefill.endDate || "");
@@ -315,8 +315,8 @@ export const CreateSeasonPage: React.FC = () => {
       unitNumber: string;
       city: string;
       state: string;
-      seasonName: string;
-      seasonYear: number;
+      campaignName: string;
+      campaignYear: number;
     }) => {
       clearTimeout(timeoutId);
       timeoutId = setTimeout(() => {
@@ -325,8 +325,8 @@ export const CreateSeasonPage: React.FC = () => {
           params.unitNumber &&
           params.city &&
           params.state &&
-          params.seasonName &&
-          params.seasonYear
+          params.campaignName &&
+          params.campaignYear
         ) {
           findPrefills({
             variables: {
@@ -334,8 +334,8 @@ export const CreateSeasonPage: React.FC = () => {
               unitNumber: parseInt(params.unitNumber, 10),
               city: params.city,
               state: params.state,
-              seasonName: params.seasonName,
-              seasonYear: params.seasonYear,
+              campaignName: params.campaignName,
+              campaignYear: params.campaignYear,
             },
           });
         }
@@ -351,8 +351,8 @@ export const CreateSeasonPage: React.FC = () => {
         unitNumber,
         city,
         state,
-        seasonName,
-        seasonYear,
+        campaignName,
+        campaignYear,
       });
     }
   }, [
@@ -361,8 +361,8 @@ export const CreateSeasonPage: React.FC = () => {
     unitNumber,
     city,
     state,
-    seasonName,
-    seasonYear,
+    campaignName,
+    campaignYear,
     debouncedFindPrefills,
   ]);
 
@@ -409,8 +409,8 @@ export const CreateSeasonPage: React.FC = () => {
         input.shareWithCreator = shareWithCreator;
       } else {
         // Manual mode - include all fields
-        input.seasonName = seasonName;
-        input.seasonYear = seasonYear;
+        input.campaignName = campaignName;
+        input.campaignYear = campaignYear;
         input.catalogId = catalogId;
 
         if (unitType && unitNumber && city && state) {
@@ -439,7 +439,7 @@ export const CreateSeasonPage: React.FC = () => {
           });
         }
         navigate(
-          `/scouts/${encodeURIComponent(profileId)}/campaigns/${encodeURIComponent(createdSeason.seasonId)}`,
+          `/scouts/${encodeURIComponent(profileId)}/campaigns/${encodeURIComponent(createdSeason.campaignId)}`,
         );
       }
     } catch (error) {
@@ -508,7 +508,7 @@ export const CreateSeasonPage: React.FC = () => {
 
   const isFormValid = isPrefillMode
     ? !!profileId
-    : !!profileId && !!seasonName && !!catalogId;
+    : !!profileId && !!campaignName && !!catalogId;
 
   return (
     <Box maxWidth="md" mx="auto" p={3}>
@@ -540,7 +540,7 @@ export const CreateSeasonPage: React.FC = () => {
                   sx={{ mt: 1 }}
                 >
                   {prefill.unitType} {prefill.unitNumber} • {prefill.city},{" "}
-                  {prefill.state} • {prefill.seasonName} {prefill.seasonYear}
+                  {prefill.state} • {prefill.campaignName} {prefill.campaignYear}
                 </Typography>
               </Box>
             </Stack>
@@ -566,7 +566,7 @@ export const CreateSeasonPage: React.FC = () => {
           }
         >
           <AlertTitle>Existing Campaign Found!</AlertTitle>
-          We found an existing {seasonName} {seasonYear} campaign for {unitType}{" "}
+          We found an existing {campaignName} {campaignYear} campaign for {unitType}{" "}
           {unitNumber} in {city}, {state} created by{" "}
           {discoveredPrefills[0].createdByName}. Would you like to use their
           settings?
@@ -617,13 +617,13 @@ export const CreateSeasonPage: React.FC = () => {
                 <TextField
                   fullWidth
                   label="Season"
-                  value={prefill.seasonName}
+                  value={prefill.campaignName}
                   disabled
                 />
                 <TextField
                   fullWidth
                   label="Year"
-                  value={prefill.seasonYear}
+                  value={prefill.campaignYear}
                   disabled
                 />
               </Stack>
@@ -666,7 +666,7 @@ export const CreateSeasonPage: React.FC = () => {
                 <FormControl fullWidth disabled={submitting}>
                   <InputLabel>Season Name *</InputLabel>
                   <Select
-                    value={seasonName}
+                    value={campaignName}
                     onChange={(e) => setSeasonName(e.target.value)}
                     label="Season Name *"
                   >
@@ -681,7 +681,7 @@ export const CreateSeasonPage: React.FC = () => {
                   fullWidth
                   label="Year *"
                   type="number"
-                  value={seasonYear}
+                  value={campaignYear}
                   onChange={(e) => setSeasonYear(parseInt(e.target.value, 10))}
                   disabled={submitting}
                   inputProps={{

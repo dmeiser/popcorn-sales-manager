@@ -74,7 +74,7 @@ interface OrderEditorDialogProps {
   onClose: () => void;
   onComplete: () => void;
   order: Order | null;
-  seasonId: string;
+  campaignId: string;
   products: Product[];
 }
 
@@ -88,7 +88,7 @@ export const OrderEditorDialog: React.FC<OrderEditorDialogProps> = ({
   onClose,
   onComplete,
   order,
-  seasonId,
+  campaignId,
   products,
 }) => {
   const { profileId } = useParams<{ profileId: string }>();
@@ -308,7 +308,7 @@ export const OrderEditorDialog: React.FC<OrderEditorDialogProps> = ({
               input: {
                 ...input,
                 profileId,
-                seasonId,
+                campaignId,
               },
             },
             null,
@@ -321,7 +321,7 @@ export const OrderEditorDialog: React.FC<OrderEditorDialogProps> = ({
             input: {
               ...input,
               profileId,
-              seasonId,
+              campaignId,
             },
           },
         });

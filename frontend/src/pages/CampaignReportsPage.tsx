@@ -37,19 +37,19 @@ import {
 } from "@mui/icons-material";
 import {
   GET_UNIT_REPORT,
-  LIST_MY_CAMPAIGN_PREFILLS,
+  LIST_MY_SHARED_CAMPAIGNS,
 } from "../lib/graphql";
 import * as XLSX from "xlsx";
 
-interface CampaignPrefill {
+interface SharedCampaign {
   prefillCode: string;
   catalogId: string;
   catalog: {
     catalogId: string;
     catalogName: string;
   };
-  seasonName: string;
-  seasonYear: number;
+  campaignName: string;
+  campaignYear: number;
   unitType: string;
   unitNumber: number;
   city: string;
@@ -85,8 +85,8 @@ interface UnitSellerSummary {
 interface UnitReport {
   unitType: string;
   unitNumber: number;
-  seasonName: string;
-  seasonYear: number;
+  campaignName: string;
+  campaignYear: number;
   sellers: UnitSellerSummary[];
   totalSales: number;
   totalOrders: number;
@@ -100,8 +100,8 @@ export const CampaignReportsPage: React.FC = () => {
 
   // Fetch user's shared campaigns
   const { data: prefillsData, loading: prefillsLoading } = useQuery<{
-    listMyCampaignPrefills: CampaignPrefill[];
-  }>(LIST_MY_CAMPAIGN_PREFILLS);
+    listMyCampaignPrefills: SharedCampaign[];
+  }>(LIST_MY_SHARED_CAMPAIGNS);
 
   const campaigns = prefillsData?.listMyCampaignPrefills?.filter(
     (p) => p.isActive
@@ -128,8 +128,8 @@ export const CampaignReportsPage: React.FC = () => {
       unitNumber: selectedCampaign?.unitNumber,
       city: selectedCampaign?.city,
       state: selectedCampaign?.state,
-      seasonName: selectedCampaign?.seasonName,
-      seasonYear: selectedCampaign?.seasonYear,
+      campaignName: selectedCampaign?.campaignName,
+      campaignYear: selectedCampaign?.campaignYear,
       catalogId: selectedCampaign?.catalogId,
     },
     skip: !canGenerateReport,
@@ -212,7 +212,7 @@ export const CampaignReportsPage: React.FC = () => {
     XLSX.utils.book_append_sheet(wb, detailedSheet, "Detailed Orders");
 
     // Download
-    const fileName = `${report.unitType}_${report.unitNumber}_${report.seasonName}_${report.seasonYear}_Report.xlsx`;
+    const fileName = `${report.unitType}_${report.unitNumber}_${report.campaignName}_${report.campaignYear}_Report.xlsx`;
     XLSX.writeFile(wb, fileName);
   };
 
@@ -258,7 +258,7 @@ export const CampaignReportsPage: React.FC = () => {
                       value={campaign.prefillCode}
                     >
                       {campaign.unitType} {campaign.unitNumber} -{" "}
-                      {campaign.seasonName} {campaign.seasonYear} (
+                      {campaign.campaignName} {campaign.campaignYear} (
                       {campaign.catalog.catalogName})
                       {campaign.description && ` - ${campaign.description}`}
                     </MenuItem>
@@ -280,8 +280,8 @@ export const CampaignReportsPage: React.FC = () => {
                         {selectedCampaign.state}
                       </Typography>
                       <Typography variant="body2">
-                        <strong>Season:</strong> {selectedCampaign.seasonName}{" "}
-                        {selectedCampaign.seasonYear}
+                        <strong>Season:</strong> {selectedCampaign.campaignName}{" "}
+                        {selectedCampaign.campaignYear}
                       </Typography>
                       <Typography variant="body2">
                         <strong>Catalog:</strong>{" "}
@@ -323,8 +323,8 @@ export const CampaignReportsPage: React.FC = () => {
                   alignItems="center"
                 >
                   <Typography variant="h5">
-                    {report.unitType} {report.unitNumber} - {report.seasonName}{" "}
-                    {report.seasonYear}
+                    {report.unitType} {report.unitNumber} - {report.campaignName}{" "}
+                    {report.campaignYear}
                   </Typography>
                   <Button
                     variant="outlined"
@@ -355,7 +355,7 @@ export const CampaignReportsPage: React.FC = () => {
 
                 {report.sellers.length === 0 && (
                   <Alert severity="info">
-                    No sales data found for this unit in {report.seasonYear}.
+                    No sales data found for this unit in {report.campaignYear}.
                     Make sure sellers have set their unit type and number on
                     their profiles.
                   </Alert>

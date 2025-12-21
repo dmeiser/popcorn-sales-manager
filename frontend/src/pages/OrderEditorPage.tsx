@@ -37,7 +37,7 @@ import {
   CREATE_ORDER,
   UPDATE_ORDER,
   GET_ORDER,
-  GET_SEASON,
+  GET_CAMPAIGN,
   GET_PROFILE,
 } from "../lib/graphql";
 
@@ -57,7 +57,7 @@ interface Catalog {
 }
 
 interface SeasonData {
-  seasonId: string;
+  campaignId: string;
   catalog?: Catalog;
 }
 
@@ -92,13 +92,13 @@ interface OrderData {
 export const OrderEditorPage: React.FC = () => {
   const {
     profileId: encodedProfileId,
-    seasonId: encodedSeasonId,
+    campaignId: encodedSeasonId,
     orderId: encodedOrderId,
-  } = useParams<{ profileId: string; seasonId: string; orderId?: string }>();
+  } = useParams<{ profileId: string; campaignId: string; orderId?: string }>();
   const profileId = encodedProfileId
     ? decodeURIComponent(encodedProfileId)
     : "";
-  const seasonId = encodedSeasonId ? decodeURIComponent(encodedSeasonId) : "";
+  const campaignId = encodedSeasonId ? decodeURIComponent(encodedSeasonId) : "";
   const orderId = encodedOrderId ? decodeURIComponent(encodedOrderId) : null;
   const navigate = useNavigate();
   const isEditing = !!orderId;
@@ -119,9 +119,9 @@ export const OrderEditorPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
 
   // Fetch season data for products
-  const { data: seasonData } = useQuery<{ getSeason: SeasonData }>(GET_SEASON, {
-    variables: { seasonId },
-    skip: !seasonId,
+  const { data: seasonData } = useQuery<{ getCampaign: SeasonData }>(GET_CAMPAIGN, {
+    variables: { campaignId },
+    skip: !campaignId,
   });
 
   // Fetch profile for permissions
@@ -141,7 +141,7 @@ export const OrderEditorPage: React.FC = () => {
     skip: !orderId,
   });
 
-  const products: Product[] = seasonData?.getSeason?.catalog?.products || [];
+  const products: Product[] = seasonData?.getCampaign?.catalog?.products || [];
   const profile = profileData?.getProfile;
   const hasWritePermission =
     profile?.isOwner || profile?.permissions?.includes("WRITE");
@@ -246,7 +246,7 @@ export const OrderEditorPage: React.FC = () => {
       } else {
         const createInput = {
           profileId,
-          seasonId,
+          campaignId,
           customerName: customerName.trim(),
           customerPhone: customerPhone.trim() || null,
           customerAddress:
@@ -270,7 +270,7 @@ export const OrderEditorPage: React.FC = () => {
 
       // Navigate back to orders page
       navigate(
-        `/scouts/${encodeURIComponent(profileId)}/campaigns/${encodeURIComponent(seasonId)}/orders`,
+        `/scouts/${encodeURIComponent(profileId)}/campaigns/${encodeURIComponent(campaignId)}/orders`,
       );
     } catch (err: unknown) {
       const error = err as { message?: string };
@@ -281,7 +281,7 @@ export const OrderEditorPage: React.FC = () => {
 
   const handleCancel = () => {
     navigate(
-      `/scouts/${encodeURIComponent(profileId)}/campaigns/${encodeURIComponent(seasonId)}/orders`,
+      `/scouts/${encodeURIComponent(profileId)}/campaigns/${encodeURIComponent(campaignId)}/orders`,
     );
   };
 

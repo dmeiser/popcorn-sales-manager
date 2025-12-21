@@ -235,7 +235,7 @@ class TestRequestSeasonReport:
         """Test that requesting report for non-existent season returns error."""
         event = {
             **appsync_event,
-            "arguments": {"input": {"seasonId": "SEASON#nonexistent", "format": "xlsx"}},
+            "arguments": {"input": {"seasonId": "CAMPAIGN#nonexistent", "format": "xlsx"}},
         }
 
         # Act

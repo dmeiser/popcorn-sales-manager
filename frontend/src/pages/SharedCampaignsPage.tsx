@@ -41,21 +41,21 @@ import {
 } from "@mui/icons-material";
 import QRCode from "qrcode";
 import {
-  LIST_MY_CAMPAIGN_PREFILLS,
-  UPDATE_CAMPAIGN_PREFILL,
-  DELETE_CAMPAIGN_PREFILL,
+  LIST_MY_SHARED_CAMPAIGNS,
+  UPDATE_SHARED_CAMPAIGN,
+  DELETE_SHARED_CAMPAIGN,
 } from "../lib/graphql";
 import { EditSharedCampaignDialog } from "../components/EditSharedCampaignDialog";
 
-interface CampaignPrefill {
+interface SharedCampaign {
   prefillCode: string;
   catalogId: string;
   catalog?: {
     catalogId: string;
     catalogName: string;
   };
-  seasonName: string;
-  seasonYear: number;
+  campaignName: string;
+  campaignYear: number;
   startDate?: string;
   endDate?: string;
   unitType: string;
@@ -75,25 +75,25 @@ const BASE_URL = window.location.origin;
 
 export const SharedCampaignsPage: React.FC = () => {
   const navigate = useNavigate();
-  const [editingPrefill, setEditingPrefill] = useState<CampaignPrefill | null>(
+  const [editingPrefill, setEditingPrefill] = useState<SharedCampaign | null>(
     null,
   );
   const [deactivateDialogOpen, setDeactivateDialogOpen] = useState(false);
   const [prefillToDeactivate, setPrefillToDeactivate] =
-    useState<CampaignPrefill | null>(null);
+    useState<SharedCampaign | null>(null);
   const [qrDialogOpen, setQrDialogOpen] = useState(false);
   const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string | null>(null);
-  const [qrPrefill, setQrPrefill] = useState<CampaignPrefill | null>(null);
+  const [qrPrefill, setQrPrefill] = useState<SharedCampaign | null>(null);
   const [snackbarOpen, setSnackbarOpen] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState("");
 
   // Fetch user's campaign prefills
   const { data, loading, error, refetch } = useQuery<{
-    listMyCampaignPrefills: CampaignPrefill[];
-  }>(LIST_MY_CAMPAIGN_PREFILLS);
+    listMyCampaignPrefills: SharedCampaign[];
+  }>(LIST_MY_SHARED_CAMPAIGNS);
 
   // Update mutation (for editing)
-  const [updatePrefill] = useMutation(UPDATE_CAMPAIGN_PREFILL, {
+  const [updatePrefill] = useMutation(UPDATE_SHARED_CAMPAIGN, {
     onCompleted: () => {
       refetch();
       setEditingPrefill(null);
@@ -102,7 +102,7 @@ export const SharedCampaignsPage: React.FC = () => {
   });
 
   // Delete mutation (soft delete / deactivate)
-  const [deletePrefill] = useMutation(DELETE_CAMPAIGN_PREFILL, {
+  const [deletePrefill] = useMutation(DELETE_SHARED_CAMPAIGN, {
     onCompleted: () => {
       refetch();
       setDeactivateDialogOpen(false);
@@ -135,7 +135,7 @@ export const SharedCampaignsPage: React.FC = () => {
     }
   };
 
-  const handleShowQRCode = async (prefill: CampaignPrefill) => {
+  const handleShowQRCode = async (prefill: SharedCampaign) => {
     const link = getShortLink(prefill.prefillCode);
     try {
       const qrDataUrl = await QRCode.toDataURL(link, {
@@ -169,11 +169,11 @@ export const SharedCampaignsPage: React.FC = () => {
     showSnackbar("QR code downloaded!");
   };
 
-  const handleEdit = (prefill: CampaignPrefill) => {
+  const handleEdit = (prefill: SharedCampaign) => {
     setEditingPrefill(prefill);
   };
 
-  const handleDeactivate = (prefill: CampaignPrefill) => {
+  const handleDeactivate = (prefill: SharedCampaign) => {
     setPrefillToDeactivate(prefill);
     setDeactivateDialogOpen(true);
   };
@@ -240,7 +240,7 @@ export const SharedCampaignsPage: React.FC = () => {
             My Shared Campaigns
           </Typography>
           <Typography variant="body2" color="text.secondary">
-            Create shareable links that pre-fill campaign creation for your unit
+            Create shareable links that let your unit members create campaigns quickly with preset information for your unit.
             members. ({activePrefillCount}/{MAX_PREFILLS} active)
           </Typography>
         </Box>
@@ -270,7 +270,7 @@ export const SharedCampaignsPage: React.FC = () => {
             No Shared Campaigns Yet
           </Typography>
           <Typography color="text.secondary" sx={{ mb: 3 }}>
-            Create a shared campaign to generate shareable links for your unit
+            Create a shared campaign to generate shareable links that simplify campaign creation for your unit members.
             members.
           </Typography>
           <Button
@@ -320,7 +320,7 @@ export const SharedCampaignsPage: React.FC = () => {
                     {prefill.catalog?.catalogName || "Unknown Catalog"}
                   </TableCell>
                   <TableCell>
-                    {prefill.seasonName} {prefill.seasonYear}
+                    {prefill.campaignName} {prefill.campaignYear}
                   </TableCell>
                   <TableCell>
                     {prefill.unitType} {prefill.unitNumber}

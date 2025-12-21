@@ -20,10 +20,10 @@ import {
 } from "@mui/icons-material";
 
 interface SeasonCardProps {
-  seasonId: string;
+  campaignId: string;
   profileId: string;
-  seasonName: string;
-  seasonYear: number;
+  campaignName: string;
+  campaignYear: number;
   startDate?: string;
   endDate?: string;
   totalOrders?: number;
@@ -31,10 +31,10 @@ interface SeasonCardProps {
 }
 
 export const SeasonCard: React.FC<SeasonCardProps> = ({
-  seasonId,
+  campaignId,
   profileId,
-  seasonName,
-  seasonYear,
+  campaignName,
+  campaignYear,
   endDate,
   totalOrders,
   totalRevenue,
@@ -43,7 +43,7 @@ export const SeasonCard: React.FC<SeasonCardProps> = ({
 
   const handleViewSeason = () => {
     navigate(
-      `/scouts/${encodeURIComponent(profileId)}/campaigns/${encodeURIComponent(seasonId)}`,
+      `/scouts/${encodeURIComponent(profileId)}/campaigns/${encodeURIComponent(campaignId)}`,
     );
   };
 
@@ -62,7 +62,7 @@ export const SeasonCard: React.FC<SeasonCardProps> = ({
               mb={1}
             >
               <Typography variant="h6" component="h3">
-                {seasonName} {seasonYear}
+                {campaignName} {campaignYear}
               </Typography>
               {isActive && <Chip label="Active" color="success" size="small" />}
             </Stack>

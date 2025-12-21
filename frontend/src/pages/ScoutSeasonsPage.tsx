@@ -25,14 +25,14 @@ import { SeasonCard } from "../components/SeasonCard";
 import { CreateSeasonDialog } from "../components/CreateSeasonDialog";
 import {
   GET_PROFILE,
-  LIST_SEASONS_BY_PROFILE,
-  CREATE_SEASON,
+  LIST_CAMPAIGNS_BY_PROFILE,
+  CREATE_CAMPAIGN,
 } from "../lib/graphql";
 
-interface Season {
-  seasonId: string;
-  seasonName: string;
-  seasonYear: number;
+interface Campaign {
+  campaignId: string;
+  campaignName: string;
+  campaignYear: number;
   startDate: string;
   endDate?: string;
   catalogId: string;
@@ -71,21 +71,21 @@ export const ScoutSeasonsPage: React.FC = () => {
     loading: seasonsLoading,
     error: seasonsError,
     refetch: refetchSeasons,
-  } = useQuery<{ listSeasonsByProfile: Season[] }>(LIST_SEASONS_BY_PROFILE, {
+  } = useQuery<{ listCampaignsByProfile: Campaign[] }>(LIST_CAMPAIGNS_BY_PROFILE, {
     variables: { profileId },
     skip: !profileId,
   });
 
   // Create season mutation
-  const [createSeason] = useMutation(CREATE_SEASON, {
+  const [createSeason] = useMutation(CREATE_CAMPAIGN, {
     onCompleted: () => {
       refetchSeasons();
     },
   });
 
   const handleCreateSeason = async (
-    seasonName: string,
-    seasonYear: number,
+    campaignName: string,
+    campaignYear: number,
     catalogId: string,
     startDate?: string,
     endDate?: string,
@@ -96,8 +96,8 @@ export const ScoutSeasonsPage: React.FC = () => {
       variables: {
         input: {
           profileId,
-          seasonName,
-          seasonYear,
+          campaignName,
+          campaignYear,
           catalogId,
           ...(startDate && { startDate: new Date(startDate).toISOString() }),
           ...(endDate && { endDate: new Date(endDate).toISOString() }),
@@ -107,7 +107,7 @@ export const ScoutSeasonsPage: React.FC = () => {
   };
 
   const profile = profileData?.getProfile;
-  const seasons = seasonsData?.listSeasonsByProfile || [];
+  const seasons = seasonsData?.listCampaignsByProfile || [];
   const loading = profileLoading || seasonsLoading;
   const error = profileError || seasonsError;
 
@@ -192,11 +192,11 @@ export const ScoutSeasonsPage: React.FC = () => {
       {seasons.length > 0 && (
         <Grid container spacing={2}>
           {seasons.map((season) => (
-            <Grid key={season.seasonId} size={{ xs: 12, sm: 6, md: 4 }}>
+            <Grid key={season.campaignId} size={{ xs: 12, sm: 6, md: 4 }}>
               <SeasonCard
-                seasonId={season.seasonId}
-                seasonName={season.seasonName}
-                seasonYear={season.seasonYear}
+                campaignId={season.campaignId}
+                campaignName={season.campaignName}
+                campaignYear={season.campaignYear}
                 totalOrders={season.totalOrders}
                 totalRevenue={season.totalRevenue}
                 profileId={profileId}

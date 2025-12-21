@@ -73,11 +73,11 @@ export const AcceptInvitePage: React.FC = () => {
           <Stack spacing={3}>
             <Box>
               <Typography variant="h4" component="h1" gutterBottom>
-                Accept Profile Invite
+                Accept Scout Profile Invite
               </Typography>
               <Typography variant="body2" color="text.secondary">
-                Enter the invite code you received to gain access to a seller
-                profile
+                Enter the invite code you received to gain access to a Scout
+                Profile
               </Typography>
             </Box>
 

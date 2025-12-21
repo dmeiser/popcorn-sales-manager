@@ -31,7 +31,7 @@ import CampaignIcon from "@mui/icons-material/Campaign";
 import { useAuth } from "../contexts/AuthContext";
 import { Toast } from "./Toast";
 import { Outlet } from "react-router-dom";
-import { LIST_MY_CAMPAIGN_PREFILLS } from "../lib/graphql";
+import { LIST_MY_SHARED_CAMPAIGNS } from "../lib/graphql";
 
 const DRAWER_WIDTH = 240;
 
@@ -48,7 +48,7 @@ export const AppLayout: React.FC<{ children?: React.ReactNode }> = ({
   // Check if user has any shared campaigns
   const { data: campaignsData } = useQuery<{
     listMyCampaignPrefills: { prefillCode: string; isActive: boolean }[];
-  }>(LIST_MY_CAMPAIGN_PREFILLS);
+  }>(LIST_MY_SHARED_CAMPAIGNS);
 
   const hasSharedCampaigns = 
     (campaignsData?.listMyCampaignPrefills?.filter((c: { isActive: boolean }) => c.isActive)?.length ?? 0) > 0;

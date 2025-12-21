@@ -79,7 +79,7 @@ def request_season_report(event: Dict[str, Any], context: Any) -> Dict[str, Any]
         season = _get_season(seasons_table, season_id)
 
         if not season:
-            raise AppError(ErrorCode.NOT_FOUND, f"Season {season_id} not found")
+            raise AppError(ErrorCode.NOT_FOUND, f"Campaign {season_id} not found")
 
         profile_id = season["profileId"]
 
@@ -147,7 +147,7 @@ def request_season_report(event: Dict[str, Any], context: Any) -> Dict[str, Any]
 
 def _get_season(table: Any, season_id: str) -> Dict[str, Any] | None:
     """Get season by ID (V2: Query seasonId-index GSI since PK=profileId, SK=seasonId)."""
-    # Season ID format: SEASON#uuid
+    # Campaign ID format: CAMPAIGN#uuid
     # V2: Seasons are stored with PK=profileId, SK=seasonId
     # Use seasonId-index GSI for lookup by seasonId
     response = table.query(

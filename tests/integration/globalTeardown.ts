@@ -21,9 +21,9 @@ dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 const dynamodb = new DynamoDBClient({ region: 'us-east-1' });
 
 // Table names from environment or defaults
-const PREFILLS_TABLE = process.env.PREFILLS_TABLE_NAME || 'kernelworx-campaign-prefills-ue1-dev';
+const PREFILLS_TABLE = process.env.PREFILLS_TABLE_NAME || 'kernelworx-shared-campaigns-ue1-dev';
 const PROFILES_TABLE = process.env.PROFILES_TABLE_NAME || 'kernelworx-profiles-v2-ue1-dev';
-const SEASONS_TABLE = process.env.SEASONS_TABLE_NAME || 'kernelworx-seasons-v2-ue1-dev';
+const SEASONS_TABLE = process.env.SEASONS_TABLE_NAME || 'kernelworx-campaigns-v2-ue1-dev';
 const ORDERS_TABLE = process.env.ORDERS_TABLE_NAME || 'kernelworx-orders-v2-ue1-dev';
 const CATALOGS_TABLE = process.env.CATALOGS_TABLE_NAME || 'kernelworx-catalogs-ue1-dev';
 const SHARES_TABLE = process.env.SHARES_TABLE_NAME || 'kernelworx-shares-v2-ue1-dev';

@@ -10,17 +10,17 @@ import { MemoryRouter, Routes, Route } from "react-router-dom";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { SeasonSettingsPage } from "../src/pages/SeasonSettingsPage";
 import {
-  GET_SEASON,
-  UPDATE_SEASON,
+  GET_CAMPAIGN,
+  UPDATE_CAMPAIGN,
   LIST_PUBLIC_CATALOGS,
   LIST_MY_CATALOGS,
 } from "../src/lib/graphql";
 
 // Mock season data
 const mockSeasonWithPrefill = {
-  seasonId: "season-123",
-  seasonName: "Fall",
-  seasonYear: 2025,
+  campaignId: "season-123",
+  campaignName: "Fall",
+  campaignYear: 2025,
   startDate: "2025-09-01T00:00:00.000Z",
   endDate: "2025-12-01T23:59:59.999Z",
   catalogId: "catalog-1",
@@ -33,9 +33,9 @@ const mockSeasonWithPrefill = {
 };
 
 const mockSeasonWithoutPrefill = {
-  seasonId: "season-456",
-  seasonName: "Spring",
-  seasonYear: 2025,
+  campaignId: "season-456",
+  campaignName: "Spring",
+  campaignYear: 2025,
   startDate: "2025-03-01T00:00:00.000Z",
   endDate: "2025-06-01T23:59:59.999Z",
   catalogId: "catalog-1",
@@ -51,12 +51,12 @@ const mockCatalogs = [
 const createMocks = (season: typeof mockSeasonWithPrefill | typeof mockSeasonWithoutPrefill): any[] => [
   {
     request: {
-      query: GET_SEASON,
-      variables: { seasonId: season.seasonId },
+      query: GET_CAMPAIGN,
+      variables: { campaignId: season.campaignId },
     },
     result: {
       data: {
-        getSeason: season,
+        getCampaign: season,
       },
     },
   },
@@ -82,13 +82,13 @@ const createMocks = (season: typeof mockSeasonWithPrefill | typeof mockSeasonWit
   },
 ];
 
-const renderWithProviders = (mocks: any[], seasonId: string, profileId: string) => {
+const renderWithProviders = (mocks: any[], campaignId: string, profileId: string) => {
   return render(
     <MockedProvider mocks={mocks}>
-      <MemoryRouter initialEntries={[`/scouts/${profileId}/campaigns/${seasonId}/settings`]}>
+      <MemoryRouter initialEntries={[`/scouts/${profileId}/campaigns/${campaignId}/settings`]}>
         <Routes>
           <Route
-            path="/scouts/:profileId/campaigns/:seasonId/settings"
+            path="/scouts/:profileId/campaigns/:campaignId/settings"
             element={<SeasonSettingsPage />}
           />
         </Routes>
@@ -105,7 +105,7 @@ describe("SeasonSettingsPage", () => {
   describe("Prefill warning display", () => {
     it("displays warning for prefill-created seasons", async () => {
       const mocks = createMocks(mockSeasonWithPrefill);
-      renderWithProviders(mocks, mockSeasonWithPrefill.seasonId, mockSeasonWithPrefill.profileId);
+      renderWithProviders(mocks, mockSeasonWithPrefill.campaignId, mockSeasonWithPrefill.profileId);
 
       await waitFor(() => {
         expect(screen.getByText("Shared Campaign")).toBeInTheDocument();
@@ -118,7 +118,7 @@ describe("SeasonSettingsPage", () => {
 
     it("does not display warning for regular seasons", async () => {
       const mocks = createMocks(mockSeasonWithoutPrefill);
-      renderWithProviders(mocks, mockSeasonWithoutPrefill.seasonId, mockSeasonWithoutPrefill.profileId);
+      renderWithProviders(mocks, mockSeasonWithoutPrefill.campaignId, mockSeasonWithoutPrefill.profileId);
 
       await waitFor(() => {
         expect(screen.getByText("Season Settings")).toBeInTheDocument();
@@ -131,7 +131,7 @@ describe("SeasonSettingsPage", () => {
   describe("Confirmation dialog for unit-related changes", () => {
     it("shows confirmation dialog when changing season name on prefill season", async () => {
       const mocks = createMocks(mockSeasonWithPrefill);
-      renderWithProviders(mocks, mockSeasonWithPrefill.seasonId, mockSeasonWithPrefill.profileId);
+      renderWithProviders(mocks, mockSeasonWithPrefill.campaignId, mockSeasonWithPrefill.profileId);
 
       // Wait for form to load
       await waitFor(() => {
@@ -164,11 +164,11 @@ describe("SeasonSettingsPage", () => {
     it("does not show confirmation for date changes on prefill season", async () => {
       const updateMock = {
         request: {
-          query: UPDATE_SEASON,
+          query: UPDATE_CAMPAIGN,
           variables: {
             input: {
-              seasonId: mockSeasonWithPrefill.seasonId,
-              seasonName: mockSeasonWithPrefill.seasonName,
+              campaignId: mockSeasonWithPrefill.campaignId,
+              campaignName: mockSeasonWithPrefill.campaignName,
               startDate: "2025-09-15T00:00:00.000Z",
               endDate: "2025-12-01T23:59:59.999Z",
               catalogId: mockSeasonWithPrefill.catalogId,
@@ -183,7 +183,7 @@ describe("SeasonSettingsPage", () => {
       };
 
       const mocks = [...createMocks(mockSeasonWithPrefill), updateMock];
-      renderWithProviders(mocks, mockSeasonWithPrefill.seasonId, mockSeasonWithPrefill.profileId);
+      renderWithProviders(mocks, mockSeasonWithPrefill.campaignId, mockSeasonWithPrefill.profileId);
 
       // Wait for form to load
       await waitFor(() => {
@@ -207,11 +207,11 @@ describe("SeasonSettingsPage", () => {
     it("does not show confirmation for regular seasons", async () => {
       const updateMock = {
         request: {
-          query: UPDATE_SEASON,
+          query: UPDATE_CAMPAIGN,
           variables: {
             input: {
-              seasonId: mockSeasonWithoutPrefill.seasonId,
-              seasonName: "Winter",
+              campaignId: mockSeasonWithoutPrefill.campaignId,
+              campaignName: "Winter",
               startDate: "2025-03-01T00:00:00.000Z",
               endDate: "2025-06-01T23:59:59.999Z",
               catalogId: mockSeasonWithoutPrefill.catalogId,
@@ -220,13 +220,13 @@ describe("SeasonSettingsPage", () => {
         },
         result: {
           data: {
-            updateSeason: { ...mockSeasonWithoutPrefill, seasonName: "Winter" },
+            updateSeason: { ...mockSeasonWithoutPrefill, campaignName: "Winter" },
           },
         },
       };
 
       const mocks = [...createMocks(mockSeasonWithoutPrefill), updateMock];
-      renderWithProviders(mocks, mockSeasonWithoutPrefill.seasonId, mockSeasonWithoutPrefill.profileId);
+      renderWithProviders(mocks, mockSeasonWithoutPrefill.campaignId, mockSeasonWithoutPrefill.profileId);
 
       // Wait for form to load
       await waitFor(() => {
@@ -249,7 +249,7 @@ describe("SeasonSettingsPage", () => {
 
     it("cancels save when Cancel is clicked in confirmation dialog", async () => {
       const mocks = createMocks(mockSeasonWithPrefill);
-      renderWithProviders(mocks, mockSeasonWithPrefill.seasonId, mockSeasonWithPrefill.profileId);
+      renderWithProviders(mocks, mockSeasonWithPrefill.campaignId, mockSeasonWithPrefill.profileId);
 
       // Wait for form to load
       await waitFor(() => {

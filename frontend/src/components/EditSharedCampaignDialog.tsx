@@ -2,7 +2,7 @@
  * EditCampaignPrefillDialog - Dialog for editing an existing campaign prefill
  *
  * Only allows editing: description, creatorMessage, isActive
- * Cannot modify: catalogId, seasonName, seasonYear, unit info (locked after creation)
+ * Cannot modify: catalogId, campaignName, campaignYear, unit info (locked after creation)
  */
 
 import React, { useState, useEffect } from "react";
@@ -23,15 +23,15 @@ import {
   CircularProgress,
 } from "@mui/material";
 
-interface CampaignPrefill {
+interface SharedCampaign {
   prefillCode: string;
   catalogId: string;
   catalog?: {
     catalogId: string;
     catalogName: string;
   };
-  seasonName: string;
-  seasonYear: number;
+  campaignName: string;
+  campaignYear: number;
   startDate?: string;
   endDate?: string;
   unitType: string;
@@ -48,7 +48,7 @@ interface CampaignPrefill {
 
 interface EditSharedCampaignDialogProps {
   open: boolean;
-  prefill: CampaignPrefill;
+  prefill: SharedCampaign;
   onClose: () => void;
   onSave: (
     prefillCode: string,
@@ -161,7 +161,7 @@ export const EditSharedCampaignDialog: React.FC<
                   Season:
                 </Typography>
                 <Typography variant="body2">
-                  {prefill.seasonName} {prefill.seasonYear}
+                  {prefill.campaignName} {prefill.campaignYear}
                 </Typography>
               </Box>
               <Box display="flex" alignItems="center" gap={1}>

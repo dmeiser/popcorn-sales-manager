@@ -32,17 +32,17 @@ import {
   Warning as WarningIcon,
 } from "@mui/icons-material";
 import {
-  GET_SEASON,
-  UPDATE_SEASON,
-  DELETE_SEASON,
+  GET_CAMPAIGN,
+  UPDATE_CAMPAIGN,
+  DELETE_CAMPAIGN,
   LIST_PUBLIC_CATALOGS,
   LIST_MY_CATALOGS,
 } from "../lib/graphql";
 
-interface Season {
-  seasonId: string;
-  seasonName: string;
-  seasonYear: number;
+interface Campaign {
+  campaignId: string;
+  campaignName: string;
+  campaignYear: number;
   startDate: string;
   endDate?: string;
   catalogId: string;
@@ -62,30 +62,30 @@ interface Catalog {
 }
 
 export const SeasonSettingsPage: React.FC = () => {
-  const { profileId: encodedProfileId, seasonId: encodedSeasonId } = useParams<{
+  const { profileId: encodedProfileId, campaignId: encodedSeasonId } = useParams<{
     profileId: string;
-    seasonId: string;
+    campaignId: string;
   }>();
   const profileId = encodedProfileId
     ? decodeURIComponent(encodedProfileId)
     : "";
-  const seasonId = encodedSeasonId ? decodeURIComponent(encodedSeasonId) : "";
+  const campaignId = encodedSeasonId ? decodeURIComponent(encodedSeasonId) : "";
   const navigate = useNavigate();
-  const [seasonName, setSeasonName] = useState("");
+  const [campaignName, setCampaignName] = useState("");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [catalogId, setCatalogId] = useState("");
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [unitChangeConfirmOpen, setUnitChangeConfirmOpen] = useState(false);
 
-  // Fetch season
+  // Fetch campaign
   const {
-    data: seasonData,
+    data: campaignData,
     loading,
     refetch,
-  } = useQuery<{ getSeason: Season }>(GET_SEASON, {
-    variables: { seasonId },
-    skip: !seasonId,
+  } = useQuery<{ getCampaign: Campaign }>(GET_CAMPAIGN, {
+    variables: { campaignId },
+    skip: !campaignId,
   });
 
   // Fetch catalogs
@@ -105,34 +105,34 @@ export const SeasonSettingsPage: React.FC = () => {
 
   // Initialize form when season loads
   React.useEffect(() => {
-    if (seasonData?.getSeason) {
-      setSeasonName(seasonData.getSeason.seasonName);
-      setStartDate(seasonData.getSeason.startDate?.split("T")[0] || "");
-      setEndDate(seasonData.getSeason.endDate?.split("T")[0] || "");
-      setCatalogId(seasonData.getSeason.catalogId);
+    if (campaignData?.getCampaign) {
+      setCampaignName(campaignData.getCampaign.campaignName);
+      setStartDate(campaignData.getCampaign.startDate?.split("T")[0] || "");
+      setEndDate(campaignData.getCampaign.endDate?.split("T")[0] || "");
+      setCatalogId(campaignData.getCampaign.catalogId);
     }
-  }, [seasonData]);
+  }, [campaignData]);
 
-  // Update season mutation
-  const [updateSeason, { loading: updating }] = useMutation(UPDATE_SEASON, {
+  // Update campaign mutation
+  const [updateCampaign, { loading: updating }] = useMutation(UPDATE_CAMPAIGN, {
     onCompleted: () => {
       refetch();
     },
   });
 
-  // Delete season mutation
-  const [deleteSeason] = useMutation(DELETE_SEASON, {
+  // Delete campaign mutation
+  const [deleteCampaign] = useMutation(DELETE_CAMPAIGN, {
     onCompleted: () => {
       navigate(`/scouts/${encodeURIComponent(profileId || "")}/campaigns`);
     },
   });
 
-  const season = seasonData?.getSeason;
+  const campaign = campaignData?.getCampaign;
 
-  // Check if unit-related fields have changed (seasonName, catalogId)
+  // Check if unit-related fields have changed (campaignName, catalogId)
   const hasUnitRelatedChanges =
-    season?.prefillCode &&
-    (seasonName !== season.seasonName || catalogId !== season.catalogId);
+    campaign?.prefillCode &&
+    (campaignName !== campaign.campaignName || catalogId !== campaign.catalogId);
 
   const handleSaveClick = () => {
     if (hasUnitRelatedChanges) {
@@ -144,7 +144,7 @@ export const SeasonSettingsPage: React.FC = () => {
 
   const handleSaveChanges = async () => {
     setUnitChangeConfirmOpen(false);
-    if (!seasonId || !seasonName.trim() || !catalogId) return;
+    if (!campaignId || !campaignName.trim() || !catalogId) return;
 
     // Convert YYYY-MM-DD to ISO 8601 datetime
     const startDateTime = new Date(startDate + "T00:00:00.000Z").toISOString();
@@ -152,11 +152,11 @@ export const SeasonSettingsPage: React.FC = () => {
       ? new Date(endDate + "T23:59:59.999Z").toISOString()
       : null;
 
-    await updateSeason({
+    await updateCampaign({
       variables: {
         input: {
-          seasonId,
-          seasonName: seasonName.trim(),
+          campaignId,
+          campaignName: campaignName.trim(),
           startDate: startDateTime,
           endDate: endDateTime,
           catalogId,
@@ -165,9 +165,9 @@ export const SeasonSettingsPage: React.FC = () => {
     });
   };
 
-  const handleDeleteSeason = async () => {
-    if (!seasonId) return;
-    await deleteSeason({ variables: { seasonId } });
+  const handleDeleteCampaign = async () => {
+    if (!campaignId) return;
+    await deleteCampaign({ variables: { campaignId } });
   };
 
   if (loading) {
@@ -184,13 +184,13 @@ export const SeasonSettingsPage: React.FC = () => {
   }
 
   const hasChanges =
-    season &&
-    season.seasonName &&
-    season.startDate &&
-    (seasonName !== season.seasonName ||
-      startDate !== season.startDate.split("T")[0] ||
-      endDate !== (season.endDate?.split("T")[0] || "") ||
-      catalogId !== season.catalogId);
+    campaign &&
+    campaign.campaignName &&
+    campaign.startDate &&
+    (campaignName !== campaign.campaignName ||
+      startDate !== campaign.startDate.split("T")[0] ||
+      endDate !== (campaign.endDate?.split("T")[0] || "") ||
+      catalogId !== campaign.catalogId);
 
   return (
     <Box>
@@ -218,8 +218,8 @@ export const SeasonSettingsPage: React.FC = () => {
           Basic Information
         </Typography>
 
-        {/* Warning for prefill-created seasons */}
-        {season?.prefillCode && (
+        {/* Warning for prefill-created campaigns */}
+        {campaign?.prefillCode && (
           <Alert severity="warning" icon={<WarningIcon />} sx={{ mb: 3 }}>
             <AlertTitle>Shared Campaign</AlertTitle>
             This season was created from a shared campaign link. Changing the catalog,
@@ -232,8 +232,8 @@ export const SeasonSettingsPage: React.FC = () => {
           <TextField
             fullWidth
             label="Season Name"
-            value={seasonName}
-            onChange={(e) => setSeasonName(e.target.value)}
+            value={campaignName}
+            onChange={(e) => setCampaignName(e.target.value)}
             disabled={updating}
           />
           <TextField
@@ -310,17 +310,17 @@ export const SeasonSettingsPage: React.FC = () => {
         open={deleteConfirmOpen}
         onClose={() => setDeleteConfirmOpen(false)}
       >
-        <DialogTitle>Delete Season?</DialogTitle>
+        <DialogTitle>Delete Campaign?</DialogTitle>
         <DialogContent>
           <Typography>
-            Are you sure you want to delete "{season?.seasonName}"? All orders
+            Are you sure you want to delete "{campaign?.campaignName}"? All orders
             and data will be permanently deleted. This action cannot be undone.
           </Typography>
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setDeleteConfirmOpen(false)}>Cancel</Button>
           <Button
-            onClick={handleDeleteSeason}
+            onClick={handleDeleteCampaign}
             color="error"
             variant="contained"
           >

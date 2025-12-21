@@ -113,7 +113,7 @@ function mapErrorCodeToMessage(
     // Not found errors
     NOT_FOUND: "The requested resource was not found.",
     PROFILE_NOT_FOUND: "Profile not found.",
-    SEASON_NOT_FOUND: "Season not found.",
+    SEASON_NOT_FOUND: "Campaign not found.",
     ORDER_NOT_FOUND: "Order not found.",
 
     // Conflict errors
@@ -158,7 +158,7 @@ export const apolloClient = new ApolloClient({
               return incoming;
             },
           },
-          listSeasonsByProfile: {
+          listCampaignsByProfile: {
             merge(_existing, incoming) {
               return incoming;
             },

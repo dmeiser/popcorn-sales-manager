@@ -8,7 +8,7 @@ import { MockedProvider } from "@apollo/client/testing/react";
 import { MemoryRouter } from "react-router-dom";
 import { SharedCampaignsPage } from "../src/pages/SharedCampaignsPage";
 import {
-  LIST_MY_CAMPAIGN_PREFILLS,
+  LIST_MY_SHARED_CAMPAIGNS,
   LIST_PUBLIC_CATALOGS,
   LIST_MY_CATALOGS,
 } from "../src/lib/graphql";
@@ -37,8 +37,8 @@ const mockPrefills = [
       catalogId: "catalog-1",
       catalogName: "Official Popcorn 2025",
     },
-    seasonName: "Fall",
-    seasonYear: 2025,
+    campaignName: "Fall",
+    campaignYear: 2025,
     startDate: "2025-09-01",
     endDate: "2025-12-01",
     unitType: "Pack",
@@ -61,8 +61,8 @@ const mockPrefills = [
       catalogId: "catalog-1",
       catalogName: "Official Popcorn 2025",
     },
-    seasonName: "Spring",
-    seasonYear: 2025,
+    campaignName: "Spring",
+    campaignYear: 2025,
     startDate: null,
     endDate: null,
     unitType: "Troop",
@@ -106,7 +106,7 @@ const baseMocks = () => [
 
 const createListMock = (prefills = mockPrefills) => ({
   request: {
-    query: LIST_MY_CAMPAIGN_PREFILLS,
+    query: LIST_MY_SHARED_CAMPAIGNS,
   },
   result: {
     data: {
@@ -334,7 +334,7 @@ describe("SharedCampaignsPage", () => {
     it("displays error message when query fails", async () => {
       const errorMock = {
         request: {
-          query: LIST_MY_CAMPAIGN_PREFILLS,
+          query: LIST_MY_SHARED_CAMPAIGNS,
         },
         error: new Error("Network error"),
       };

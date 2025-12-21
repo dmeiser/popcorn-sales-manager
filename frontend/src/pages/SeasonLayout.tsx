@@ -40,12 +40,12 @@ import { OrdersPage } from "./OrdersPage";
 import { OrderEditorPage } from "./OrderEditorPage";
 import { ReportsPage } from "./ReportsPage";
 import { SeasonSettingsPage } from "./SeasonSettingsPage";
-import { GET_SEASON, GET_PROFILE } from "../lib/graphql";
+import { GET_CAMPAIGN, GET_PROFILE } from "../lib/graphql";
 
-interface Season {
-  seasonId: string;
-  seasonName: string;
-  seasonYear: number;
+interface Campaign {
+  campaignId: string;
+  campaignName: string;
+  campaignYear: number;
   profileId: string;
   startDate: string;
   endDate?: string;
@@ -60,14 +60,14 @@ interface Profile {
 }
 
 export const SeasonLayout: React.FC = () => {
-  const { profileId: encodedProfileId, seasonId: encodedSeasonId } = useParams<{
+  const { profileId: encodedProfileId, campaignId: encodedSeasonId } = useParams<{
     profileId: string;
-    seasonId: string;
+    campaignId: string;
   }>();
   const profileId = encodedProfileId
     ? decodeURIComponent(encodedProfileId)
     : "";
-  const seasonId = encodedSeasonId ? decodeURIComponent(encodedSeasonId) : "";
+  const campaignId = encodedSeasonId ? decodeURIComponent(encodedSeasonId) : "";
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -77,25 +77,25 @@ export const SeasonLayout: React.FC = () => {
     ? currentPath
     : "orders";
 
-  // Fetch season data
+  // Fetch campaign data
   const {
-    data: seasonData,
-    loading: seasonLoading,
-    error: seasonError,
-  } = useQuery<{ getSeason: Season }>(GET_SEASON, {
-    variables: { seasonId },
-    skip: !seasonId,
+    data: campaignData,
+    loading: campaignLoading,
+    error: campaignError,
+  } = useQuery<{ getCampaign: Campaign }>(GET_CAMPAIGN, {
+    variables: { campaignId },
+    skip: !campaignId,
   });
 
   // Debug logging
-  if (seasonError) {
-    console.error("Season query error:", seasonError);
-    const apolloError = seasonError as {
+  if (campaignError) {
+    console.error("Campaign query error:", campaignError);
+    const apolloError = campaignError as {
       graphQLErrors?: unknown;
       networkError?: unknown;
     };
-    console.log("Season error details:", {
-      message: seasonError.message,
+    console.log("Campaign error details:", {
+      message: campaignError.message,
       graphQLErrors: apolloError.graphQLErrors,
       networkError: apolloError.networkError,
     });
@@ -109,15 +109,15 @@ export const SeasonLayout: React.FC = () => {
     skip: !profileId,
   });
 
-  const season = seasonData?.getSeason;
+  const campaign = campaignData?.getCampaign;
   const profile = profileData?.getProfile;
   const hasWritePermission =
     profile && (profile.isOwner || profile.permissions?.includes("WRITE"));
-  const loading = seasonLoading || profileLoading;
+  const loading = campaignLoading || profileLoading;
 
   const handleTabChange = (_event: React.SyntheticEvent, newValue: string) => {
     navigate(
-      `/scouts/${encodeURIComponent(profileId)}/campaigns/${encodeURIComponent(seasonId)}/${newValue}`,
+      `/scouts/${encodeURIComponent(profileId)}/campaigns/${encodeURIComponent(campaignId)}/${newValue}`,
     );
   };
 
@@ -134,10 +134,10 @@ export const SeasonLayout: React.FC = () => {
     );
   }
 
-  if (seasonError || !season) {
+  if (campaignError || !campaign) {
     return (
       <Alert severity="error">
-        Season not found or you don't have access to this season.
+        Campaign not found or you don't have access to this campaign.
       </Alert>
     );
   }
@@ -165,7 +165,7 @@ export const SeasonLayout: React.FC = () => {
           {profile?.sellerName || "Loading..."}
         </Link>
         <Typography color="text.primary">
-          {season.seasonName} {season.seasonYear}
+          {campaign.campaignName} {campaign.campaignYear}
         </Typography>
       </Breadcrumbs>
 
@@ -183,18 +183,18 @@ export const SeasonLayout: React.FC = () => {
         </IconButton>
         <Box flexGrow={1}>
           <Typography variant="h4" component="h1">
-            {season.seasonName} {season.seasonYear}
+            {campaign.campaignName} {campaign.campaignYear}
           </Typography>
-          {(season.startDate || season.endDate) && (
+          {(campaign.startDate || campaign.endDate) && (
             <Typography variant="body2" color="text.secondary">
-              {season.startDate &&
-                new Date(season.startDate).toLocaleDateString("en-US", {
+              {campaign.startDate &&
+                new Date(campaign.startDate).toLocaleDateString("en-US", {
                   year: "numeric",
                   month: "long",
                   day: "numeric",
                 })}
-              {season.endDate &&
-                ` - ${new Date(season.endDate).toLocaleDateString("en-US", {
+              {campaign.endDate &&
+                ` - ${new Date(campaign.endDate).toLocaleDateString("en-US", {
                   year: "numeric",
                   month: "long",
                   day: "numeric",

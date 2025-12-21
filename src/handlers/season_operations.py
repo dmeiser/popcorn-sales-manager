@@ -22,7 +22,7 @@ dynamodb = boto3.resource("dynamodb")
 dynamodb_client = boto3.client("dynamodb")
 
 # Multi-table design V2
-seasons_table_name = os.environ.get("SEASONS_TABLE_NAME", "kernelworx-seasons-v2-ue1-dev")
+seasons_table_name = os.environ.get("SEASONS_TABLE_NAME", "kernelworx-campaigns-v2-ue1-dev")
 prefills_table_name = os.environ.get("PREFILLS_TABLE_NAME", "kernelworx-campaign-prefills-ue1-dev")
 shares_table_name = os.environ.get("SHARES_TABLE_NAME", "kernelworx-shares-v2-ue1-dev")
 profiles_table_name = os.environ.get("PROFILES_TABLE_NAME", "kernelworx-profiles-v2-ue1-dev")
@@ -175,7 +175,7 @@ def create_season(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         # Step 6: Generate IDs and timestamps
         from datetime import datetime, timezone
 
-        season_id = f"SEASON#{uuid.uuid4()}"
+        season_id = f"CAMPAIGN#{uuid.uuid4()}"
         now = datetime.now(timezone.utc).isoformat()
 
         # Step 7: Build season item

@@ -25,7 +25,7 @@ import {
 import {
   LIST_PUBLIC_CATALOGS,
   LIST_MY_CATALOGS,
-  CREATE_CAMPAIGN_PREFILL,
+  CREATE_SHARED_CAMPAIGN,
 } from "../lib/graphql";
 
 interface Catalog {
@@ -103,8 +103,8 @@ export const CreateSharedCampaignDialog: React.FC<
 > = ({ open, onClose, onSuccess, canCreate }) => {
   // Form state
   const [catalogId, setCatalogId] = useState("");
-  const [seasonName, setSeasonName] = useState("");
-  const [seasonYear, setSeasonYear] = useState(new Date().getFullYear());
+  const [campaignName, setSeasonName] = useState("");
+  const [campaignYear, setSeasonYear] = useState(new Date().getFullYear());
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [unitType, setUnitType] = useState("");
@@ -137,7 +137,7 @@ export const CreateSharedCampaignDialog: React.FC<
   const catalogsLoading = publicLoading || myLoading;
 
   // Create mutation
-  const [createPrefill] = useMutation(CREATE_CAMPAIGN_PREFILL);
+  const [createPrefill] = useMutation(CREATE_SHARED_CAMPAIGN);
 
   // Reset form when dialog opens/closes
   useEffect(() => {
@@ -160,8 +160,8 @@ export const CreateSharedCampaignDialog: React.FC<
   const isFormValid = () => {
     return (
       catalogId &&
-      seasonName.trim() &&
-      seasonYear &&
+      campaignName.trim() &&
+      campaignYear &&
       unitType &&
       unitNumber &&
       city.trim() &&
@@ -184,8 +184,8 @@ export const CreateSharedCampaignDialog: React.FC<
         variables: {
           input: {
             catalogId,
-            seasonName: seasonName.trim(),
-            seasonYear,
+            campaignName: campaignName.trim(),
+            campaignYear,
             startDate: startDate || undefined,
             endDate: endDate || undefined,
             unitType,
@@ -305,7 +305,7 @@ export const CreateSharedCampaignDialog: React.FC<
           <Stack direction="row" spacing={2}>
             <TextField
               label="Campaign Name"
-              value={seasonName}
+              value={campaignName}
               onChange={(e) => setSeasonName(e.target.value)}
               placeholder="e.g., Fall, Spring"
               required
@@ -314,7 +314,7 @@ export const CreateSharedCampaignDialog: React.FC<
             <TextField
               label="Campaign Year"
               type="number"
-              value={seasonYear}
+              value={campaignYear}
               onChange={(e) => setSeasonYear(parseInt(e.target.value, 10) || 0)}
               required
               sx={{ width: 150 }}

@@ -27,7 +27,7 @@ def aws_credentials() -> None:
     os.environ["ACCOUNTS_TABLE_NAME"] = "kernelworx-accounts-ue1-dev"
     os.environ["CATALOGS_TABLE_NAME"] = "kernelworx-catalogs-ue1-dev"
     os.environ["PROFILES_TABLE_NAME"] = "kernelworx-profiles-v2-ue1-dev"
-    os.environ["SEASONS_TABLE_NAME"] = "kernelworx-seasons-v2-ue1-dev"
+    os.environ["SEASONS_TABLE_NAME"] = "kernelworx-campaigns-v2-ue1-dev"
     os.environ["ORDERS_TABLE_NAME"] = "kernelworx-orders-v2-ue1-dev"
     os.environ["SHARES_TABLE_NAME"] = "kernelworx-shares-ue1-dev"
     os.environ["INVITES_TABLE_NAME"] = "kernelworx-invites-ue1-dev"
@@ -126,10 +126,10 @@ def dynamodb_table(aws_credentials: None) -> Generator[Any, None, None]:
         )
 
         # ================================================================
-        # Seasons Table V2 (PK=profileId, SK=seasonId)
+        # Campaigns Table V2 (PK=profileId, SK=seasonId)
         # ================================================================
         seasons_table = dynamodb.create_table(
-            TableName="kernelworx-seasons-v2-ue1-dev",
+            TableName="kernelworx-campaigns-v2-ue1-dev",
             KeySchema=[
                 {"AttributeName": "profileId", "KeyType": "HASH"},
                 {"AttributeName": "seasonId", "KeyType": "RANGE"},
@@ -394,7 +394,7 @@ def appsync_event(sample_account_id: str) -> Dict[str, Any]:
 @pytest.fixture
 def sample_season_id() -> str:
     """Sample season ID."""
-    return "SEASON#season-123-abc"
+    return "CAMPAIGN#season-123-abc"
 
 
 @pytest.fixture
@@ -404,7 +404,7 @@ def sample_season(
     """Create sample season in DynamoDB (V2: PK=profileId, SK=seasonId)."""
     # Multi-table design: need to access seasons table directly
     dynamodb = boto3.resource("dynamodb", region_name="us-east-1")
-    seasons_table = dynamodb.Table("kernelworx-seasons-v2-ue1-dev")
+    seasons_table = dynamodb.Table("kernelworx-campaigns-v2-ue1-dev")
 
     season = {
         "profileId": sample_profile_id,  # PK

@@ -21,7 +21,7 @@ dynamodb = boto3.resource("dynamodb")
 
 # Multi-table design V2
 profiles_table_name = os.environ.get("PROFILES_TABLE_NAME", "kernelworx-profiles-v2-ue1-dev")
-seasons_table_name = os.environ.get("SEASONS_TABLE_NAME", "kernelworx-seasons-v2-ue1-dev")
+seasons_table_name = os.environ.get("SEASONS_TABLE_NAME", "kernelworx-campaigns-v2-ue1-dev")
 orders_table_name = os.environ.get("ORDERS_TABLE_NAME", "kernelworx-orders-v2-ue1-dev")
 
 profiles_table = dynamodb.Table(profiles_table_name)

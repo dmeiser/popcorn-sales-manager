@@ -15,7 +15,7 @@ import {
   Alert,
 } from "@mui/material";
 import { ShoppingCart, AttachMoney, People } from "@mui/icons-material";
-import { LIST_ORDERS_BY_SEASON } from "../lib/graphql";
+import { LIST_ORDERS_BY_CAMPAIGN } from "../lib/graphql";
 
 interface LineItem {
   productId: string;
@@ -34,16 +34,16 @@ interface Order {
 }
 
 export const SeasonSummaryPage: React.FC = () => {
-  const { seasonId: encodedSeasonId } = useParams<{ seasonId: string }>();
-  const seasonId = encodedSeasonId ? decodeURIComponent(encodedSeasonId) : "";
+  const { campaignId: encodedSeasonId } = useParams<{ campaignId: string }>();
+  const campaignId = encodedSeasonId ? decodeURIComponent(encodedSeasonId) : "";
 
   const {
     data: ordersData,
     loading,
     error,
-  } = useQuery<{ listOrdersBySeason: Order[] }>(LIST_ORDERS_BY_SEASON, {
-    variables: { seasonId },
-    skip: !seasonId,
+  } = useQuery<{ listOrdersBySeason: Order[] }>(LIST_ORDERS_BY_CAMPAIGN, {
+    variables: { campaignId },
+    skip: !campaignId,
   });
 
   const orders = ordersData?.listOrdersBySeason || [];

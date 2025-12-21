@@ -26,12 +26,12 @@ import {
   TrendingUp as TrendingUpIcon,
   CalendarToday as CalendarIcon,
 } from "@mui/icons-material";
-import { LIST_SEASONS_BY_PROFILE } from "../lib/graphql";
+import { LIST_CAMPAIGNS_BY_PROFILE } from "../lib/graphql";
 
-interface Season {
-  seasonId: string;
-  seasonName: string;
-  seasonYear: number;
+interface Campaign {
+  campaignId: string;
+  campaignName: string;
+  campaignYear: number;
   totalOrders: number;
   totalRevenue: number;
   startDate: string;
@@ -52,19 +52,19 @@ export const ProfileCard: React.FC<ProfileCardProps> = ({
 }) => {
   const navigate = useNavigate();
 
-  // Fetch seasons for latest season stats
-  const { data: seasonsData, loading: seasonsLoading } = useQuery<{
-    listSeasonsByProfile: Season[];
-  }>(LIST_SEASONS_BY_PROFILE, {
+  // Fetch campaigns for latest campaign stats
+  const { data: campaignsData, loading: campaignsLoading } = useQuery<{
+    listCampaignsByProfile: Campaign[];
+  }>(LIST_CAMPAIGNS_BY_PROFILE, {
     variables: { profileId },
     skip: !profileId,
   });
 
-  const seasons = seasonsData?.listSeasonsByProfile || [];
-  // Get latest season by startDate
-  const latestSeason =
-    seasons.length > 0
-      ? [...seasons].sort((a, b) => {
+  const campaigns = campaignsData?.listCampaignsByProfile || [];
+  // Get latest campaign by startDate
+  const latestCampaign =
+    campaigns.length > 0
+      ? [...campaigns].sort((a, b) => {
           const aTime = a.startDate ? new Date(a.startDate).getTime() : 0;
           const bTime = b.startDate ? new Date(b.startDate).getTime() : 0;
           return bTime - aTime;
@@ -75,11 +75,11 @@ export const ProfileCard: React.FC<ProfileCardProps> = ({
     navigate(`/scouts/${encodeURIComponent(profileId)}/campaigns`);
   };
 
-  const handleViewLatestSeason = () => {
-    if (latestSeason) {
+  const handleViewLatestCampaign = () => {
+    if (latestCampaign) {
       navigate(
         `/scouts/${encodeURIComponent(profileId)}/campaigns/${encodeURIComponent(
-          latestSeason.seasonId,
+          latestCampaign.campaignId,
         )}`,
       );
     }
@@ -121,10 +121,10 @@ export const ProfileCard: React.FC<ProfileCardProps> = ({
           </Box>
         </Stack>
 
-        {/* Latest Season Stats */}
-        {seasonsLoading ? (
+        {/* Latest Campaign Stats */}
+        {campaignsLoading ? (
           <CircularProgress size={20} sx={{ mt: 1 }} />
-        ) : latestSeason ? (
+        ) : latestCampaign ? (
           <Stack direction="row" spacing={2} alignItems="flex-start">
             <Box
               sx={{
@@ -134,7 +134,7 @@ export const ProfileCard: React.FC<ProfileCardProps> = ({
                 width: 40,
               }}
             >
-              {latestSeason && (
+              {latestCampaign && (
                 <CalendarIcon sx={{ fontSize: 40, color: "text.secondary" }} />
               )}
             </Box>
@@ -151,13 +151,13 @@ export const ProfileCard: React.FC<ProfileCardProps> = ({
                 color="text.secondary"
                 sx={{ display: "block", mb: 1, fontWeight: 500 }}
               >
-                Current Season: {latestSeason.seasonName}{" "}
-                {latestSeason.seasonYear}
+                Current Campaign: {latestCampaign.campaignName}{" "}
+                {latestCampaign.campaignYear}
               </Typography>
               <Stack direction="row" spacing={2}>
                 <Box>
                   <Typography variant="body1" sx={{ fontWeight: 600 }}>
-                    {latestSeason.totalOrders}
+                    {latestCampaign.totalOrders}
                   </Typography>
                   <Typography variant="body2" color="text.secondary">
                     Orders
@@ -168,7 +168,7 @@ export const ProfileCard: React.FC<ProfileCardProps> = ({
                     variant="body1"
                     sx={{ fontWeight: 600, color: "success.main" }}
                   >
-                    ${(latestSeason?.totalRevenue ?? 0).toFixed(2)}
+                    ${(latestCampaign?.totalRevenue ?? 0).toFixed(2)}
                   </Typography>
                   <Typography variant="body2" color="text.secondary">
                     Sales
@@ -183,18 +183,18 @@ export const ProfileCard: React.FC<ProfileCardProps> = ({
             color="text.secondary"
             sx={{ display: "block", mt: 1 }}
           >
-            No seasons yet
+            No campaigns yet
           </Typography>
         )}
       </CardContent>
       <CardActions sx={{ pt: 0, flexDirection: "column", gap: 1 }}>
-        {latestSeason && (
+        {latestCampaign && (
           <Button
             fullWidth
             size="small"
             variant="contained"
             startIcon={<TrendingUpIcon />}
-            onClick={handleViewLatestSeason}
+            onClick={handleViewLatestCampaign}
           >
             View Latest Campaign
           </Button>

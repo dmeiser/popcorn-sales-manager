@@ -24,7 +24,7 @@ import {
   People,
   Inventory2,
 } from "@mui/icons-material";
-import { LIST_ORDERS_BY_SEASON } from "../lib/graphql";
+import { LIST_ORDERS_BY_CAMPAIGN } from "../lib/graphql";
 
 interface LineItem {
   productId: string;
@@ -43,19 +43,19 @@ interface Order {
 }
 
 interface SeasonSummaryTilesProps {
-  seasonId: string;
+  campaignId: string;
 }
 
 export const SeasonSummaryTiles: React.FC<SeasonSummaryTilesProps> = ({
-  seasonId,
+  campaignId,
 }) => {
   const {
     data: ordersData,
     loading,
     error,
-  } = useQuery<{ listOrdersBySeason: Order[] }>(LIST_ORDERS_BY_SEASON, {
-    variables: { seasonId },
-    skip: !seasonId,
+  } = useQuery<{ listOrdersBySeason: Order[] }>(LIST_ORDERS_BY_CAMPAIGN, {
+    variables: { campaignId },
+    skip: !campaignId,
   });
 
   const orders = ordersData?.listOrdersBySeason || [];
