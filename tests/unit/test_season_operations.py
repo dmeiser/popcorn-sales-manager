@@ -74,9 +74,10 @@ class TestToDynamoValue:
         assert result == {"NULL": True}
 
     def test_to_dynamo_value_string_list(self) -> None:
-        """Test converting a list of strings."""
+        """Test converting a list of strings (converted to set for DynamoDB SS type)."""
         result = _to_dynamo_value(["a", "b", "c"])
-        assert result == {"SS": ["a", "b", "c"]}
+        # boto3 expects a set for the SS (String Set) DynamoDB type
+        assert result == {"SS": {"a", "b", "c"}}
 
     def test_to_dynamo_value_mixed_list(self) -> None:
         """Test converting a list of mixed types."""

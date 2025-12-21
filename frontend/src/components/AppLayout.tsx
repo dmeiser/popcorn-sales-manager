@@ -1,5 +1,6 @@
 import React from "react";
 import { useNavigate, useLocation } from "react-router-dom";
+import { useQuery } from "@apollo/client/react";
 import {
   AppBar,
   Box,
@@ -30,6 +31,7 @@ import CampaignIcon from "@mui/icons-material/Campaign";
 import { useAuth } from "../contexts/AuthContext";
 import { Toast } from "./Toast";
 import { Outlet } from "react-router-dom";
+import { LIST_MY_CAMPAIGN_PREFILLS } from "../lib/graphql";
 
 const DRAWER_WIDTH = 240;
 
@@ -42,6 +44,14 @@ export const AppLayout: React.FC<{ children?: React.ReactNode }> = ({
   const location = useLocation();
   const theme = useTheme();
   const isDesktop = useMediaQuery(theme.breakpoints.up("md"));
+
+  // Check if user has any shared campaigns
+  const { data: campaignsData } = useQuery<{
+    listMyCampaignPrefills: { prefillCode: string; isActive: boolean }[];
+  }>(LIST_MY_CAMPAIGN_PREFILLS);
+
+  const hasSharedCampaigns = 
+    (campaignsData?.listMyCampaignPrefills?.filter((c: { isActive: boolean }) => c.isActive)?.length ?? 0) > 0;
 
   const toggleMobileDrawer = () => setMobileDrawerOpen(!mobileDrawerOpen);
 
@@ -107,15 +117,6 @@ export const AppLayout: React.FC<{ children?: React.ReactNode }> = ({
           <ListItemText primary="Catalogs" />
         </ListItemButton>
         <ListItemButton
-          onClick={() => handleNavigation("/unit-reports")}
-          selected={isActive("/unit-reports")}
-        >
-          <ListItemIcon>
-            <AssessmentIcon />
-          </ListItemIcon>
-          <ListItemText primary="Campaign Reports" />
-        </ListItemButton>
-        <ListItemButton
           onClick={() => handleNavigation("/shared-campaigns")}
           selected={isActive("/shared-campaigns")}
         >
@@ -124,6 +125,17 @@ export const AppLayout: React.FC<{ children?: React.ReactNode }> = ({
           </ListItemIcon>
           <ListItemText primary="Shared Campaigns" />
         </ListItemButton>
+        {hasSharedCampaigns && (
+          <ListItemButton
+            onClick={() => handleNavigation("/unit-reports")}
+            selected={isActive("/unit-reports")}
+          >
+            <ListItemIcon>
+              <AssessmentIcon />
+            </ListItemIcon>
+            <ListItemText primary="Campaign Reports" />
+          </ListItemButton>
+        )}
         <ListItemButton
           onClick={() => handleNavigation("/settings")}
           selected={isActive("/settings")}

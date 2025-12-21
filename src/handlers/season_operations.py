@@ -310,11 +310,12 @@ def _to_dynamo_value(value: Any) -> Dict[str, Any]:
         return {"N": str(value)}
     elif isinstance(value, float):
         return {"N": str(value)}
-    elif isinstance(value, list):
-        if all(isinstance(item, str) for item in value):
-            return {"SS": value}
+    elif isinstance(value, (list, set)):
+        value_list = list(value) if isinstance(value, set) else value
+        if all(isinstance(item, str) for item in value_list):
+            return {"SS": set(value_list)}  # boto3 expects a set for SS type
         else:
-            return {"L": [_to_dynamo_value(item) for item in value]}
+            return {"L": [_to_dynamo_value(item) for item in value_list]}
     elif isinstance(value, dict):
         return {"M": {k: _to_dynamo_value(v) for k, v in value.items()}}
     else:
