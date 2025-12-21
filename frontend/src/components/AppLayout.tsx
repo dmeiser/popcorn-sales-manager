@@ -127,8 +127,8 @@ export const AppLayout: React.FC<{ children?: React.ReactNode }> = ({
         </ListItemButton>
         {hasSharedCampaigns && (
           <ListItemButton
-            onClick={() => handleNavigation("/unit-reports")}
-            selected={isActive("/unit-reports")}
+            onClick={() => handleNavigation("/campaign-reports")}
+            selected={isActive("/campaign-reports")}
           >
             <ListItemIcon>
               <AssessmentIcon />

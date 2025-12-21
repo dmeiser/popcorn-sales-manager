@@ -157,7 +157,7 @@ function App() {
               />
 
               <Route
-                path="/unit-reports"
+                path="/campaign-reports"
                 element={
                   <ProtectedRoute>
                     <AppLayout>

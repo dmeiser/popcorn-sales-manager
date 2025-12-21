@@ -106,6 +106,14 @@ export const UnitReportsPage: React.FC = () => {
   const campaigns = prefillsData?.listMyCampaignPrefills?.filter(
     (p) => p.isActive
   ) || [];
+
+  // Auto-select campaign if only 1 exists
+  React.useEffect(() => {
+    if (campaigns.length === 1 && !selectedPrefillCode) {
+      setSelectedPrefillCode(campaigns[0].prefillCode);
+    }
+  }, [campaigns, selectedPrefillCode]);
+
   const selectedCampaign = campaigns.find(
     (c) => c.prefillCode === selectedPrefillCode
   );
