@@ -19,10 +19,11 @@ vi.mock('../src/lib/apollo', () => ({
         getMyAccount: {
           accountId: 'user-123',
           email: 'test@example.com',
-          displayName: 'User',
           givenName: 'Test',
           familyName: 'User',
           isAdmin: false,
+          createdAt: '2024-01-01T00:00:00Z',
+          updatedAt: '2024-01-01T00:00:00Z',
         },
       },
     }),
@@ -44,6 +45,23 @@ vi.mock('aws-amplify/utils', () => ({
   },
 }));
 
+// Helper to create mock session with proper idToken structure
+const createMockSession = (hasTokens: boolean = true, groups: string[] = []) => ({
+  tokens: hasTokens ? {
+    idToken: {
+      toString: () => 'mock-token',
+      payload: {
+        'cognito:groups': groups,
+      },
+    },
+  } : undefined,
+});
+
+const mockUser = {
+  userId: 'user-123',
+  username: 'testuser',
+};
+
 // Test component that uses the auth context
 const TestComponent = () => {
   const { account, loading, isAuthenticated, isAdmin, login, logout } = useAuth();
@@ -56,7 +74,7 @@ const TestComponent = () => {
       {account && (
         <>
           <div data-testid="accountId">{account.accountId}</div>
-          <div data-testid="displayName">{account.displayName}</div>
+          <div data-testid="email">{account.email}</div>
         </>
       )}
       <button onClick={login}>Login</button>
@@ -98,18 +116,7 @@ describe('AuthContext', () => {
   });
 
   it('sets account when user is authenticated', async () => {
-    const mockSession = {
-      tokens: {
-        idToken: { toString: () => 'mock-token' },
-      },
-    };
-    
-    const mockUser = {
-      userId: 'user-123',
-      username: 'testuser',
-    };
-    
-    vi.mocked(amplifyAuth.fetchAuthSession).mockResolvedValue(mockSession as any);
+    vi.mocked(amplifyAuth.fetchAuthSession).mockResolvedValue(createMockSession(true) as any);
     vi.mocked(amplifyAuth.getCurrentUser).mockResolvedValue(mockUser as any);
     
     render(
@@ -124,7 +131,7 @@ describe('AuthContext', () => {
     
     expect(screen.getByTestId('isAuthenticated')).toHaveTextContent('true');
     expect(screen.getByTestId('accountId')).toHaveTextContent('user-123');
-    expect(screen.getByTestId('displayName')).toHaveTextContent('User');
+    expect(screen.getByTestId('email')).toHaveTextContent('test@example.com');
   });
 
   it('sets account to null when no valid session exists', async () => {
@@ -215,18 +222,7 @@ describe('AuthContext', () => {
   });
 
   it('calls signOut on logout and clears account', async () => {
-    const mockSession = {
-      tokens: {
-        idToken: { toString: () => 'mock-token' },
-      },
-    };
-    
-    const mockUser = {
-      userId: 'user-123',
-      username: 'testuser',
-    };
-    
-    vi.mocked(amplifyAuth.fetchAuthSession).mockResolvedValue(mockSession as any);
+    vi.mocked(amplifyAuth.fetchAuthSession).mockResolvedValue(createMockSession(true) as any);
     vi.mocked(amplifyAuth.getCurrentUser).mockResolvedValue(mockUser as any);
     vi.mocked(amplifyAuth.signOut).mockResolvedValue(undefined);
     
@@ -251,18 +247,7 @@ describe('AuthContext', () => {
 
   it('handles logout failure', async () => {
     const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-    const mockSession = {
-      tokens: {
-        idToken: { toString: () => 'mock-token' },
-      },
-    };
-    
-    const mockUser = {
-      userId: 'user-123',
-      username: 'testuser',
-    };
-    
-    vi.mocked(amplifyAuth.fetchAuthSession).mockResolvedValue(mockSession as any);
+    vi.mocked(amplifyAuth.fetchAuthSession).mockResolvedValue(createMockSession(true) as any);
     vi.mocked(amplifyAuth.getCurrentUser).mockResolvedValue(mockUser as any);
     vi.mocked(amplifyAuth.signOut).mockRejectedValue(new Error('Logout failed'));
     
@@ -308,18 +293,7 @@ describe('AuthContext', () => {
       return vi.fn();
     });
     
-    const mockSession = {
-      tokens: {
-        idToken: { toString: () => 'mock-token' },
-      },
-    };
-    
-    const mockUser = {
-      userId: 'user-123',
-      username: 'testuser',
-    };
-    
-    vi.mocked(amplifyAuth.fetchAuthSession).mockResolvedValue(mockSession as any);
+    vi.mocked(amplifyAuth.fetchAuthSession).mockResolvedValue(createMockSession(true) as any);
     vi.mocked(amplifyAuth.getCurrentUser).mockResolvedValue(mockUser as any);
     
     render(
@@ -343,18 +317,7 @@ describe('AuthContext', () => {
       return vi.fn();
     });
     
-    const mockSession = {
-      tokens: {
-        idToken: { toString: () => 'mock-token' },
-      },
-    };
-    
-    const mockUser = {
-      userId: 'user-123',
-      username: 'testuser',
-    };
-    
-    vi.mocked(amplifyAuth.fetchAuthSession).mockResolvedValue(mockSession as any);
+    vi.mocked(amplifyAuth.fetchAuthSession).mockResolvedValue(createMockSession(true) as any);
     vi.mocked(amplifyAuth.getCurrentUser).mockResolvedValue(mockUser as any);
     
     render(
@@ -383,18 +346,7 @@ describe('AuthContext', () => {
       return vi.fn();
     });
     
-    const mockSession = {
-      tokens: {
-        idToken: { toString: () => 'mock-token' },
-      },
-    };
-    
-    const mockUser = {
-      userId: 'user-123',
-      username: 'testuser',
-    };
-    
-    vi.mocked(amplifyAuth.fetchAuthSession).mockResolvedValue(mockSession as any);
+    vi.mocked(amplifyAuth.fetchAuthSession).mockResolvedValue(createMockSession(true) as any);
     vi.mocked(amplifyAuth.getCurrentUser).mockResolvedValue(mockUser as any);
     
     render(
@@ -453,18 +405,7 @@ describe('AuthContext', () => {
       return vi.fn();
     });
     
-    const mockSession = {
-      tokens: {
-        idToken: { toString: () => 'mock-token' },
-      },
-    };
-    
-    const mockUser = {
-      userId: 'user-123',
-      username: 'testuser',
-    };
-    
-    vi.mocked(amplifyAuth.fetchAuthSession).mockResolvedValue(mockSession as any);
+    vi.mocked(amplifyAuth.fetchAuthSession).mockResolvedValue(createMockSession(true) as any);
     vi.mocked(amplifyAuth.getCurrentUser).mockResolvedValue(mockUser as any);
     
     render(
@@ -505,19 +446,7 @@ describe('AuthContext', () => {
   });
 
   it('exposes isAdmin flag from account', async () => {
-    const mockSession = {
-      tokens: {
-        idToken: { toString: () => 'mock-token' },
-      },
-    };
-    
-    const mockUser = {
-      userId: 'admin-123',
-      username: 'adminuser',
-    };
-    
-    // Mock fetchAccountData to return admin account
-    vi.mocked(amplifyAuth.fetchAuthSession).mockResolvedValue(mockSession as any);
+    vi.mocked(amplifyAuth.fetchAuthSession).mockResolvedValue(createMockSession(true) as any);
     vi.mocked(amplifyAuth.getCurrentUser).mockResolvedValue(mockUser as any);
     
     render(
