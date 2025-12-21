@@ -64,10 +64,11 @@ export const ProfileCard: React.FC<ProfileCardProps> = ({
   // Get latest season by startDate
   const latestSeason =
     seasons.length > 0
-      ? [...seasons].sort(
-          (a, b) =>
-            new Date(b.startDate).getTime() - new Date(a.startDate).getTime(),
-        )[0]
+      ? [...seasons].sort((a, b) => {
+          const aTime = a.startDate ? new Date(a.startDate).getTime() : 0;
+          const bTime = b.startDate ? new Date(b.startDate).getTime() : 0;
+          return bTime - aTime;
+        })[0]
       : null;
 
   const handleViewSeasons = () => {

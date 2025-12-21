@@ -185,19 +185,22 @@ export const SeasonLayout: React.FC = () => {
           <Typography variant="h4" component="h1">
             {season.seasonName} {season.seasonYear}
           </Typography>
-          <Typography variant="body2" color="text.secondary">
-            {new Date(season.startDate).toLocaleDateString("en-US", {
-              year: "numeric",
-              month: "long",
-              day: "numeric",
-            })}
-            {season.endDate &&
-              ` - ${new Date(season.endDate).toLocaleDateString("en-US", {
-                year: "numeric",
-                month: "long",
-                day: "numeric",
-              })}`}
-          </Typography>
+          {(season.startDate || season.endDate) && (
+            <Typography variant="body2" color="text.secondary">
+              {season.startDate &&
+                new Date(season.startDate).toLocaleDateString("en-US", {
+                  year: "numeric",
+                  month: "long",
+                  day: "numeric",
+                })}
+              {season.endDate &&
+                ` - ${new Date(season.endDate).toLocaleDateString("en-US", {
+                  year: "numeric",
+                  month: "long",
+                  day: "numeric",
+                })}`}
+            </Typography>
+          )}
         </Box>
       </Stack>
 

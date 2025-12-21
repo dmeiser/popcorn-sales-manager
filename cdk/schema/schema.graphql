@@ -64,7 +64,7 @@ type Season {
   profileId: ID!
   seasonName: String!
   seasonYear: Int!
-  startDate: AWSDateTime!
+  startDate: AWSDateTime
   endDate: AWSDateTime
   catalogId: ID!
   unitType: String          # NEW: Optional unit information
