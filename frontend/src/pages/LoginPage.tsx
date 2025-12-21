@@ -29,7 +29,7 @@ import {
 } from "@mui/icons-material";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
-import { confirmSignIn, signIn } from "aws-amplify/auth";
+import { confirmSignIn, signIn, signInWithRedirect } from "aws-amplify/auth";
 import type { SignInOutput } from "aws-amplify/auth";
 
 export const LoginPage: React.FC = () => {
@@ -212,21 +212,14 @@ export const LoginPage: React.FC = () => {
     }
   };
 
-  const handleSocialLogin = (provider: "Google" | "Facebook" | "Apple") => {
+  const handleSocialLogin = async (provider: "Google" | "Facebook" | "Apple") => {
     setError(null);
     setLoading(true);
 
     try {
-      // Redirect to Cognito Hosted UI for social login
-      const domain = import.meta.env.VITE_COGNITO_DOMAIN;
-      const clientId = import.meta.env.VITE_COGNITO_USER_POOL_CLIENT_ID;
-      const redirectUri = encodeURIComponent(
-        import.meta.env.VITE_OAUTH_REDIRECT_SIGNIN || window.location.origin,
-      );
-      // Cognito identity_provider is case-sensitive - must match provider name exactly
-      const identityProvider = provider;
-
-      window.location.href = `https://${domain}/oauth2/authorize?client_id=${clientId}&response_type=code&redirect_uri=${redirectUri}&identity_provider=${identityProvider}&scope=openid+email+profile`;
+      // Use Amplify's signInWithRedirect for social login
+      // This ensures proper OAuth callback handling
+      await signInWithRedirect({ provider });
     } catch (err: unknown) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const error = err as any;
