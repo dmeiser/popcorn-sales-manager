@@ -564,7 +564,7 @@ class CdkStack(Stack):
                 sort_key=dynamodb.Attribute(name="createdAt", type=dynamodb.AttributeType.STRING),
                 projection_type=dynamodb.ProjectionType.ALL,
             )
-            # GSI2: Find prefills by unit+season (for discovery during season creation)
+            # GSI2: Find prefills by unit+season (for discovery during campaign creation)
             # unitSeasonKey format: {unitType}#{unitNumber}#{city}#{state}#{seasonName}#{seasonYear}
             self.prefills_table.add_global_secondary_index(
                 index_name="GSI2",
@@ -2373,7 +2373,7 @@ export function response(ctx) {
         util.error(ctx.error.message, ctx.error.type);
     }
     if (!ctx.result.items || ctx.result.items.length === 0) {
-        util.error('Season not found', 'NotFound');
+        util.error('Campaign not found', 'NotFound');
     }
     // Store season in stash for next function
     ctx.stash.season = ctx.result.items[0];
@@ -2814,7 +2814,7 @@ export function response(ctx) {
     
     const items = ctx.result.items || [];
     if (items.length === 0) {
-        util.error('Season not found', 'NotFound');
+        util.error('Campaign not found', 'NotFound');
     }
     
     const season = items[0];
@@ -3205,7 +3205,7 @@ export function response(ctx) {
     
     const items = ctx.result.items || [];
     if (items.length === 0) {
-        util.error('Season not found', 'NotFound');
+        util.error('Campaign not found', 'NotFound');
     }
     
     const season = items[0];
@@ -4031,7 +4031,7 @@ export function response(ctx) {
     }
     
     if (!ctx.result || !ctx.result.items || ctx.result.items.length === 0) {
-        // Season not found - return null (auth check will be skipped)
+        // Campaign not found - return null (auth check will be skipped)
         ctx.stash.seasonNotFound = true;
         return null;
     }
@@ -4555,7 +4555,7 @@ export function response(ctx) {
     
     const items = ctx.result.items || [];
     if (items.length === 0) {
-        // Season not found - return empty, skip auth (will return empty array)
+        // Campaign not found - return empty, skip auth (will return empty array)
         ctx.stash.seasonNotFound = true;
         ctx.stash.authorized = false;
         return null;

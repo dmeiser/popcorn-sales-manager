@@ -261,7 +261,7 @@ describe('Order Operations Integration Tests', () => {
           break; // Season has catalogId, proceed
         }
       } catch (e) {
-        // Season not found yet in GSI, retry
+        // Campaign not found yet in GSI, retry
       }
       await new Promise(resolve => setTimeout(resolve, 500)); // Wait 500ms
       retries++;

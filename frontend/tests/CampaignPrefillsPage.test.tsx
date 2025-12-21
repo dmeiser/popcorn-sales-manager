@@ -115,31 +115,6 @@ const createListMock = (prefills = mockPrefills) => ({
   },
 });
 
-const createCatalogMocks = () => [
-  {
-    request: {
-      query: LIST_PUBLIC_CATALOGS,
-    },
-    result: {
-      data: {
-        listPublicCatalogs: [
-          { catalogId: "catalog-1", catalogName: "Official Popcorn 2025", catalogType: "ADMIN_MANAGED" },
-        ],
-      },
-    },
-  },
-  {
-    request: {
-      query: LIST_MY_CATALOGS,
-    },
-    result: {
-      data: {
-        listMyCatalogs: [],
-      },
-    },
-  },
-];
-
 const renderWithProviders = (mocks: any[]) => {
   // Always include base mocks for catalog queries triggered by CreateSharedCampaignDialog
   const allMocks = [...baseMocks(), ...mocks];

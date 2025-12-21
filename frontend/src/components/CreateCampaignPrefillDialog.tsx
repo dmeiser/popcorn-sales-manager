@@ -103,8 +103,8 @@ export const CreateCampaignPrefillDialog: React.FC<
 > = ({ open, onClose, onSuccess, canCreate }) => {
   // Form state
   const [catalogId, setCatalogId] = useState("");
-  const [campaignName, setSeasonName] = useState("");
-  const [campaignYear, setSeasonYear] = useState(new Date().getFullYear());
+  const [campaignName, setCampaignName] = useState("");
+  const [campaignYear, setCampaignYear] = useState(new Date().getFullYear());
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [unitType, setUnitType] = useState("");
@@ -143,8 +143,8 @@ export const CreateCampaignPrefillDialog: React.FC<
   useEffect(() => {
     if (open) {
       setCatalogId("");
-      setSeasonName("");
-      setSeasonYear(new Date().getFullYear());
+      setCampaignName("");
+      setCampaignYear(new Date().getFullYear());
       setStartDate("");
       setEndDate("");
       setUnitType("");
@@ -306,7 +306,7 @@ export const CreateCampaignPrefillDialog: React.FC<
             <TextField
               label="Campaign Name"
               value={campaignName}
-              onChange={(e) => setSeasonName(e.target.value)}
+              onChange={(e) => setCampaignName(e.target.value)}
               placeholder="e.g., Fall, Spring"
               required
               fullWidth
@@ -315,7 +315,7 @@ export const CreateCampaignPrefillDialog: React.FC<
               label="Campaign Year"
               type="number"
               value={campaignYear}
-              onChange={(e) => setSeasonYear(parseInt(e.target.value, 10) || 0)}
+              onChange={(e) => setCampaignYear(parseInt(e.target.value, 10) || 0)}
               required
               sx={{ width: 150 }}
               inputProps={{ min: 2020, max: 2100 }}

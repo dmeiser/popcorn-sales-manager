@@ -318,7 +318,7 @@ describe('Order Query Operations Integration Tests', () => {
             break;
           }
         } catch (e) {
-          // Season not found yet in GSI, retry
+          // Campaign not found yet in GSI, retry
         }
         await new Promise(resolve => setTimeout(resolve, 500));
         retries++;

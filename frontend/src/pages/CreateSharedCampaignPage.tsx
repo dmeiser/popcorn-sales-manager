@@ -106,8 +106,8 @@ export const CreateSharedCampaignPage: React.FC = () => {
 
   // Form state
   const [catalogId, setCatalogId] = useState("");
-  const [campaignName, setSeasonName] = useState("");
-  const [campaignYear, setSeasonYear] = useState(new Date().getFullYear());
+  const [campaignName, setCampaignName] = useState("");
+  const [campaignYear, setCampaignYear] = useState(new Date().getFullYear());
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [unitType, setUnitType] = useState("");
@@ -331,7 +331,7 @@ export const CreateSharedCampaignPage: React.FC = () => {
                 <TextField
                   label="Campaign Name"
                   value={campaignName}
-                  onChange={(e) => setSeasonName(e.target.value)}
+                  onChange={(e) => setCampaignName(e.target.value)}
                   placeholder="e.g., Fall, Spring"
                   required
                   fullWidth
@@ -341,7 +341,7 @@ export const CreateSharedCampaignPage: React.FC = () => {
                   type="number"
                   value={campaignYear}
                   onChange={(e) =>
-                    setSeasonYear(parseInt(e.target.value, 10) || 0)
+                    setCampaignYear(parseInt(e.target.value, 10) || 0)
                   }
                   required
                   sx={{ minWidth: { xs: "100%", sm: 150 } }}
