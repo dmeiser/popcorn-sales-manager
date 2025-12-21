@@ -121,6 +121,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           break;
         case "signedOut":
           setAccount(null);
+          setHasValidTokens(false);
           setLoading(false);
           break;
         case "tokenRefresh":
@@ -130,6 +131,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         case "tokenRefresh_failure":
           console.error("Token refresh failed:", payload.data);
           setAccount(null);
+          setHasValidTokens(false);
           break;
       }
     });
