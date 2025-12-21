@@ -12,6 +12,20 @@ from src.handlers.unit_reporting import get_unit_report
 class TestGetUnitReport:
     """Tests for get_unit_report Lambda handler using GSI3 season queries."""
 
+    def _setup_profile_query_mock(
+        self, mock_profiles_table: MagicMock, sample_profiles: Dict[str, Dict[str, Any]]
+    ) -> None:
+        """Helper to mock profiles_table.query for profileId-index lookups."""
+        def query_side_effect(*args: Any, **kwargs: Any) -> Dict[str, Any]:
+            # Extract profileId from ExpressionAttributeValues
+            expr_values = kwargs.get("ExpressionAttributeValues", {})
+            profile_id = expr_values.get(":profileId")
+            if profile_id and profile_id in sample_profiles:
+                return {"Items": [sample_profiles[profile_id]]}
+            return {"Items": []}
+        
+        mock_profiles_table.query.side_effect = query_side_effect
+
     @pytest.fixture
     def event(self) -> Dict[str, Any]:
         """Sample AppSync event for unit report request with city/state."""
@@ -129,14 +143,8 @@ class TestGetUnitReport:
         mock_seasons_table.query.return_value = {"Items": sample_seasons}
         mock_check_access.return_value = True
 
-        # Mock profile lookups
-        def get_item_side_effect(Key: Dict[str, str]) -> Dict[str, Any]:
-            profile_id = Key["profileId"]
-            if profile_id in sample_profiles:
-                return {"Item": sample_profiles[profile_id]}
-            return {}
-
-        mock_profiles_table.get_item.side_effect = get_item_side_effect
+        # Mock profile lookups using query on profileId-index
+        self._setup_profile_query_mock(mock_profiles_table, sample_profiles)
 
         # Return orders for each season
         mock_orders_table.query.side_effect = [
@@ -233,13 +241,8 @@ class TestGetUnitReport:
 
         mock_check_access.side_effect = check_access_side_effect
 
-        def get_item_side_effect(Key: Dict[str, str]) -> Dict[str, Any]:
-            profile_id = Key["profileId"]
-            if profile_id in sample_profiles:
-                return {"Item": sample_profiles[profile_id]}
-            return {}
-
-        mock_profiles_table.get_item.side_effect = get_item_side_effect
+        # Mock profile lookups using query on profileId-index
+        self._setup_profile_query_mock(mock_profiles_table, sample_profiles)
 
         mock_orders_table.query.return_value = {"Items": sample_orders["SEASON#season1"]}
 
@@ -272,13 +275,8 @@ class TestGetUnitReport:
         mock_seasons_table.query.return_value = {"Items": sample_seasons}
         mock_check_access.return_value = True
 
-        def get_item_side_effect(Key: Dict[str, str]) -> Dict[str, Any]:
-            profile_id = Key["profileId"]
-            if profile_id in sample_profiles:
-                return {"Item": sample_profiles[profile_id]}
-            return {}
-
-        mock_profiles_table.get_item.side_effect = get_item_side_effect
+        # Mock profile lookups using query on profileId-index
+        self._setup_profile_query_mock(mock_profiles_table, sample_profiles)
         mock_orders_table.query.return_value = {"Items": []}
 
         # Act
@@ -417,13 +415,8 @@ class TestGetUnitReport:
         mock_seasons_table.query.return_value = {"Items": multi_seasons}
         mock_check_access.return_value = True
 
-        def get_item_side_effect(Key: Dict[str, str]) -> Dict[str, Any]:
-            profile_id = Key["profileId"]
-            if profile_id in sample_profiles:
-                return {"Item": sample_profiles[profile_id]}
-            return {}
-
-        mock_profiles_table.get_item.side_effect = get_item_side_effect
+        # Mock profile lookups using query on profileId-index
+        self._setup_profile_query_mock(mock_profiles_table, sample_profiles)
 
         # Order for first season only
         mock_orders_table.query.return_value = {
@@ -604,8 +597,8 @@ class TestGetUnitReport:
         mock_seasons_table.query.return_value = {"Items": sample_seasons}
         mock_check_access.return_value = True
 
-        # Profile get_item returns empty
-        mock_profiles_table.get_item.return_value = {}
+        # Profile query returns empty
+        mock_profiles_table.query.return_value = {"Items": []}
 
         # Act
         result = get_unit_report(event, lambda_context)

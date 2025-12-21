@@ -119,11 +119,17 @@ def get_unit_report(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 required_permission="READ",
             )
             if has_access:
-                # Fetch profile details
-                profile_response = profiles_table.get_item(Key={"profileId": profile_id})
-                profile = profile_response.get("Item")
-                if profile:
-                    accessible_profiles[profile_id] = profile
+                # Fetch profile details using profileId-index GSI (not direct get_item)
+                # because profiles table uses ownerAccountId as PK, not profileId
+                profile_response = profiles_table.query(
+                    IndexName="profileId-index",
+                    KeyConditionExpression="profileId = :profileId",
+                    ExpressionAttributeValues={":profileId": profile_id},
+                    Limit=1,
+                )
+                profile_items = profile_response.get("Items", [])
+                if profile_items:
+                    accessible_profiles[profile_id] = profile_items[0]
 
         logger.info(
             f"Caller has access to {len(accessible_profiles)} of "
