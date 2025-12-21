@@ -167,7 +167,7 @@ class TestCreateSeason:
         """Sample profile."""
         return {
             "profileId": "PROFILE#profile-123",
-            "ownerAccountId": "test-account-123",
+            "ownerAccountId": "ACCOUNT#test-account-123",  # Stored with ACCOUNT# prefix in DynamoDB
             "sellerName": "Test Scout",
             "unitType": "Pack",
             "unitNumber": 158,
@@ -300,7 +300,9 @@ class TestCreateSeason:
     ) -> None:
         """Test no share created when profile owner is prefill creator."""
         # Arrange - Profile owner is the same as prefill creator
-        sample_prefill["createdBy"] = sample_profile["ownerAccountId"]
+        # ownerAccountId is stored with ACCOUNT# prefix, but createdBy is just the account ID
+        owner_account_id_normalized = sample_profile["ownerAccountId"].replace("ACCOUNT#", "")
+        sample_prefill["createdBy"] = owner_account_id_normalized
         mock_check_access.return_value = True
         mock_get_profile.return_value = sample_profile
         mock_get_prefill.return_value = sample_prefill
