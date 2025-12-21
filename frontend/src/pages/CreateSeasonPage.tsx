@@ -248,16 +248,41 @@ export const CreateSeasonPage: React.FC = () => {
   // Redirect unauthenticated users to login
   useEffect(() => {
     if (!authLoading && !isAuthenticated && effectivePrefillCode) {
+      // Save the prefillCode to sessionStorage for OAuth redirect
+      sessionStorage.setItem('oauth_redirect', `/c/${effectivePrefillCode}`);
+      
       // Save the prefillCode and redirect to login
       navigate("/login", {
         state: {
-          from: `/c/${effectivePrefillCode}`,
+          from: { pathname: `/c/${effectivePrefillCode}` },
           prefillCode: effectivePrefillCode,
         },
         replace: true,
       });
     }
   }, [authLoading, isAuthenticated, effectivePrefillCode, navigate]);
+
+  // Auto-select profile if only one exists
+  useEffect(() => {
+    if (!profilesLoading && profiles.length === 1 && !profileId) {
+      setProfileId(profiles[0].profileId);
+    }
+  }, [profilesLoading, profiles, profileId]);
+
+  // Redirect to profile creation if user has no profiles in prefill mode
+  useEffect(() => {
+    if (isPrefillMode && !profilesLoading && profiles.length === 0 && effectivePrefillCode) {
+      // User needs to create a profile first
+      navigate("/profiles", {
+        state: {
+          returnTo: `/c/${effectivePrefillCode}`,
+          prefillCode: effectivePrefillCode,
+          message: "Create a seller profile to use this campaign link",
+        },
+        replace: true,
+      });
+    }
+  }, [isPrefillMode, profilesLoading, profiles.length, effectivePrefillCode, navigate]);
 
   // Set form values from prefill when loaded
   useEffect(() => {
@@ -361,8 +386,9 @@ export const CreateSeasonPage: React.FC = () => {
     try {
       const input: Record<string, unknown> = {
         profileId,
-        startDate: startDate || undefined,
-        endDate: endDate || undefined,
+        // Convert date strings to ISO datetime format for AWSDateTime
+        ...(startDate && { startDate: new Date(startDate).toISOString() }),
+        ...(endDate && { endDate: new Date(endDate).toISOString() }),
       };
 
       if (isPrefillMode && effectivePrefillCode) {

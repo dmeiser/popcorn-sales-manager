@@ -25,6 +25,7 @@ import { CatalogsPage } from "./pages/CatalogsPage";
 import { UnitReportsPage } from "./pages/UnitReportsPage";
 import { CreateSeasonPage } from "./pages/CreateSeasonPage";
 import { CampaignPrefillsPage } from "./pages/CampaignPrefillsPage";
+import { CreateCampaignPrefillPage } from "./pages/CreateCampaignPrefillPage";
 import { apolloClient } from "./lib/apollo";
 import { theme } from "./lib/theme";
 import { AppLayout } from "./components/AppLayout";
@@ -172,6 +173,17 @@ function App() {
                   <ProtectedRoute>
                     <AppLayout>
                       <CampaignPrefillsPage />
+                    </AppLayout>
+                  </ProtectedRoute>
+                }
+              />
+
+              <Route
+                path="/campaign-prefills/create"
+                element={
+                  <ProtectedRoute>
+                    <AppLayout>
+                      <CreateCampaignPrefillPage />
                     </AppLayout>
                   </ProtectedRoute>
                 }

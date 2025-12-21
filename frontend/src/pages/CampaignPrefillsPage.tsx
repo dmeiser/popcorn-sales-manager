@@ -4,6 +4,7 @@
 
 import React, { useState } from "react";
 import { useQuery, useMutation } from "@apollo/client/react";
+import { useNavigate } from "react-router-dom";
 import {
   Box,
   Button,
@@ -36,6 +37,7 @@ import {
   QrCode as QrCodeIcon,
   CheckCircle as ActiveIcon,
   Cancel as InactiveIcon,
+  Download as DownloadIcon,
 } from "@mui/icons-material";
 import QRCode from "qrcode";
 import {
@@ -43,7 +45,6 @@ import {
   UPDATE_CAMPAIGN_PREFILL,
   DELETE_CAMPAIGN_PREFILL,
 } from "../lib/graphql";
-import { CreateCampaignPrefillDialog } from "../components/CreateCampaignPrefillDialog";
 import { EditCampaignPrefillDialog } from "../components/EditCampaignPrefillDialog";
 
 interface CampaignPrefill {
@@ -73,13 +74,16 @@ const MAX_PREFILLS = 50;
 const BASE_URL = window.location.origin;
 
 export const CampaignPrefillsPage: React.FC = () => {
-  const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const navigate = useNavigate();
   const [editingPrefill, setEditingPrefill] = useState<CampaignPrefill | null>(
     null
   );
   const [deactivateDialogOpen, setDeactivateDialogOpen] = useState(false);
   const [prefillToDeactivate, setPrefillToDeactivate] =
     useState<CampaignPrefill | null>(null);
+  const [qrDialogOpen, setQrDialogOpen] = useState(false);
+  const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string | null>(null);
+  const [qrPrefill, setQrPrefill] = useState<CampaignPrefill | null>(null);
   const [snackbarOpen, setSnackbarOpen] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState("");
 
@@ -136,7 +140,7 @@ export const CampaignPrefillsPage: React.FC = () => {
     }
   };
 
-  const handleDownloadQRCode = async (prefill: CampaignPrefill) => {
+  const handleShowQRCode = async (prefill: CampaignPrefill) => {
     const link = getShortLink(prefill.prefillCode);
     try {
       const qrDataUrl = await QRCode.toDataURL(link, {
@@ -148,19 +152,26 @@ export const CampaignPrefillsPage: React.FC = () => {
         },
       });
 
-      // Create download link
-      const downloadLink = document.createElement("a");
-      downloadLink.href = qrDataUrl;
-      downloadLink.download = `campaign-${prefill.prefillCode}-qr.png`;
-      document.body.appendChild(downloadLink);
-      downloadLink.click();
-      document.body.removeChild(downloadLink);
-
-      showSnackbar("QR code downloaded!");
+      setQrCodeDataUrl(qrDataUrl);
+      setQrPrefill(prefill);
+      setQrDialogOpen(true);
     } catch (err) {
       console.error("Failed to generate QR code:", err);
       showSnackbar("Failed to generate QR code");
     }
+  };
+
+  const handleDownloadQRCode = () => {
+    if (!qrCodeDataUrl || !qrPrefill) return;
+
+    const downloadLink = document.createElement("a");
+    downloadLink.href = qrCodeDataUrl;
+    downloadLink.download = `campaign-${qrPrefill.prefillCode}-qr.png`;
+    document.body.appendChild(downloadLink);
+    downloadLink.click();
+    document.body.removeChild(downloadLink);
+
+    showSnackbar("QR code downloaded!");
   };
 
   const handleEdit = (prefill: CampaignPrefill) => {
@@ -245,7 +256,7 @@ export const CampaignPrefillsPage: React.FC = () => {
             <Button
               variant="contained"
               startIcon={<AddIcon />}
-              onClick={() => setCreateDialogOpen(true)}
+              onClick={() => navigate("/campaign-prefills/create")}
               disabled={!canCreateMore}
             >
               Create Campaign Prefill
@@ -266,7 +277,7 @@ export const CampaignPrefillsPage: React.FC = () => {
           <Button
             variant="contained"
             startIcon={<AddIcon />}
-            onClick={() => setCreateDialogOpen(true)}
+            onClick={() => navigate("/campaign-prefills/create")}
           >
             Create Your First Campaign Prefill
           </Button>
@@ -346,11 +357,11 @@ export const CampaignPrefillsPage: React.FC = () => {
                           <CopyIcon fontSize="small" />
                         </IconButton>
                       </Tooltip>
-                      <Tooltip title="Download QR Code">
+                      <Tooltip title="View QR Code">
                         <IconButton
                           size="small"
-                          onClick={() => handleDownloadQRCode(prefill)}
-                          aria-label="Download QR code"
+                          onClick={() => handleShowQRCode(prefill)}
+                          aria-label="View QR code"
                         >
                           <QrCodeIcon fontSize="small" />
                         </IconButton>
@@ -384,18 +395,6 @@ export const CampaignPrefillsPage: React.FC = () => {
           </Table>
         </TableContainer>
       )}
-
-      {/* Create Dialog */}
-      <CreateCampaignPrefillDialog
-        open={createDialogOpen}
-        onClose={() => setCreateDialogOpen(false)}
-        onSuccess={() => {
-          refetch();
-          setCreateDialogOpen(false);
-          showSnackbar("Campaign prefill created successfully!");
-        }}
-        canCreate={canCreateMore}
-      />
 
       {/* Edit Dialog */}
       {editingPrefill && (
@@ -435,6 +434,63 @@ export const CampaignPrefillsPage: React.FC = () => {
           <Button onClick={() => setDeactivateDialogOpen(false)}>Cancel</Button>
           <Button onClick={confirmDeactivate} color="error" variant="contained">
             Deactivate
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* QR Code Dialog */}
+      <Dialog
+        open={qrDialogOpen}
+        onClose={() => setQrDialogOpen(false)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>
+          Campaign QR Code
+          {qrPrefill && ` - ${qrPrefill.prefillCode}`}
+        </DialogTitle>
+        <DialogContent>
+          <Stack spacing={2} alignItems="center">
+            {qrCodeDataUrl && (
+              <Box
+                component="img"
+                src={qrCodeDataUrl}
+                alt="QR Code"
+                sx={{
+                  width: "100%",
+                  maxWidth: 400,
+                  height: "auto",
+                  border: "1px solid",
+                  borderColor: "divider",
+                  borderRadius: 1,
+                  p: 2,
+                }}
+              />
+            )}
+            {qrPrefill && (
+              <Box sx={{ textAlign: "center", width: "100%" }}>
+                <Typography variant="body2" color="text.secondary" gutterBottom>
+                  Link:
+                </Typography>
+                <Typography
+                  variant="body2"
+                  fontFamily="monospace"
+                  sx={{ wordBreak: "break-all" }}
+                >
+                  {getShortLink(qrPrefill.prefillCode)}
+                </Typography>
+              </Box>
+            )}
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setQrDialogOpen(false)}>Close</Button>
+          <Button
+            onClick={handleDownloadQRCode}
+            variant="contained"
+            startIcon={<DownloadIcon />}
+          >
+            Download
           </Button>
         </DialogActions>
       </Dialog>

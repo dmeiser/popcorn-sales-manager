@@ -5,7 +5,7 @@
 import React, { useState, useEffect } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import { useLazyQuery, useMutation, useApolloClient } from "@apollo/client/react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import {
   Typography,
   Box,
@@ -50,6 +50,7 @@ interface EditingProfile {
 
 export const ProfilesPage: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { isAuthenticated, loading: authLoading } = useAuth();
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [editingProfile, setEditingProfile] = useState<EditingProfile | null>(
@@ -59,6 +60,22 @@ export const ProfilesPage: React.FC = () => {
   const [deletingProfileId, setDeletingProfileId] = useState<string | null>(
     null,
   );
+
+  // Check for return navigation from campaign prefill flow
+  const locationState = location.state as {
+    returnTo?: string;
+    prefillCode?: string;
+    message?: string;
+  } | null;
+  const returnPath = locationState?.returnTo;
+  const infoMessage = locationState?.message;
+
+  // Auto-open create dialog when arriving from prefill flow
+  React.useEffect(() => {
+    if (returnPath && !createDialogOpen) {
+      setCreateDialogOpen(true);
+    }
+  }, [returnPath]);
 
   // Fetch account preferences
   const [loadAccount, { data: accountData, loading: accountLoading }] =
@@ -177,6 +194,10 @@ export const ProfilesPage: React.FC = () => {
   const [createProfile] = useMutation(CREATE_SELLER_PROFILE, {
     onCompleted: () => {
       loadMyProfiles();
+      // If we came from a campaign prefill flow, return to it
+      if (returnPath) {
+        navigate(returnPath, { replace: true });
+      }
     },
   });
 
@@ -293,6 +314,12 @@ export const ProfilesPage: React.FC = () => {
       {error && (
         <Alert severity="error" sx={{ mb: 3 }}>
           Failed to load profiles: {error.message}
+        </Alert>
+      )}
+
+      {infoMessage && (
+        <Alert severity="info" sx={{ mb: 3 }}>
+          {infoMessage}
         </Alert>
       )}
 

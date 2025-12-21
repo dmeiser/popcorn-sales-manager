@@ -217,6 +217,11 @@ export const LoginPage: React.FC = () => {
     setLoading(true);
 
     try {
+      // Save redirect path to sessionStorage for OAuth callback
+      if (from !== "/profiles") {
+        sessionStorage.setItem('oauth_redirect', from);
+      }
+      
       // Use Amplify's signInWithRedirect for social login
       // This ensures proper OAuth callback handling
       await signInWithRedirect({ provider });

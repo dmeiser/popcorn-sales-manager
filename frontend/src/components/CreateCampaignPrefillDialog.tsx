@@ -82,7 +82,13 @@ export const CreateCampaignPrefillDialog: React.FC<
 
   const publicCatalogs = publicCatalogsData?.listPublicCatalogs || [];
   const myCatalogs = myCatalogsData?.listMyCatalogs || [];
-  const allCatalogs = [...publicCatalogs, ...myCatalogs];
+  
+  // Deduplicate: remove catalogs from public list that are also in my list
+  const myIdSet = new Set(myCatalogs.map((c) => c.catalogId));
+  const filteredPublicCatalogs = publicCatalogs.filter(
+    (c) => !myIdSet.has(c.catalogId)
+  );
+  
   const catalogsLoading = publicLoading || myLoading;
 
   // Create mutation
@@ -187,35 +193,64 @@ export const CreateCampaignPrefillDialog: React.FC<
               value={catalogId}
               onChange={(e) => setCatalogId(e.target.value)}
               label="Product Catalog"
+              MenuProps={{
+                slotProps: {
+                  paper: {
+                    sx: {
+                      maxHeight: 300,
+                    },
+                  },
+                },
+              }}
             >
-              {catalogsLoading ? (
+              {catalogsLoading && (
                 <MenuItem disabled>Loading catalogs...</MenuItem>
-              ) : allCatalogs.length === 0 ? (
-                <MenuItem disabled>No catalogs available</MenuItem>
-              ) : (
-                <>
-                  {publicCatalogs.length > 0 && (
-                    <MenuItem disabled sx={{ fontWeight: "bold", opacity: 1 }}>
-                      — Public Catalogs —
-                    </MenuItem>
-                  )}
-                  {publicCatalogs.map((catalog) => (
-                    <MenuItem key={catalog.catalogId} value={catalog.catalogId}>
-                      {catalog.catalogName}
-                    </MenuItem>
-                  ))}
-                  {myCatalogs.length > 0 && (
-                    <MenuItem disabled sx={{ fontWeight: "bold", opacity: 1 }}>
-                      — My Catalogs —
-                    </MenuItem>
-                  )}
-                  {myCatalogs.map((catalog) => (
-                    <MenuItem key={catalog.catalogId} value={catalog.catalogId}>
-                      {catalog.catalogName}
-                    </MenuItem>
-                  ))}
-                </>
               )}
+              {!catalogsLoading &&
+                filteredPublicCatalogs.length === 0 &&
+                myCatalogs.length === 0 && (
+                  <MenuItem disabled>No catalogs available</MenuItem>
+                )}
+
+              {/* Public Catalogs Section */}
+              {filteredPublicCatalogs.length > 0 && [
+                <MenuItem
+                  key="public-header"
+                  disabled
+                  sx={{
+                    fontWeight: 600,
+                    backgroundColor: "#f5f5f5",
+                    opacity: 1,
+                  }}
+                >
+                  Public Catalogs
+                </MenuItem>,
+                ...filteredPublicCatalogs.map((catalog) => (
+                  <MenuItem key={catalog.catalogId} value={catalog.catalogId}>
+                    {catalog.catalogName}
+                  </MenuItem>
+                )),
+              ]}
+
+              {/* My Catalogs Section */}
+              {myCatalogs.length > 0 && [
+                <MenuItem
+                  key="my-header"
+                  disabled
+                  sx={{
+                    fontWeight: 600,
+                    backgroundColor: "#f5f5f5",
+                    opacity: 1,
+                  }}
+                >
+                  My Catalogs
+                </MenuItem>,
+                ...myCatalogs.map((catalog) => (
+                  <MenuItem key={catalog.catalogId} value={catalog.catalogId}>
+                    {catalog.catalogName}
+                  </MenuItem>
+                )),
+              ]}
             </Select>
           </FormControl>
 

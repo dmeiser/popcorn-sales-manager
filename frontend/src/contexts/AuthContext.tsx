@@ -113,7 +113,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       switch (payload.event) {
         case "signInWithRedirect":
           // User returned from Hosted UI - refresh session
-          checkAuthSession();
+          checkAuthSession().then(() => {
+            // Check if there's a saved redirect path from before OAuth login
+            const savedRedirect = sessionStorage.getItem('oauth_redirect');
+            if (savedRedirect) {
+              sessionStorage.removeItem('oauth_redirect');
+              window.location.href = savedRedirect;
+            }
+          });
           break;
         case "signInWithRedirect_failure":
           console.error("Sign in failed:", payload.data);
