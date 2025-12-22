@@ -123,7 +123,7 @@ export const CreateSharedCampaignPage: React.FC = () => {
   const { data: sharedCampaignsData } = useQuery<{
     listMySharedCampaigns: SharedCampaign[];
   }>(LIST_MY_SHARED_CAMPAIGNS, { fetchPolicy: "network-only" });
-  const shared campaigns = sharedCampaignsData?.listMySharedCampaigns || [];
+  const sharedCampaigns = sharedCampaignsData?.listMySharedCampaigns || [];
   const activeSharedCampaignCount = sharedCampaigns.filter((p) => p.isActive).length;
   const canCreate = activeSharedCampaignCount < MAX_ACTIVE_SHARED_CAMPAIGNS;
 
