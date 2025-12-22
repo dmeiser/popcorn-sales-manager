@@ -91,6 +91,22 @@ def lookup_s3_bucket(bucket_name: str) -> bool:
 
 
 @functools.lru_cache(maxsize=128)
+def lookup_s3_bucket_policy(bucket_name: str) -> bool:
+    """Check if an S3 bucket has a policy attached."""
+    client = get_client("s3")
+    try:
+        client.get_bucket_policy(Bucket=bucket_name)
+        return True  # Policy exists
+    except client.exceptions.NoSuchBucket:
+        return False
+    except client.exceptions.NoSuchBucketPolicy:  # type: ignore[attr-defined]
+        return False  # Bucket exists but no policy
+    except Exception:
+        # Check if it's a "NoSuchBucketPolicy" error by parsing the error message
+        return False
+
+
+@functools.lru_cache(maxsize=128)
 def lookup_cloudfront_distribution(domain_name: str) -> Optional[dict[str, str]]:
     """Find a CloudFront distribution by domain alias."""
     client = get_client("cloudfront")
@@ -158,6 +174,26 @@ def lookup_appsync_api(api_name: str) -> Optional[dict[str, str]]:
                         "api_name": api["name"],
                         "arn": api["arn"],
                     }
+    except Exception:
+        pass
+    return None
+
+
+@functools.lru_cache(maxsize=128)
+def lookup_appsync_domain_name(domain_name: str) -> Optional[dict[str, str]]:
+    """Find an AppSync custom domain by domain name."""
+    client = get_client("appsync")
+    try:
+        response = client.list_domain_names()
+        for domain in response.get("domainNameConfigs", []):
+            if domain["domainName"] == domain_name:
+                return {
+                    "domain_name": domain["domainName"],
+                    "domain_name_arn": domain["domainNameArn"],
+                    "appsync_domain_name": domain["appsyncDomainName"],
+                    "certificate_arn": domain["certificateArn"],
+                    "hosted_zone_id": domain["hostedZoneId"],
+                }
     except Exception:
         pass
     return None

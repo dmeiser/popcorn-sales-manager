@@ -968,47 +968,15 @@ class CdkStack(Stack):
             if resource_lookup.lookup_identity_provider(existing_user_pool_id, "SignInWithApple"):
                 imported_pool_providers.append(cognito.UserPoolClientIdentityProvider.APPLE)
 
-            # For imported pools, we need to keep managing the client in CloudFormation
-            # to prevent CDK from trying to delete the existing resource.
-            # The existing stack has UserPoolAppClientDD0407EC, so we must create
-            # a CDK resource that produces the same logical ID.
-            self.user_pool_client = self.user_pool.add_client(
-                "AppClient",
-                user_pool_client_name="KernelWorx-Web",
-                auth_flows=cognito.AuthFlow(
-                    user_srp=True,
-                    user_password=True,
-                    user=True,  # Required for WebAuthn/passkeys (ALLOW_USER_AUTH)
-                ),
-                o_auth=cognito.OAuthSettings(
-                    flows=cognito.OAuthFlows(
-                        authorization_code_grant=True,
-                        implicit_code_grant=True,
-                    ),
-                    scopes=[
-                        cognito.OAuthScope.EMAIL,
-                        cognito.OAuthScope.OPENID,
-                        cognito.OAuthScope.PROFILE,
-                    ],
-                    callback_urls=[
-                        f"https://{self.site_domain}",
-                        f"https://{self.site_domain}/callback",
-                        "http://localhost:5173",
-                        "https://local.dev.appworx.app:5173",
-                    ],
-                    logout_urls=[
-                        f"https://{self.site_domain}",
-                        "http://localhost:5173",
-                        "https://local.dev.appworx.app:5173",
-                    ],
-                ),
-                supported_identity_providers=imported_pool_providers,
-                prevent_user_existence_errors=True,
+            # Import existing UserPoolClient instead of creating new one
+            # This prevents the AWS::EarlyValidation::ResourceExistenceCheck hook from failing
+            # due to multiple clients with the same name.
+            # Client ID from existing pool: 125rseht0a7jr4bh7ro8bemhl2
+            self.user_pool_client = cognito.UserPoolClient.from_user_pool_client_id(
+                self, "AppClient",
+                user_pool_client_id="125rseht0a7jr4bh7ro8bemhl2"
             )
-            # Set RETAIN policy so the client survives stack deletion
-            cfn_client = self.user_pool_client.node.default_child
-            assert cfn_client is not None
-            cfn_client.apply_removal_policy(RemovalPolicy.RETAIN)  # type: ignore
+            # Note: Imported resources cannot have removal policies set
 
             # Attach post-authentication Lambda trigger to imported pool
             # CDK doesn't support adding triggers to imported pools natively,
@@ -1322,27 +1290,35 @@ class CdkStack(Stack):
                 self.user_pool_domain = cognito.UserPoolDomain.from_domain_name(  # type: ignore[assignment]
                     self, "UserPoolDomain", existing_domain
                 )
-                # Look up the CloudFront distribution and create Route53 record
+                # Look up the CloudFront distribution and create Route53 record if it doesn't exist
                 existing_cf = resource_lookup.lookup_cognito_domain_cloudfront(existing_domain)
                 if existing_cf:
-                    # Create an alias record pointing to the existing CloudFront distribution
-                    # NOTE: We must use CfnRecordSet here because CloudFrontTarget requires
-                    # a real Distribution with distribution_id, which we don't have for
-                    # Cognito-managed CloudFront distributions
-                    self.cognito_domain_record = route53.CfnRecordSet(
-                        self,
-                        "CognitoDomainRecord",
-                        hosted_zone_id=self.hosted_zone.hosted_zone_id,
-                        name=self.cognito_domain,
-                        type="A",
-                        alias_target=route53.CfnRecordSet.AliasTargetProperty(
-                            # CloudFront hosted zone ID is always Z2FDTNDATAQYW2
-                            hosted_zone_id="Z2FDTNDATAQYW2",
-                            dns_name=existing_cf,
-                            evaluate_target_health=False,
-                        ),
+                    # Check if the Route53 record already exists
+                    existing_cognito_record = resource_lookup.lookup_route53_record(
+                        self.hosted_zone.hosted_zone_id, self.cognito_domain, "A"
                     )
-                    self.cognito_domain_record.apply_removal_policy(RemovalPolicy.RETAIN)
+                    if existing_cognito_record:
+                        print(f"Using existing Route53 A record for Cognito domain: {self.cognito_domain}")
+                        self.cognito_domain_record = None  # type: ignore[assignment]
+                    else:
+                        # Create an alias record pointing to the existing CloudFront distribution
+                        # NOTE: We must use CfnRecordSet here because CloudFrontTarget requires
+                        # a real Distribution with distribution_id, which we don't have for
+                        # Cognito-managed CloudFront distributions
+                        self.cognito_domain_record = route53.CfnRecordSet(
+                            self,
+                            "CognitoDomainRecord",
+                            hosted_zone_id=self.hosted_zone.hosted_zone_id,
+                            name=self.cognito_domain,
+                            type="A",
+                            alias_target=route53.CfnRecordSet.AliasTargetProperty(
+                                # CloudFront hosted zone ID is always Z2FDTNDATAQYW2
+                                hosted_zone_id="Z2FDTNDATAQYW2",
+                                dns_name=existing_cf,
+                                evaluate_target_health=False,
+                            ),
+                        )
+                        self.cognito_domain_record.apply_removal_policy(RemovalPolicy.RETAIN)
 
         # Route53 record for Cognito custom domain
         # For imported pools, assume the record already exists
@@ -1350,17 +1326,26 @@ class CdkStack(Stack):
         # the record in deploys where we're also creating the Cognito domain
         # (controlled by `create_cognito_domain` context flag).
         if not existing_user_pool_id and create_cognito_domain:
-            # Create new Route53 record for new pools
-            self.cognito_domain_record = route53.ARecord(  # type: ignore[assignment]
-                self,
-                "CognitoDomainRecord",
-                zone=self.hosted_zone,
-                record_name=self.cognito_domain,
-                target=route53.RecordTarget.from_alias(
-                    targets.UserPoolDomainTarget(self.user_pool_domain)
-                ),
+            # Check if the record already exists
+            existing_cognito_record = resource_lookup.lookup_route53_record(
+                self.hosted_zone.hosted_zone_id, self.cognito_domain, "A"
             )
-            self.cognito_domain_record.apply_removal_policy(RemovalPolicy.RETAIN)
+            if existing_cognito_record:
+                print(f"Using existing Route53 A record: {self.cognito_domain}")
+                # No need to create the record; it's already there
+                self.cognito_domain_record = None  # type: ignore[assignment]
+            else:
+                # Create new Route53 record for new pools
+                self.cognito_domain_record = route53.ARecord(  # type: ignore[assignment]
+                    self,
+                    "CognitoDomainRecord",
+                    zone=self.hosted_zone,
+                    record_name=self.cognito_domain,
+                    target=route53.RecordTarget.from_alias(
+                        targets.UserPoolDomainTarget(self.user_pool_domain)
+                    ),
+                )
+                self.cognito_domain_record.apply_removal_policy(RemovalPolicy.RETAIN)
 
         # Output Cognito Hosted UI URL for easy access (only if user pool was created, not imported)
         if hasattr(self, "user_pool_domain") and hasattr(self, "user_pool_client"):
@@ -1383,28 +1368,43 @@ class CdkStack(Stack):
         # Defaults to True if not specified
         enable_appsync_logging = os.getenv("ENABLE_APPSYNC_LOGGING", "true").lower() == "true"
 
-        self.api = appsync.GraphqlApi(
-            self,
-            "Api",
-            name=rn("kernelworx-api"),
-            definition=appsync.Definition.from_file(schema_path),
-            authorization_config=appsync.AuthorizationConfig(
-                default_authorization=appsync.AuthorizationMode(
-                    authorization_type=appsync.AuthorizationType.USER_POOL,
-                    user_pool_config=appsync.UserPoolConfig(user_pool=self.user_pool),
+        # Check if AppSync API already exists
+        api_name = rn("kernelworx-api")
+        existing_api = resource_lookup.lookup_appsync_api(api_name)
+        
+        if existing_api:
+            print(f"Using existing AppSync API: {api_name} ({existing_api['api_id']})")
+            # Import the existing API
+            self.api = appsync.GraphqlApi.from_graphql_api_attributes(
+                self,
+                "Api",
+                graphql_api_id=existing_api["api_id"],
+                graphql_api_arn=existing_api["arn"],
+            )
+        else:
+            # Create new AppSync API
+            self.api = appsync.GraphqlApi(
+                self,
+                "Api",
+                name=api_name,
+                definition=appsync.Definition.from_file(schema_path),
+                authorization_config=appsync.AuthorizationConfig(
+                    default_authorization=appsync.AuthorizationMode(
+                        authorization_type=appsync.AuthorizationType.USER_POOL,
+                        user_pool_config=appsync.UserPoolConfig(user_pool=self.user_pool),
+                    ),
                 ),
-            ),
-            xray_enabled=True,
-            log_config=(
-                appsync.LogConfig(
-                    field_log_level=appsync.FieldLogLevel.ALL,
-                    exclude_verbose_content=False,
-                )
-                if enable_appsync_logging
-                else None
-            ),
-        )
-        self.api.apply_removal_policy(RemovalPolicy.RETAIN)
+                xray_enabled=True,
+                log_config=(
+                    appsync.LogConfig(
+                        field_log_level=appsync.FieldLogLevel.ALL,
+                        exclude_verbose_content=False,
+                    )
+                    if enable_appsync_logging
+                    else None
+                ),
+            )
+            self.api.apply_removal_policy(RemovalPolicy.RETAIN)
 
         CfnOutput(
             self,
@@ -1418,7 +1418,7 @@ class CdkStack(Stack):
             "DynamoDBDataSource",
             table=self.table,
         )
-        self.dynamodb_datasource.node.default_child.apply_removal_policy(RemovalPolicy.RETAIN)  # type: ignore
+        # Note: DataSources don't need RETAIN - they can be recreated easily
 
         # Grant GSI permissions to the DynamoDB data source role
         self.dynamodb_datasource.grant_principal.add_to_principal_policy(
@@ -1437,7 +1437,6 @@ class CdkStack(Stack):
             "AccountsDataSource",
             table=self.accounts_table,
         )
-        self.accounts_datasource.node.default_child.apply_removal_policy(RemovalPolicy.RETAIN)  # type: ignore
         self.accounts_datasource.grant_principal.add_to_principal_policy(
             iam.PolicyStatement(
                 actions=["dynamodb:Query", "dynamodb:Scan"],
@@ -1450,7 +1449,6 @@ class CdkStack(Stack):
             "CatalogsDataSource",
             table=self.catalogs_table,
         )
-        self.catalogs_datasource.node.default_child.apply_removal_policy(RemovalPolicy.RETAIN)  # type: ignore
         self.catalogs_datasource.grant_principal.add_to_principal_policy(
             iam.PolicyStatement(
                 actions=["dynamodb:Query", "dynamodb:Scan"],
@@ -1463,7 +1461,6 @@ class CdkStack(Stack):
             "ProfilesDataSource",
             table=self.profiles_table,
         )
-        self.profiles_datasource.node.default_child.apply_removal_policy(RemovalPolicy.RETAIN)  # type: ignore
         self.profiles_datasource.grant_principal.add_to_principal_policy(
             iam.PolicyStatement(
                 actions=["dynamodb:Query", "dynamodb:Scan"],
@@ -1476,7 +1473,6 @@ class CdkStack(Stack):
             "CampaignsDataSource",
             table=self.campaigns_table,
         )
-        self.campaigns_datasource.node.default_child.apply_removal_policy(RemovalPolicy.RETAIN)  # type: ignore
         self.campaigns_datasource.grant_principal.add_to_principal_policy(
             iam.PolicyStatement(
                 actions=["dynamodb:Query", "dynamodb:Scan"],
@@ -1489,7 +1485,6 @@ class CdkStack(Stack):
             "OrdersDataSource",
             table=self.orders_table,
         )
-        self.orders_datasource.node.default_child.apply_removal_policy(RemovalPolicy.RETAIN)  # type: ignore
         self.orders_datasource.grant_principal.add_to_principal_policy(
             iam.PolicyStatement(
                 actions=["dynamodb:Query", "dynamodb:Scan"],
@@ -1502,7 +1497,6 @@ class CdkStack(Stack):
             "SharesDataSource",
             table=self.shares_table,
         )
-        self.shares_datasource.node.default_child.apply_removal_policy(RemovalPolicy.RETAIN)  # type: ignore
         self.shares_datasource.grant_principal.add_to_principal_policy(
             iam.PolicyStatement(
                 actions=["dynamodb:Query", "dynamodb:Scan"],
@@ -1515,7 +1509,6 @@ class CdkStack(Stack):
             "InvitesDataSource",
             table=self.invites_table,
         )
-        self.invites_datasource.node.default_child.apply_removal_policy(RemovalPolicy.RETAIN)  # type: ignore
         self.invites_datasource.grant_principal.add_to_principal_policy(
             iam.PolicyStatement(
                 actions=["dynamodb:Query", "dynamodb:Scan"],
@@ -1528,7 +1521,6 @@ class CdkStack(Stack):
             "SharedCampaignsDataSource",
             table=self.shared_campaigns_table,
         )
-        self.shared_campaigns_datasource.node.default_child.apply_removal_policy(RemovalPolicy.RETAIN)  # type: ignore
         self.shared_campaigns_datasource.grant_principal.add_to_principal_policy(
             iam.PolicyStatement(
                 actions=["dynamodb:Query", "dynamodb:Scan"],
@@ -1541,7 +1533,6 @@ class CdkStack(Stack):
             "NoneDataSource",
             name="NoneDataSource",
         )
-        self.none_datasource.node.default_child.apply_removal_policy(RemovalPolicy.RETAIN)  # type: ignore
 
         # Lambda data sources for profile sharing
         # NOTE: create_profile_invite data source REMOVED - replaced with JS resolver
@@ -6898,23 +6889,36 @@ export function response(ctx) {
         )
 
         # Custom domain for AppSync API
-        self.api_domain_name = appsync.CfnDomainName(
-            self,
-            "ApiDomainName",
-            certificate_arn=self.certificate.certificate_arn,
-            domain_name=self.api_domain,
-        )
-        self.api_domain_name.apply_removal_policy(RemovalPolicy.RETAIN)
+        # Check if domain already exists (from previous stack)
+        existing_api_domain = resource_lookup.lookup_appsync_domain_name(self.api_domain)
+        if not existing_api_domain:
+            # Only create if it doesn't exist
+            self.api_domain_name = appsync.CfnDomainName(
+                self,
+                "ApiDomainName",
+                certificate_arn=self.certificate.certificate_arn,
+                domain_name=self.api_domain,
+            )
+            self.api_domain_name.apply_removal_policy(RemovalPolicy.RETAIN)
+            appsync_domain_for_association = self.api_domain_name.attr_domain_name
+            appsync_cloudfront_domain = self.api_domain_name.attr_app_sync_domain_name
+        else:
+            # Use existing domain - no need to create the resource
+            print(f"Using existing AppSync domain: {self.api_domain}")
+            appsync_domain_for_association = self.api_domain
+            appsync_cloudfront_domain = existing_api_domain["appsync_domain_name"]
+            self.api_domain_name = None  # type: ignore
 
         # Associate custom domain with API
         self.api_domain_association = appsync.CfnDomainNameApiAssociation(
             self,
             "ApiDomainAssociation",
             api_id=self.api.api_id,
-            domain_name=self.api_domain_name.attr_domain_name,
+            domain_name=appsync_domain_for_association,
         )
-        # Ensure domain exists before association
-        self.api_domain_association.add_dependency(self.api_domain_name)
+        # Ensure domain exists before association (only if we created it)
+        if self.api_domain_name:
+            self.api_domain_association.add_dependency(self.api_domain_name)
 
         # Route53 record for AppSync custom domain
         self.api_domain_record = route53.CnameRecord(
@@ -6922,7 +6926,7 @@ export function response(ctx) {
             "ApiDomainRecord",
             zone=self.hosted_zone,
             record_name=self.api_domain,
-            domain_name=self.api_domain_name.attr_app_sync_domain_name,
+            domain_name=appsync_cloudfront_domain,
         )
         self.api_domain_record.node.default_child.apply_removal_policy(RemovalPolicy.RETAIN)  # type: ignore
 
@@ -6931,10 +6935,21 @@ export function response(ctx) {
         # ====================================================================
 
         # Origin Access Identity for S3
-        self.origin_access_identity = cloudfront.OriginAccessIdentity(
-            self, "OAI", comment="OAI for Popcorn Sales Manager SPA"
-        )
-        self.origin_access_identity.node.default_child.apply_removal_policy(RemovalPolicy.RETAIN)  # type: ignore
+        # Check if OAI already exists
+        existing_oai = resource_lookup.lookup_oai("OAI for Popcorn Sales Manager SPA")
+        
+        if existing_oai:
+            # Import existing OAI
+            self.origin_access_identity = cloudfront.OriginAccessIdentity.from_origin_access_identity_id(
+                self, "OAI",
+                origin_access_identity_id=existing_oai["oai_id"]
+            )
+        else:
+            # Create new OAI
+            self.origin_access_identity = cloudfront.OriginAccessIdentity(
+                self, "OAI", comment="OAI for Popcorn Sales Manager SPA"
+            )
+            self.origin_access_identity.node.default_child.apply_removal_policy(RemovalPolicy.RETAIN)  # type: ignore
 
         # Grant CloudFront read access to static assets bucket
         # Note: grant_read() doesn't work on imported buckets, so we add an explicit policy
@@ -6943,77 +6958,104 @@ export function response(ctx) {
         # Explicit bucket policy for CloudFront OAI access (required for imported buckets)
         # When a bucket is imported via from_bucket_name(), grant_read() is a no-op
         # Note: Bucket policies are singleton per bucket - no import needed, just overwrite
-        static_bucket_policy = s3.CfnBucketPolicy(
-            self,
-            "StaticBucketPolicy",
-            bucket=self.static_assets_bucket.bucket_name,
-            policy_document={
-                "Version": "2012-10-17",
-                "Statement": [
-                    {
-                        "Sid": "AllowCloudFrontOAI",
-                        "Effect": "Allow",
-                        "Principal": {
-                            "AWS": f"arn:aws:iam::cloudfront:user/CloudFront Origin Access Identity {self.origin_access_identity.origin_access_identity_id}"
-                        },
-                        "Action": "s3:GetObject",
-                        "Resource": f"arn:aws:s3:::{self.static_assets_bucket.bucket_name}/*",
-                    }
-                ],
-            },
-        )
-        static_bucket_policy.apply_removal_policy(RemovalPolicy.RETAIN)
-        # Ensure OAI is created before the bucket policy
-        static_bucket_policy.node.add_dependency(self.origin_access_identity)
+        # Check if bucket already has a policy (from previous stack or manual creation)
+        existing_bucket_policy = resource_lookup.lookup_s3_bucket_policy(self.static_assets_bucket.bucket_name)
+        if not existing_bucket_policy:
+            # Only create policy if it doesn't already exist
+            static_bucket_policy = s3.CfnBucketPolicy(
+                self,
+                "StaticBucketPolicy",
+                bucket=self.static_assets_bucket.bucket_name,
+                policy_document={
+                    "Version": "2012-10-17",
+                    "Statement": [
+                        {
+                            "Sid": "AllowCloudFrontOAI",
+                            "Effect": "Allow",
+                            "Principal": {
+                                "AWS": f"arn:aws:iam::cloudfront:user/CloudFront Origin Access Identity {self.origin_access_identity.origin_access_identity_id}"
+                            },
+                            "Action": "s3:GetObject",
+                            "Resource": f"arn:aws:s3:::{self.static_assets_bucket.bucket_name}/*",
+                        }
+                    ],
+                },
+            )
+            static_bucket_policy.apply_removal_policy(RemovalPolicy.RETAIN)
+            # Ensure OAI is created before the bucket policy
+            static_bucket_policy.node.add_dependency(self.origin_access_identity)
+        else:
+            print(f"Using existing S3 bucket policy for: {self.static_assets_bucket.bucket_name}")
 
         # CloudFront distribution with custom domain
-        self.distribution = cloudfront.Distribution(
-            self,
-            "Distribution",
-            domain_names=[self.site_domain],
-            certificate=self.certificate,
-            default_behavior=cloudfront.BehaviorOptions(
-                origin=origins.S3BucketOrigin.with_origin_access_identity(
-                    self.static_assets_bucket,
-                    origin_access_identity=self.origin_access_identity,
+        # Check if distribution already exists
+        existing_distribution = resource_lookup.lookup_cloudfront_distribution(self.site_domain)
+        
+        if existing_distribution:
+            # Import existing CloudFront distribution
+            self.distribution = cloudfront.Distribution.from_distribution_attributes(
+                self,
+                "Distribution",
+                distribution_id=existing_distribution["distribution_id"],
+                domain_name=existing_distribution["domain_name"],
+            )
+        else:
+            # Create new CloudFront distribution
+            self.distribution = cloudfront.Distribution(
+                self,
+                "Distribution",
+                domain_names=[self.site_domain],
+                certificate=self.certificate,
+                default_behavior=cloudfront.BehaviorOptions(
+                    origin=origins.S3BucketOrigin.with_origin_access_identity(
+                        self.static_assets_bucket,
+                        origin_access_identity=self.origin_access_identity,
+                    ),
+                    viewer_protocol_policy=cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
+                    cache_policy=cloudfront.CachePolicy.CACHING_OPTIMIZED,
+                    compress=True,
                 ),
-                viewer_protocol_policy=cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
-                cache_policy=cloudfront.CachePolicy.CACHING_OPTIMIZED,
-                compress=True,
-            ),
-            default_root_object="index.html",
-            error_responses=[
-                cloudfront.ErrorResponse(
-                    http_status=403,
-                    response_http_status=200,
-                    response_page_path="/index.html",
-                    ttl=Duration.seconds(0),
-                ),
-                cloudfront.ErrorResponse(
-                    http_status=404,
-                    response_http_status=200,
-                    response_page_path="/index.html",
-                    ttl=Duration.seconds(0),
-                ),
-            ],
-            price_class=cloudfront.PriceClass.PRICE_CLASS_100,  # US, Canada, Europe only
-            enabled=True,
-        )
-        self.distribution.apply_removal_policy(RemovalPolicy.RETAIN)
+                default_root_object="index.html",
+                error_responses=[
+                    cloudfront.ErrorResponse(
+                        http_status=403,
+                        response_http_status=200,
+                        response_page_path="/index.html",
+                        ttl=Duration.seconds(0),
+                    ),
+                    cloudfront.ErrorResponse(
+                        http_status=404,
+                        response_http_status=200,
+                        response_page_path="/index.html",
+                        ttl=Duration.seconds(0),
+                    ),
+                ],
+                price_class=cloudfront.PriceClass.PRICE_CLASS_100,  # US, Canada, Europe only
+                enabled=True,
+            )
+            self.distribution.apply_removal_policy(RemovalPolicy.RETAIN)
 
         # Route53 record for CloudFront distribution
         # This creates the A record for dev.kernelworx.app (or kernelworx.app in prod)
         # which is required by Cognito as the parent domain for login.dev.kernelworx.app
-        self.site_domain_record = route53.ARecord(
-            self,
-            "SiteDomainRecord",
-            zone=self.hosted_zone,
-            record_name=self.site_domain,
-            target=route53.RecordTarget.from_alias(targets.CloudFrontTarget(self.distribution)),
+        existing_site_record = resource_lookup.lookup_route53_record(
+            self.hosted_zone.hosted_zone_id, self.site_domain, "A"
         )
-        self.site_domain_record.node.default_child.apply_removal_policy(RemovalPolicy.RETAIN)  # type: ignore
+        if existing_site_record:
+            print(f"Using existing Route53 A record: {self.site_domain}")
+            # No need to create the record; it's already there
+            self.site_domain_record = None  # type: ignore[assignment]
+        else:
+            self.site_domain_record = route53.ARecord(
+                self,
+                "SiteDomainRecord",
+                zone=self.hosted_zone,
+                record_name=self.site_domain,
+                target=route53.RecordTarget.from_alias(targets.CloudFrontTarget(self.distribution)),
+            )
+            self.site_domain_record.node.default_child.apply_removal_policy(RemovalPolicy.RETAIN)  # type: ignore
 
-        # Add dependency: UserPoolDomain requires the parent domain A record to exist
-        # Cognito custom domain login.dev.kernelworx.app needs dev.kernelworx.app to resolve
-        if hasattr(self, "user_pool_domain") and hasattr(self.user_pool_domain, "node"):
-            self.user_pool_domain.node.add_dependency(self.site_domain_record)
+            # Add dependency: UserPoolDomain requires the parent domain A record to exist
+            # Cognito custom domain login.dev.kernelworx.app needs dev.kernelworx.app to resolve
+            if hasattr(self, "user_pool_domain") and hasattr(self.user_pool_domain, "node"):
+                self.user_pool_domain.node.add_dependency(self.site_domain_record)
