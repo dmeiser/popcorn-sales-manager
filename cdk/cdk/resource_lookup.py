@@ -99,11 +99,12 @@ def lookup_s3_bucket_policy(bucket_name: str) -> bool:
         return True  # Policy exists
     except client.exceptions.NoSuchBucket:
         return False
-    except client.exceptions.NoSuchBucketPolicy:  # type: ignore[attr-defined]
-        return False  # Bucket exists but no policy
-    except Exception:
-        # Check if it's a "NoSuchBucketPolicy" error by parsing the error message
-        return False
+    except Exception as e:
+        # NoSuchBucketPolicy is not a named exception in botocore, catch generic error
+        if "NoSuchBucketPolicy" in str(e) or "policy does not exist" in str(e):
+            return False  # Bucket exists but no policy
+        # Re-raise other exceptions
+        raise
 
 
 @functools.lru_cache(maxsize=128)
@@ -174,6 +175,25 @@ def lookup_appsync_api(api_name: str) -> Optional[dict[str, str]]:
                         "api_name": api["name"],
                         "arn": api["arn"],
                     }
+    except Exception:
+        pass
+    return None
+
+
+@functools.lru_cache(maxsize=128)
+def lookup_appsync_datasource(api_id: str, datasource_name: str) -> Optional[dict[str, str]]:
+    """Find an AppSync DataSource by API ID and name."""
+    client = get_client("appsync")
+    try:
+        response = client.get_data_source(apiId=api_id, name=datasource_name)
+        ds = response.get("dataSource", {})
+        return {
+            "name": ds.get("name"),
+            "type": ds.get("type"),
+            "datasource_arn": ds.get("dataSourceArn"),
+        }
+    except client.exceptions.NotFoundException:
+        return None
     except Exception:
         pass
     return None
@@ -396,3 +416,13 @@ def lookup_identity_provider(
         return None
     except Exception:
         return None
+
+
+def table_exists(table_name: str) -> bool:
+    """Check if a DynamoDB table exists."""
+    return lookup_dynamodb_table(table_name) is not None
+
+
+def bucket_exists(bucket_name: str) -> bool:
+    """Check if an S3 bucket exists."""
+    return lookup_s3_bucket(bucket_name)

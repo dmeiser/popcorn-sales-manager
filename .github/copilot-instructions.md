@@ -22,10 +22,18 @@ Essential knowledge for GitHub Copilot when working on this volunteer-run Scouti
 - ❌ NEVER manually delete AWS resources created by CloudFormation
 - ❌ NEVER run `aws cloudformation update-stack` or similar commands without permission
 - ❌ NEVER deploy to production environment without explicit permission
+- ❌ NEVER run aws cloudformation delete-stack
+- ❌ NEVER create situations where rollback will destroy resources
+- ❌ NEVER perform AWS operations without understanding their impact on stack state
 - ✅ You ARE permitted to deploy to **dev environment only** by running `./deploy.sh` in the `cdk/` folder as part of normal workflow
 - ✅ ALWAYS use `cdk diff` to preview changes before deploying
 - ✅ ONLY use read-only AWS CLI commands (describe, list, get) for verification
 - ✅ ASK before running any AWS command that modifies infrastructure outside of CDK
+- ✅ ALWAYS preserve existing resources (RemovalPolicy.RETAIN)
+- ✅ ALWAYS import existing resources instead of creating new ones
+- ✅ ALWAYS ask before running ANY AWS CLI command that modifies infrastructure
+- ✅ ALWAYS fix problems via code changes, not by deleting resources
+
 
 **NEVER modify .env files without explicit permission!**
 

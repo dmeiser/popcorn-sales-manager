@@ -102,38 +102,35 @@ class CdkStack(Stack):
             self.api_domain = f"api.{env_name}.{base_domain}"
             self.cognito_domain = f"login.{env_name}.{base_domain}"
 
-        # ACM Certificate for AppSync API and CloudFront - auto-import if exists
-        existing_cert_arn = resource_lookup.lookup_certificate(self.api_domain)
-        if existing_cert_arn:
-            self.certificate = acm.Certificate.from_certificate_arn(
-                self, "Certificate", existing_cert_arn
-            )
-        else:
-            self.certificate = acm.Certificate(
-                self,
-                "Certificate",
-                domain_name=self.api_domain,
-                subject_alternative_names=[
-                    self.site_domain,  # CloudFront distribution
-                ],
-                validation=acm.CertificateValidation.from_dns(self.hosted_zone),
-            )
-            self.certificate.apply_removal_policy(RemovalPolicy.RETAIN)
+        # ACM Certificate for AppSync API and CloudFront
+        # Create new managed certificate (orphaned one cleaned up before deploy)
+        self.certificate = acm.Certificate(
+            self,
+            "Certificate",
+            domain_name=self.api_domain,
+            subject_alternative_names=[
+                self.site_domain,  # CloudFront distribution
+            ],
+            validation=acm.CertificateValidation.from_dns(self.hosted_zone),
+        )
+        self.certificate.apply_removal_policy(RemovalPolicy.RETAIN)
 
-        # Separate ACM Certificate for Cognito custom domain - auto-import if exists
+        # Separate ACM Certificate for Cognito custom domain
+        # Reuse existing if present (cross-account CloudFront may be using it)
+        # Otherwise create new managed certificate
         existing_cognito_cert_arn = resource_lookup.lookup_certificate(self.cognito_domain)
         if existing_cognito_cert_arn:
+            print(f"✓ Reusing existing Cognito Certificate: {self.cognito_domain}")
             self.cognito_certificate = acm.Certificate.from_certificate_arn(
                 self, "CognitoCertificate", existing_cognito_cert_arn
             )
         else:
-            # Using DnsValidatedCertificate because it WAITS for the certificate to be issued
-            self.cognito_certificate = acm.DnsValidatedCertificate(
+            print(f"Creating new Cognito Certificate: {self.cognito_domain}")
+            self.cognito_certificate = acm.Certificate(
                 self,
                 "CognitoCertificate",
                 domain_name=self.cognito_domain,
-                hosted_zone=self.hosted_zone,
-                region="us-east-1",  # Cognito custom domains require us-east-1
+                validation=acm.CertificateValidation.from_dns(self.hosted_zone),
             )
             self.cognito_certificate.apply_removal_policy(RemovalPolicy.RETAIN)
 
@@ -146,14 +143,20 @@ class CdkStack(Stack):
         existing_psm_table = resource_lookup.lookup_dynamodb_table(psm_table_name)
 
         if existing_psm_table:
+            print(f"✓ Importing PsmApp table: {existing_psm_table['table_arn']}")
+            # Import existing table via ARN
             self.table = dynamodb.Table.from_table_arn(
-                self, "PsmApp", existing_psm_table["table_arn"]
+                self,
+                "PsmApp",
+                table_arn=existing_psm_table['table_arn'],
             )
         else:
+            print(f"✗ Creating new PsmApp table")
+            # Create Table (CloudFormation will adopt existing if properties match)
             self.table = dynamodb.Table(
                 self,
                 "PsmApp",
-                table_name=rn("kernelworx-app"),
+                table_name=psm_table_name,
                 partition_key=dynamodb.Attribute(name="PK", type=dynamodb.AttributeType.STRING),
                 sort_key=dynamodb.Attribute(name="SK", type=dynamodb.AttributeType.STRING),
                 billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
@@ -164,6 +167,8 @@ class CdkStack(Stack):
                 stream=dynamodb.StreamViewType.NEW_AND_OLD_IMAGES,  # For audit logging
             )
 
+        # Only configure GSIs if creating a new table (existing tables already have them)
+        if not existing_psm_table:
             # GSI1: Shares by target account (for "My Shared Profiles" view)
             self.table.add_global_secondary_index(
                 index_name="GSI1",
@@ -260,10 +265,15 @@ class CdkStack(Stack):
         accounts_table_name = rn("kernelworx-accounts")
         existing_accounts = resource_lookup.lookup_dynamodb_table(accounts_table_name)
         if existing_accounts:
+            print(f"✓ Importing Accounts table: {existing_accounts['table_arn']}")
             self.accounts_table = dynamodb.Table.from_table_arn(
-                self, "AccountsTable", existing_accounts["table_arn"]
+                self,
+                "AccountsTable",
+                table_arn=existing_accounts['table_arn'],
             )
         else:
+            print(f"✗ Creating new Accounts table")
+            # Create Table
             self.accounts_table = dynamodb.Table(
                 self,
                 "AccountsTable",
@@ -278,7 +288,7 @@ class CdkStack(Stack):
                 removal_policy=RemovalPolicy.RETAIN,
                 deletion_protection=True,
             )
-            # GSI for email lookup (account by email) - only for new tables
+            # GSI for email lookup (account by email)
             self.accounts_table.add_global_secondary_index(
                 index_name="email-index",
                 partition_key=dynamodb.Attribute(name="email", type=dynamodb.AttributeType.STRING),
@@ -289,10 +299,14 @@ class CdkStack(Stack):
         catalogs_table_name = rn("kernelworx-catalogs")
         existing_catalogs = resource_lookup.lookup_dynamodb_table(catalogs_table_name)
         if existing_catalogs:
+            print(f"✓ Importing Catalogs table: {existing_catalogs['table_arn']}")
             self.catalogs_table = dynamodb.Table.from_table_arn(
-                self, "CatalogsTable", existing_catalogs["table_arn"]
+                self,
+                "CatalogsTable",
+                table_arn=existing_catalogs['table_arn'],
             )
         else:
+            print(f"✗ Creating new Catalogs table")
             self.catalogs_table = dynamodb.Table(
                 self,
                 "CatalogsTable",
@@ -307,7 +321,7 @@ class CdkStack(Stack):
                 removal_policy=RemovalPolicy.RETAIN,
                 deletion_protection=True,
             )
-            # GSIs only for new tables
+            # GSIs
             self.catalogs_table.add_global_secondary_index(
                 index_name="ownerAccountId-index",
                 partition_key=dynamodb.Attribute(
@@ -332,10 +346,14 @@ class CdkStack(Stack):
         profiles_table_name = rn("kernelworx-profiles")
         existing_profiles_table = resource_lookup.lookup_dynamodb_table(profiles_table_name)
         if existing_profiles_table:
+            print(f"✓ Importing Profiles table: {existing_profiles_table['table_arn']}")
             self.profiles_table = dynamodb.Table.from_table_arn(
-                self, "ProfilesTableV2", existing_profiles_table["table_arn"]
+                self,
+                "ProfilesTableV2",
+                table_arn=existing_profiles_table['table_arn'],
             )
         else:
+            print(f"✗ Creating new Profiles table")
             self.profiles_table = dynamodb.Table(
                 self,
                 "ProfilesTableV2",
@@ -351,7 +369,7 @@ class CdkStack(Stack):
                 removal_policy=RemovalPolicy.RETAIN,
                 deletion_protection=True,
             )
-            # GSI for direct profile lookup by profileId - only for new tables
+            # GSI for direct profile lookup by profileId
             self.profiles_table.add_global_secondary_index(
                 index_name="profileId-index",
                 partition_key=dynamodb.Attribute(
@@ -367,10 +385,14 @@ class CdkStack(Stack):
         shares_table_name = rn("kernelworx-shares")
         existing_shares_table = resource_lookup.lookup_dynamodb_table(shares_table_name)
         if existing_shares_table:
+            print(f"✓ Importing Shares table: {existing_shares_table['table_arn']}")
             self.shares_table = dynamodb.Table.from_table_arn(
-                self, "SharesTable", existing_shares_table["table_arn"]
+                self,
+                "SharesTable",
+                table_arn=existing_shares_table['table_arn'],
             )
         else:
+            print(f"✗ Creating new Shares table")
             self.shares_table = dynamodb.Table(
                 self,
                 "SharesTable",
@@ -388,7 +410,7 @@ class CdkStack(Stack):
                 removal_policy=RemovalPolicy.RETAIN,
                 deletion_protection=True,
             )
-            # GSI for "profiles shared with me" query - only for new tables
+            # GSI for "profiles shared with me" query
             self.shares_table.add_global_secondary_index(
                 index_name="targetAccountId-index",
                 partition_key=dynamodb.Attribute(
@@ -404,10 +426,14 @@ class CdkStack(Stack):
         invites_table_name = rn("kernelworx-invites")
         existing_invites_table = resource_lookup.lookup_dynamodb_table(invites_table_name)
         if existing_invites_table:
+            print(f"✓ Importing Invites table: {existing_invites_table['table_arn']}")
             self.invites_table = dynamodb.Table.from_table_arn(
-                self, "InvitesTable", existing_invites_table["table_arn"]
+                self,
+                "InvitesTable",
+                table_arn=existing_invites_table['table_arn'],
             )
         else:
+            print(f"✗ Creating new Invites table")
             self.invites_table = dynamodb.Table(
                 self,
                 "InvitesTable",
@@ -422,7 +448,7 @@ class CdkStack(Stack):
                 removal_policy=RemovalPolicy.RETAIN,
                 deletion_protection=True,
             )
-            # GSI for "invites for this profile" query - only for new tables
+            # GSI for "invites for this profile" query
             self.invites_table.add_global_secondary_index(
                 index_name="profileId-index",
                 partition_key=dynamodb.Attribute(
@@ -431,7 +457,7 @@ class CdkStack(Stack):
                 projection_type=dynamodb.ProjectionType.ALL,
             )
 
-            # TTL for invites (automatic expiration) - only for new tables
+            # TTL for invites (automatic expiration)
             cfn_invites_table = self.invites_table.node.default_child
             assert cfn_invites_table is not None
             cfn_invites_table.time_to_live_specification = (  # type: ignore
@@ -448,10 +474,14 @@ class CdkStack(Stack):
         campaigns_table_name = rn("kernelworx-campaigns")
         existing_campaigns_table = resource_lookup.lookup_dynamodb_table(campaigns_table_name)
         if existing_campaigns_table:
+            print(f"✓ Importing Campaigns table: {existing_campaigns_table['table_arn']}")
             self.campaigns_table = dynamodb.Table.from_table_arn(
-                self, "CampaignsTableV2", existing_campaigns_table["table_arn"]
+                self,
+                "CampaignsTableV2",
+                table_arn=existing_campaigns_table['table_arn'],
             )
         else:
+            print(f"✗ Creating new Campaigns table")
             self.campaigns_table = dynamodb.Table(
                 self,
                 "CampaignsTableV2",
@@ -467,7 +497,7 @@ class CdkStack(Stack):
                 removal_policy=RemovalPolicy.RETAIN,
                 deletion_protection=True,
             )
-            # GSI for direct getCampaign by campaignId - only for new tables
+            # GSI for direct getCampaign by campaignId
             self.campaigns_table.add_global_secondary_index(
                 index_name="campaignId-index",
                 partition_key=dynamodb.Attribute(
@@ -476,7 +506,7 @@ class CdkStack(Stack):
                 projection_type=dynamodb.ProjectionType.ALL,
             )
 
-            # GSI for campaigns by catalog - only for new tables
+            # GSI for campaigns by catalog
             self.campaigns_table.add_global_secondary_index(
                 index_name="catalogId-index",
                 partition_key=dynamodb.Attribute(
@@ -492,10 +522,14 @@ class CdkStack(Stack):
         orders_table_name = rn("kernelworx-orders")
         existing_orders_table = resource_lookup.lookup_dynamodb_table(orders_table_name)
         if existing_orders_table:
+            print(f"✓ Importing OrdersTableV2 table: {existing_orders_table['table_arn']}")
             self.orders_table = dynamodb.Table.from_table_arn(
-                self, "OrdersTableV2", existing_orders_table["table_arn"]
+                self,
+                "OrdersTableV2",
+                table_arn=existing_orders_table['table_arn'],
             )
         else:
+            print(f"✗ Creating new OrdersTableV2 table")
             self.orders_table = dynamodb.Table(
                 self,
                 "OrdersTableV2",
@@ -511,7 +545,7 @@ class CdkStack(Stack):
                 removal_policy=RemovalPolicy.RETAIN,
                 deletion_protection=True,
             )
-            # GSI for direct order lookup by orderId - only for new tables
+            # GSI for direct order lookup by orderId
             self.orders_table.add_global_secondary_index(
                 index_name="orderId-index",
                 partition_key=dynamodb.Attribute(
@@ -520,7 +554,7 @@ class CdkStack(Stack):
                 projection_type=dynamodb.ProjectionType.ALL,
             )
 
-            # GSI for orders by profile - only for new tables
+            # GSI for orders by profile
             self.orders_table.add_global_secondary_index(
                 index_name="profileId-index",
                 partition_key=dynamodb.Attribute(
@@ -537,10 +571,14 @@ class CdkStack(Stack):
         shared_campaigns_table_name = rn("kernelworx-shared-campaigns")
         existing_shared_campaigns_table = resource_lookup.lookup_dynamodb_table(shared_campaigns_table_name)
         if existing_shared_campaigns_table:
+            print(f"✓ Importing SharedCampaignsTable table: {existing_shared_campaigns_table['table_arn']}")
             self.shared_campaigns_table = dynamodb.Table.from_table_arn(
-                self, "SharedCampaignsTable", existing_shared_campaigns_table["table_arn"]
+                self,
+                "SharedCampaignsTable",
+                table_arn=existing_shared_campaigns_table['table_arn'],
             )
         else:
+            print(f"✗ Creating new SharedCampaignsTable table")
             self.shared_campaigns_table = dynamodb.Table(
                 self,
                 "SharedCampaignsTable",
@@ -580,11 +618,16 @@ class CdkStack(Stack):
 
         # Static assets bucket (for SPA hosting) - auto-import if exists
         static_bucket_name = rn("kernelworx-static")
-        if resource_lookup.lookup_s3_bucket(static_bucket_name):
+        existing_static_bucket = resource_lookup.lookup_s3_bucket(static_bucket_name)
+        if existing_static_bucket:
+            print(f"✓ Importing Static bucket: {static_bucket_name}")
             self.static_assets_bucket = s3.Bucket.from_bucket_name(
-                self, "StaticAssets", static_bucket_name
+                self,
+                "StaticAssets",
+                bucket_name=static_bucket_name,
             )
         else:
+            print(f"✗ Creating new Static bucket: {static_bucket_name}")
             self.static_assets_bucket = s3.Bucket(
                 self,
                 "StaticAssets",
@@ -597,9 +640,16 @@ class CdkStack(Stack):
 
         # Exports bucket (for generated reports) - auto-import if exists
         exports_bucket_name = rn("kernelworx-exports")
-        if resource_lookup.lookup_s3_bucket(exports_bucket_name):
-            self.exports_bucket = s3.Bucket.from_bucket_name(self, "Exports", exports_bucket_name)
+        existing_exports_bucket = resource_lookup.lookup_s3_bucket(exports_bucket_name)
+        if existing_exports_bucket:
+            print(f"✓ Importing Exports bucket: {exports_bucket_name}")
+            self.exports_bucket = s3.Bucket.from_bucket_name(
+                self,
+                "Exports",
+                bucket_name=exports_bucket_name,
+            )
         else:
+            print(f"✗ Creating new Exports bucket: {exports_bucket_name}")
             self.exports_bucket = s3.Bucket(
                 self,
                 "Exports",
@@ -951,15 +1001,42 @@ class CdkStack(Stack):
             existing_user_pool_id = self.node.try_get_context("user_pool_id")
 
         if existing_user_pool_id:
-            # Import existing User Pool
-            # Note: WebAuthn Relying Party ID must be configured manually via AWS Console
-            # at: Cognito > User Pools > [Pool] > App Integration > Passkey
-            # Set "Third-party domain" to the application domain (e.g., dev.kernelworx.app)
-            self.user_pool = cognito.UserPool.from_user_pool_id(
-                self, "UserPool", existing_user_pool_id
-            )
-
-            # Check for existing identity providers on the imported pool
+            # User Pool exists - auto-import SMS role + reference UserPool
+            print(f"Using existing User Pool: {existing_user_pool_id}")
+            
+            # Auto-import existing SMS role if it exists
+            sms_role_name = f"kernelworx-{self.region_abbrev}-{self.env_name}-UserPoolsmsRole"
+            existing_sms_role_arn = resource_lookup.lookup_iam_role(sms_role_name)
+            
+            if existing_sms_role_arn:
+                print(f"Using existing SMS role: {sms_role_name}")
+                self.user_pool_sms_role = iam.Role.from_role_arn(
+                    self,
+                    "UserPoolsmsRole",
+                    role_arn=existing_sms_role_arn,
+                    mutable=False,
+                )
+            else:
+                # SMS role doesn't exist - create a new one
+                print(f"Creating new SMS role: {sms_role_name}")
+                self.user_pool_sms_role = iam.Role(
+                    self,
+                    "UserPoolsmsRole",
+                    assumed_by=iam.ServicePrincipal("cognito-idp.amazonaws.com"),
+                    role_name=sms_role_name,
+                    inline_policies={
+                        "UserPoolSmsPolicy": iam.PolicyDocument(
+                            statements=[
+                                iam.PolicyStatement(
+                                    actions=["sns:Publish"],
+                                    resources=["arn:aws:sns:*:*:*"],
+                                )
+                            ]
+                        )
+                    },
+                )
+            
+            # Check for existing identity providers
             imported_pool_providers = [cognito.UserPoolClientIdentityProvider.COGNITO]
             if resource_lookup.lookup_identity_provider(existing_user_pool_id, "Google"):
                 imported_pool_providers.append(cognito.UserPoolClientIdentityProvider.GOOGLE)
@@ -967,16 +1044,53 @@ class CdkStack(Stack):
                 imported_pool_providers.append(cognito.UserPoolClientIdentityProvider.FACEBOOK)
             if resource_lookup.lookup_identity_provider(existing_user_pool_id, "SignInWithApple"):
                 imported_pool_providers.append(cognito.UserPoolClientIdentityProvider.APPLE)
-
-            # Import existing UserPoolClient instead of creating new one
-            # This prevents the AWS::EarlyValidation::ResourceExistenceCheck hook from failing
-            # due to multiple clients with the same name.
-            # Client ID from existing pool: 125rseht0a7jr4bh7ro8bemhl2
-            self.user_pool_client = cognito.UserPoolClient.from_user_pool_client_id(
-                self, "AppClient",
-                user_pool_client_id="125rseht0a7jr4bh7ro8bemhl2"
+            
+            # Reference imported UserPool (CloudFormation manages it via import)
+            self.user_pool = cognito.UserPool.from_user_pool_id(
+                self,
+                "UserPool",
+                user_pool_id=existing_user_pool_id,
             )
-            # Note: Imported resources cannot have removal policies set
+
+            # Always create UserPoolClient (CloudFormation will adopt existing)
+            # This manages the client in CloudFormation instead of just referencing it
+            self.user_pool_client = cognito.UserPoolClient(
+                self,
+                "AppClient",
+                user_pool=self.user_pool,
+                user_pool_client_name="KernelWorx-Web",
+                auth_flows=cognito.AuthFlow(
+                    user_srp=True,
+                    user_password=True,
+                    user=True,  # Required for WebAuthn/passkeys (ALLOW_USER_AUTH)
+                ),
+                o_auth=cognito.OAuthSettings(
+                    flows=cognito.OAuthFlows(
+                        authorization_code_grant=True,
+                        implicit_code_grant=True,
+                    ),
+                    scopes=[
+                        cognito.OAuthScope.EMAIL,
+                        cognito.OAuthScope.OPENID,
+                        cognito.OAuthScope.PROFILE,
+                    ],
+                    callback_urls=[
+                        "http://localhost:5173",
+                        "https://local.dev.appworx.app:5173",
+                        f"https://{self.site_domain}",
+                        f"https://{self.site_domain}/callback",
+                    ],
+                    logout_urls=[
+                        "http://localhost:5173",
+                        "https://local.dev.appworx.app:5173",
+                        f"https://{self.site_domain}",
+                    ],
+                ),
+                supported_identity_providers=imported_pool_providers,
+                prevent_user_existence_errors=True,
+            )
+            # Apply RETAIN policy so imported client isn't deleted on stack destroy
+            self.user_pool_client.node.default_child.apply_removal_policy(RemovalPolicy.RETAIN)  # type: ignore
 
             # Attach post-authentication Lambda trigger to imported pool
             # CDK doesn't support adding triggers to imported pools natively,
@@ -1286,10 +1400,18 @@ class CdkStack(Stack):
             # For imported pools, check if the custom domain exists
             existing_domain = resource_lookup.lookup_user_pool_domain(existing_user_pool_id)
             if existing_domain:
-                # Domain exists - import it
-                self.user_pool_domain = cognito.UserPoolDomain.from_domain_name(  # type: ignore[assignment]
-                    self, "UserPoolDomain", existing_domain
+                # Domain exists - always create (CloudFormation will adopt existing)
+                print(f"Using existing User Pool Domain: {existing_domain}")
+                self.user_pool_domain = cognito.UserPoolDomain(  # type: ignore[assignment]
+                    self,
+                    "UserPoolDomain",
+                    user_pool=self.user_pool,
+                    custom_domain=cognito.CustomDomainOptions(
+                        domain_name=self.cognito_domain,
+                        certificate=self.cognito_certificate,
+                    ),
                 )
+                self.user_pool_domain.node.default_child.apply_removal_policy(RemovalPolicy.RETAIN)  # type: ignore
                 # Look up the CloudFront distribution and create Route53 record if it doesn't exist
                 existing_cf = resource_lookup.lookup_cognito_domain_cloudfront(existing_domain)
                 if existing_cf:
@@ -1347,7 +1469,7 @@ class CdkStack(Stack):
                 )
                 self.cognito_domain_record.apply_removal_policy(RemovalPolicy.RETAIN)
 
-        # Output Cognito Hosted UI URL for easy access (only if user pool was created, not imported)
+        # Output Cognito Hosted UI URL for easy access
         if hasattr(self, "user_pool_domain") and hasattr(self, "user_pool_client"):
             CfnOutput(
                 self,
@@ -1355,6 +1477,15 @@ class CdkStack(Stack):
                 value=f"https://{self.user_pool_domain.domain_name}.auth.{self.region}.amazoncognito.com/login?client_id={self.user_pool_client.user_pool_client_id}&response_type=code&redirect_uri=http://localhost:5173",
                 description="Cognito Hosted UI URL for testing",
             )
+
+        # Output UserPoolClientId for frontend deployment
+        CfnOutput(
+            self,
+            "UserPoolClientId",
+            value=self.user_pool_client.user_pool_client_id,
+            description="Cognito User Pool Client ID",
+            export_name="kernelworx-ue1-dev-UserPoolClientId",
+        )
 
         # ====================================================================
         # AppSync GraphQL API
@@ -1368,43 +1499,35 @@ class CdkStack(Stack):
         # Defaults to True if not specified
         enable_appsync_logging = os.getenv("ENABLE_APPSYNC_LOGGING", "true").lower() == "true"
 
-        # Check if AppSync API already exists
+        # AppSync API - Always create (CloudFormation will adopt existing)
         api_name = rn("kernelworx-api")
         existing_api = resource_lookup.lookup_appsync_api(api_name)
         
         if existing_api:
             print(f"Using existing AppSync API: {api_name} ({existing_api['api_id']})")
-            # Import the existing API
-            self.api = appsync.GraphqlApi.from_graphql_api_attributes(
-                self,
-                "Api",
-                graphql_api_id=existing_api["api_id"],
-                graphql_api_arn=existing_api["arn"],
-            )
-        else:
-            # Create new AppSync API
-            self.api = appsync.GraphqlApi(
-                self,
-                "Api",
-                name=api_name,
-                definition=appsync.Definition.from_file(schema_path),
-                authorization_config=appsync.AuthorizationConfig(
-                    default_authorization=appsync.AuthorizationMode(
-                        authorization_type=appsync.AuthorizationType.USER_POOL,
-                        user_pool_config=appsync.UserPoolConfig(user_pool=self.user_pool),
-                    ),
+        
+        self.api = appsync.GraphqlApi(
+            self,
+            "Api",
+            name=api_name,
+            definition=appsync.Definition.from_file(schema_path),
+            authorization_config=appsync.AuthorizationConfig(
+                default_authorization=appsync.AuthorizationMode(
+                    authorization_type=appsync.AuthorizationType.USER_POOL,
+                    user_pool_config=appsync.UserPoolConfig(user_pool=self.user_pool),
                 ),
-                xray_enabled=True,
-                log_config=(
-                    appsync.LogConfig(
-                        field_log_level=appsync.FieldLogLevel.ALL,
-                        exclude_verbose_content=False,
-                    )
-                    if enable_appsync_logging
-                    else None
-                ),
-            )
-            self.api.apply_removal_policy(RemovalPolicy.RETAIN)
+            ),
+            xray_enabled=True,
+            log_config=(
+                appsync.LogConfig(
+                    field_log_level=appsync.FieldLogLevel.ALL,
+                    exclude_verbose_content=False,
+                )
+                if enable_appsync_logging
+                else None
+            ),
+        )
+        self.api.apply_removal_policy(RemovalPolicy.RETAIN)
 
         CfnOutput(
             self,
@@ -6889,46 +7012,56 @@ export function response(ctx) {
         )
 
         # Custom domain for AppSync API
+        # TEMPORARILY DISABLED: AppSync CNAME conflict blocking deployment
         # Check if domain already exists (from previous stack)
         existing_api_domain = resource_lookup.lookup_appsync_domain_name(self.api_domain)
-        if not existing_api_domain:
-            # Only create if it doesn't exist
-            self.api_domain_name = appsync.CfnDomainName(
-                self,
-                "ApiDomainName",
-                certificate_arn=self.certificate.certificate_arn,
-                domain_name=self.api_domain,
-            )
-            self.api_domain_name.apply_removal_policy(RemovalPolicy.RETAIN)
-            appsync_domain_for_association = self.api_domain_name.attr_domain_name
-            appsync_cloudfront_domain = self.api_domain_name.attr_app_sync_domain_name
+        if False:  # DISABLED TEMPORARILY
+            if not existing_api_domain:
+                # Only create if it doesn't exist
+                self.api_domain_name = appsync.CfnDomainName(
+                    self,
+                    "ApiDomainName",
+                    certificate_arn=self.certificate.certificate_arn,
+                    domain_name=self.api_domain,
+                )
+                self.api_domain_name.apply_removal_policy(RemovalPolicy.RETAIN)
+                appsync_domain_for_association = self.api_domain_name.attr_domain_name
+                appsync_cloudfront_domain = self.api_domain_name.attr_app_sync_domain_name
+            else:
+                # Use existing domain - no need to create the resource
+                print(f"Using existing AppSync domain: {self.api_domain}")
         else:
-            # Use existing domain - no need to create the resource
-            print(f"Using existing AppSync domain: {self.api_domain}")
-            appsync_domain_for_association = self.api_domain
-            appsync_cloudfront_domain = existing_api_domain["appsync_domain_name"]
+            # Skip AppSync domain creation - use direct GraphQL endpoint instead
+            print(f"Skipping AppSync domain creation (CNAME conflict)")
+            appsync_domain_for_association = None
+            appsync_cloudfront_domain = None
             self.api_domain_name = None  # type: ignore
 
-        # Associate custom domain with API
-        self.api_domain_association = appsync.CfnDomainNameApiAssociation(
-            self,
-            "ApiDomainAssociation",
-            api_id=self.api.api_id,
-            domain_name=appsync_domain_for_association,
-        )
-        # Ensure domain exists before association (only if we created it)
-        if self.api_domain_name:
-            self.api_domain_association.add_dependency(self.api_domain_name)
+        # Associate custom domain with API (skip if domain creation was disabled)
+        if appsync_domain_for_association is not None:
+            self.api_domain_association = appsync.CfnDomainNameApiAssociation(
+                self,
+                "ApiDomainAssociation",
+                api_id=self.api.api_id,
+                domain_name=appsync_domain_for_association,
+            )
+            # Ensure domain exists before association (only if we created it)
+            if self.api_domain_name:
+                self.api_domain_association.add_dependency(self.api_domain_name)
 
-        # Route53 record for AppSync custom domain
-        self.api_domain_record = route53.CnameRecord(
-            self,
-            "ApiDomainRecord",
-            zone=self.hosted_zone,
-            record_name=self.api_domain,
-            domain_name=appsync_cloudfront_domain,
-        )
-        self.api_domain_record.node.default_child.apply_removal_policy(RemovalPolicy.RETAIN)  # type: ignore
+            # Route53 record for AppSync custom domain
+            self.api_domain_record = route53.CnameRecord(
+                self,
+                "ApiDomainRecord",
+                zone=self.hosted_zone,
+                record_name=self.api_domain,
+                domain_name=appsync_cloudfront_domain,
+            )
+            self.api_domain_record.node.default_child.apply_removal_policy(RemovalPolicy.RETAIN)  # type: ignore
+        else:
+            print(f"AppSync domain not configured - using direct endpoint")
+            self.api_domain_association = None
+            self.api_domain_record = None
 
         # ====================================================================
         # CloudFront Distribution for SPA
@@ -6951,41 +7084,13 @@ export function response(ctx) {
             )
             self.origin_access_identity.node.default_child.apply_removal_policy(RemovalPolicy.RETAIN)  # type: ignore
 
-        # Grant CloudFront read access to static assets bucket
-        # Note: grant_read() doesn't work on imported buckets, so we add an explicit policy
-        self.static_assets_bucket.grant_read(self.origin_access_identity)
-
-        # Explicit bucket policy for CloudFront OAI access (required for imported buckets)
-        # When a bucket is imported via from_bucket_name(), grant_read() is a no-op
-        # Note: Bucket policies are singleton per bucket - no import needed, just overwrite
         # Check if bucket already has a policy (from previous stack or manual creation)
-        existing_bucket_policy = resource_lookup.lookup_s3_bucket_policy(self.static_assets_bucket.bucket_name)
+        existing_bucket_policy = resource_lookup.lookup_s3_bucket_policy(static_bucket_name)
         if not existing_bucket_policy:
-            # Only create policy if it doesn't already exist
-            static_bucket_policy = s3.CfnBucketPolicy(
-                self,
-                "StaticBucketPolicy",
-                bucket=self.static_assets_bucket.bucket_name,
-                policy_document={
-                    "Version": "2012-10-17",
-                    "Statement": [
-                        {
-                            "Sid": "AllowCloudFrontOAI",
-                            "Effect": "Allow",
-                            "Principal": {
-                                "AWS": f"arn:aws:iam::cloudfront:user/CloudFront Origin Access Identity {self.origin_access_identity.origin_access_identity_id}"
-                            },
-                            "Action": "s3:GetObject",
-                            "Resource": f"arn:aws:s3:::{self.static_assets_bucket.bucket_name}/*",
-                        }
-                    ],
-                },
-            )
-            static_bucket_policy.apply_removal_policy(RemovalPolicy.RETAIN)
-            # Ensure OAI is created before the bucket policy
-            static_bucket_policy.node.add_dependency(self.origin_access_identity)
+            # Grant CloudFront read access to static assets bucket (creates bucket policy)
+            self.static_assets_bucket.grant_read(self.origin_access_identity)
         else:
-            print(f"Using existing S3 bucket policy for: {self.static_assets_bucket.bucket_name}")
+            print(f"Using existing S3 bucket policy for: {static_bucket_name}")
 
         # CloudFront distribution with custom domain
         # Check if distribution already exists

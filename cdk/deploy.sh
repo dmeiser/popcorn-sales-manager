@@ -25,8 +25,9 @@ echo "   Region: $AWS_REGION"
 echo "   Account: ${AWS_ACCOUNT_ID:-<from AWS profile>}"
 echo ""
 
-# Build context arguments for resource import (optional, for migrations only)
-CONTEXT_ARGS=""
+# Build context arguments
+CONTEXT_ARGS="-c environment=$ENVIRONMENT"
+
 if [ -n "$STATIC_BUCKET_NAME" ]; then
     CONTEXT_ARGS="$CONTEXT_ARGS -c static_bucket_name=$STATIC_BUCKET_NAME"
 fi
@@ -42,19 +43,20 @@ fi
 if [ -n "$APPSYNC_API_ID" ]; then
     CONTEXT_ARGS="$CONTEXT_ARGS -c appsync_api_id=$APPSYNC_API_ID"
 fi
-
-# Support two-stage deployment for fresh installs
-# Phase 1: Skip Cognito custom domain (set CREATE_COGNITO_DOMAIN=false)
-# Phase 2: Add Cognito custom domain after DNS propagates (set CREATE_COGNITO_DOMAIN=true or unset)
 if [ -n "$CREATE_COGNITO_DOMAIN" ]; then
     CONTEXT_ARGS="$CONTEXT_ARGS -c create_cognito_domain=$CREATE_COGNITO_DOMAIN"
 fi
 
 # Run deployment
-echo "Running: npx cdk deploy -c environment=$ENVIRONMENT $CONTEXT_ARGS --require-approval never"
+echo "Running: npx cdk deploy $CONTEXT_ARGS --require-approval never"
 echo ""
 
-npx cdk deploy -c environment=$ENVIRONMENT $CONTEXT_ARGS --require-approval never
+# Add import file if it exists (for ACM certificates and other resources)
+if [ -f import-certificates.json ]; then
+    npx cdk deploy $CONTEXT_ARGS --require-approval never --resources-to-import "$(cat import-certificates.json)"
+else
+    npx cdk deploy $CONTEXT_ARGS --require-approval never
+fi
 
 echo ""
 echo "✅ Deployment complete!"

@@ -53,12 +53,31 @@ if [ -z "$USER_POOL_ID" ] || [ "$USER_POOL_ID" == "None" ]; then
 fi
 echo "   User Pool ID: $USER_POOL_ID"
 
-# Get Cognito App Client ID
-CLIENT_ID=$(aws cloudformation list-stack-resources \
+# Get Cognito App Client ID from CloudFormation outputs
+CLIENT_ID=$(aws cloudformation describe-stacks \
     --stack-name "$STACK_NAME" \
-    --query "StackResourceSummaries[?LogicalResourceId=='UserPoolAppClientDD0407EC'].PhysicalResourceId" \
+    --query "Stacks[0].Outputs[?OutputKey=='UserPoolClientId'].OutputValue" \
     --output text \
-    --region "$REGION")
+    --region "$REGION" 2>/dev/null || echo "")
+
+if [ -z "$CLIENT_ID" ] || [ "$CLIENT_ID" == "None" ]; then
+    # Fallback: try to find it as a stack resource (old method)
+    CLIENT_ID=$(aws cloudformation list-stack-resources \
+        --stack-name "$STACK_NAME" \
+        --query "StackResourceSummaries[?LogicalResourceId=='UserPoolAppClientDD0407EC'].PhysicalResourceId" \
+        --output text \
+        --region "$REGION" 2>/dev/null || echo "")
+fi
+
+if [ -z "$CLIENT_ID" ] || [ "$CLIENT_ID" == "None" ]; then
+    # Last resort: look up client from User Pool
+    CLIENT_ID=$(aws cognito-idp list-user-pool-clients \
+        --user-pool-id "$USER_POOL_ID" \
+        --max-results 1 \
+        --query "UserPoolClients[0].ClientId" \
+        --output text \
+        --region "$REGION" 2>/dev/null || echo "")
+fi
 
 if [ -z "$CLIENT_ID" ] || [ "$CLIENT_ID" == "None" ]; then
     echo "❌ Error: Could not find Cognito App Client in stack $STACK_NAME"
