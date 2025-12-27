@@ -7,6 +7,8 @@
 import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
+import { act } from 'react';
+import userEvent from '@testing-library/user-event';
 import { Toast } from '../src/components/Toast';
 
 describe('Toast', () => {
@@ -31,7 +33,7 @@ describe('Toast', () => {
         operation: 'createProfile',
       },
     });
-    window.dispatchEvent(errorEvent);
+    act(() => { window.dispatchEvent(errorEvent); });
 
     // Wait for toast to appear
     await waitFor(() => {
@@ -52,7 +54,7 @@ describe('Toast', () => {
         operation: 'someOperation',
       },
     });
-    window.dispatchEvent(errorEvent);
+    act(() => { window.dispatchEvent(errorEvent); });
 
     await waitFor(() => {
       expect(screen.getByText('An error occurred')).toBeInTheDocument();
@@ -69,7 +71,7 @@ describe('Toast', () => {
         operation: 'query',
       },
     });
-    window.dispatchEvent(errorEvent);
+    act(() => { window.dispatchEvent(errorEvent); });
 
     await waitFor(() => {
       const alert = screen.getByRole('alert');
@@ -89,7 +91,7 @@ describe('Toast', () => {
         operation: 'test',
       },
     });
-    window.dispatchEvent(errorEvent);
+    act(() => { window.dispatchEvent(errorEvent); });
 
     await waitFor(() => {
       expect(screen.getByRole('alert')).toBeInTheDocument();
@@ -102,7 +104,7 @@ describe('Toast', () => {
     );
 
     if (alertCloseButton) {
-      alertCloseButton.click();
+      await userEvent.click(alertCloseButton);
 
       // Toast should be closed after clicking
       await waitFor(() => {

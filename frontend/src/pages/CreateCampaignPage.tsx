@@ -152,6 +152,12 @@ const US_STATES = [
 
 const CAMPAIGN_OPTIONS = ["Fall", "Spring", "Summer", "Winter"];
 
+// Expose a test override for debounce duration so tests can make discovery deterministic
+export let SHARED_DISCOVERY_DEBOUNCE_MS = 500;
+export const setDiscoveryDebounceMs = (ms: number) => {
+  SHARED_DISCOVERY_DEBOUNCE_MS = ms;
+};
+
 export const CreateCampaignPage: React.FC = () => {
   const { sharedCampaignCode } = useParams<{ sharedCampaignCode: string }>();
   const navigate = useNavigate();
@@ -308,39 +314,39 @@ export const CreateCampaignPage: React.FC = () => {
     }
   }, [sharedCampaign]);
 
-  // Debounced shared campaign discovery in manual mode
-  const debouncedFindSharedCampaigns = useMemo(() => {
-    let timeoutId: NodeJS.Timeout;
-    return (params: {
-      unitType: string;
-      unitNumber: string;
-      city: string;
-      state: string;
-      campaignName: string;
-      campaignYear: number;
-    }) => {
-      clearTimeout(timeoutId);
-      timeoutId = setTimeout(() => {
-        if (
-          params.unitType &&
-          params.unitNumber &&
-          params.city &&
-          params.state &&
-          params.campaignName &&
-          params.campaignYear
-        ) {
-          findSharedCampaigns({
-            variables: {
-              unitType: params.unitType,
-              unitNumber: parseInt(params.unitNumber, 10),
-              city: params.city,
-              state: params.state,
-              campaignName: params.campaignName,
-              campaignYear: params.campaignYear,
-            },
-          });
-        }
-      }, 500);
+// Debounced shared campaign discovery in manual mode
+const debouncedFindSharedCampaigns = useMemo(() => {
+  let timeoutId: NodeJS.Timeout;
+  return (params: {
+    unitType: string;
+    unitNumber: string;
+    city: string;
+    state: string;
+    campaignName: string;
+    campaignYear: number;
+  }) => {
+    clearTimeout(timeoutId);
+    timeoutId = setTimeout(() => {
+      if (
+        params.unitType &&
+        params.unitNumber &&
+        params.city &&
+        params.state &&
+        params.campaignName &&
+        params.campaignYear
+      ) {
+        findSharedCampaigns({
+          variables: {
+            unitType: params.unitType,
+            unitNumber: parseInt(params.unitNumber, 10),
+            city: params.city,
+            state: params.state,
+            campaignName: params.campaignName,
+            campaignYear: params.campaignYear,
+          },
+        });
+      }
+    }, SHARED_DISCOVERY_DEBOUNCE_MS);
     };
   }, [findSharedCampaigns]);
 

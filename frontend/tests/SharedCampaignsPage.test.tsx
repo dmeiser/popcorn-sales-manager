@@ -5,12 +5,14 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { MockedProvider } from "@apollo/client/testing/react";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, Routes, Route } from "react-router-dom";
 import { SharedCampaignsPage } from "../src/pages/SharedCampaignsPage";
+import QRCode from "qrcode";
 import {
   LIST_MY_SHARED_CAMPAIGNS,
   LIST_PUBLIC_CATALOGS,
   LIST_MY_CATALOGS,
+  DELETE_SHARED_CAMPAIGN,
 } from "../src/lib/graphql";
 
 // Mock QRCode
@@ -207,20 +209,109 @@ describe("SharedCampaignsPage", () => {
   });
 
   describe("QR code download", () => {
-    it.skip("downloads QR code when button clicked", async () => {
-      // TODO: This test needs to be rewritten to match actual QR download behavior
-      // which uses dialog + button, not direct click
+    it("opens QR dialog and downloads QR code when button clicked", async () => {
+      renderWithProviders([createListMock()]);
+
+      await waitFor(() => {
+        expect(screen.getByText("PACK123F25")).toBeInTheDocument();
+      });
+
+      const viewButtons = screen.getAllByLabelText("View QR code");
+      fireEvent.click(viewButtons[0]);
+
+      await waitFor(() => {
+        expect(screen.getByText(/Campaign QR Code/)).toBeInTheDocument();
+      });
+
+      expect(screen.getByAltText("QR Code")).toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole("button", { name: /download/i }));
+
+      await waitFor(() => {
+        expect(screen.getByText("QR code downloaded!")).toBeInTheDocument();
+      });
+    });
+
+    it("shows error when QR generation fails", async () => {
+      // Override mocked QRCode to reject
+      const orig = (QRCode as any).toDataURL;
+      (QRCode as any).toDataURL = vi.fn().mockRejectedValue(new Error("QR failed"));
+
+      renderWithProviders([createListMock()]);
+
+      await waitFor(() => {
+        expect(screen.getByText("PACK123F25")).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getAllByLabelText("View QR code")[0]);
+
+      await waitFor(() => {
+        expect(screen.getByText("Failed to generate QR code")).toBeInTheDocument();
+      });
+
+      // restore
+      (QRCode as any).toDataURL = orig;
     });
   });
 
   describe("Create button", () => {
-    it.skip("navigates to create page when Create Shared Campaign button clicked", async () => {
-      // TODO: Test navigation to /shared-campaigns/create
-      // This test needs to check that the button navigates, not that a dialog opens
+    it("navigates to create page when Create Shared Campaign button clicked", async () => {
+      const mocks = [...baseMocks(), createListMock()];
+
+      render(
+        <MockedProvider mocks={mocks}>
+          <MemoryRouter initialEntries={["/shared-campaigns"]}>
+            <Routes>
+              <Route path="/shared-campaigns" element={<SharedCampaignsPage />} />
+              <Route path="/shared-campaigns/create" element={<div>CREATE PAGE</div>} />
+            </Routes>
+          </MemoryRouter>
+        </MockedProvider>
+      );
+
+      await waitFor(() => {
+        expect(screen.getByText("PACK123F25")).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByRole("button", { name: /create shared campaign/i }));
+
+      await waitFor(() => {
+        expect(screen.getByText("CREATE PAGE")).toBeInTheDocument();
+      });
     });
 
-    it.skip("disables create button when at 50 shared campaigns", async () => {
-      // TODO: Test that button is disabled when at max  shared campaigns
+    it("disables create button when at 50 shared campaigns", { timeout: 20000 }, async () => {
+      const many = new Array(50).fill(0).map((_, i) => ({
+        __typename: "SharedCampaign",
+        sharedCampaignCode: `CODE${i}`,
+        catalogId: "catalog-1",
+        catalog: { __typename: "Catalog", catalogId: "catalog-1", catalogName: "Official Popcorn 2025" },
+        campaignName: "Fall",
+        campaignYear: 2025,
+        startDate: null,
+        endDate: null,
+        unitType: "Pack",
+        unitNumber: i + 1,
+        city: "Town",
+        state: "ST",
+        createdBy: "account-1",
+        createdByName: "John Leader",
+        creatorMessage: null,
+        description: null,
+        isActive: true,
+        createdAt: new Date().toISOString(),
+      }));
+
+      renderWithProviders([createListMock(many)]);
+
+      // The full-suite runs can be slower; instead of waiting for a specific code row, assert the create button disables reliably
+      await waitFor(() => {
+        const createButton = screen.getByRole("button", { name: /create shared campaign/i });
+        expect(createButton).toBeDisabled();
+      }, { timeout: 10000 });
+
+      // Also assert header shows 50/50 active to be explicit
+      await waitFor(() => expect(screen.getByText(/50\/50 active/)).toBeInTheDocument(), { timeout: 10000 });
     });
   });
 
@@ -282,6 +373,41 @@ describe("SharedCampaignsPage", () => {
       // There should only be one deactivate button (for the active sharedCampaign)
       const deactivateButtons = screen.getAllByLabelText("Deactivate");
       expect(deactivateButtons).toHaveLength(1);
+    });
+
+    it("confirms deactivate and calls delete mutation", async () => {
+      const deleteMock = {
+        request: {
+          query: DELETE_SHARED_CAMPAIGN,
+          variables: { sharedCampaignCode: "PACK123F25" },
+        },
+        result: {
+          data: { deleteSharedCampaign: true },
+        },
+      };
+
+      // Provide an extra list mock to satisfy the refetch after deletion
+      renderWithProviders([createListMock(), createListMock(), deleteMock]);
+
+      await waitFor(() => {
+        expect(screen.getByText("PACK123F25")).toBeInTheDocument();
+      });
+
+      const deactivateButtons = screen.getAllByLabelText("Deactivate");
+      fireEvent.click(deactivateButtons[0]);
+
+      await waitFor(() => {
+        expect(
+          screen.getByText("Deactivate Campaign SharedCampaign?")
+        ).toBeInTheDocument();
+      });
+
+      const deactivateButton = screen.getByRole("button", { name: "Deactivate" });
+      fireEvent.click(deactivateButton);
+
+      await waitFor(() => {
+        expect(screen.getByText("Shared Campaign deactivated")).toBeInTheDocument();
+      });
     });
   });
 

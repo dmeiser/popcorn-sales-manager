@@ -26,7 +26,7 @@ const createMocks = () => {
   return [
     {
       request: { query: GET_CAMPAIGN, variables: { campaignId: dbCampaignId } },
-      result: { data: { getCampaign: { ...mockCampaign, campaignId: dbCampaignId, profileId: dbProfileId, catalogId: `CATALOG#${mockCampaign.catalogId}` } } },
+      result: { data: { getCampaign: { ...mockCampaign, campaignId: dbCampaignId, profileId: dbProfileId, catalogId: mockCampaign.catalogId, catalog: { catalogId: mockCatalogs[0].catalogId, catalogName: mockCatalogs[0].catalogName, catalogType: mockCatalogs[0].catalogType, isDeleted: mockCatalogs[0].isDeleted } } } },
     },
     { request: { query: LIST_PUBLIC_CATALOGS }, result: { data: { listPublicCatalogs: mockCatalogs } } },
     { request: { query: LIST_MY_CATALOGS }, result: { data: { listMyCatalogs: [] } } },

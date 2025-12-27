@@ -29,7 +29,7 @@ const httpLink = createHttpLink({
  * If no token is available, it throws an error to prevent unauthenticated
  * requests from reaching AppSync with empty ctx.identity.sub values.
  */
-const authLink = setContext(async (_, { headers }) => {
+export const getAuthContext = async (_: any, { headers }: { headers?: any }) => {
   const session = await fetchAuthSession();
   const token = session.tokens?.idToken?.toString();
 
@@ -45,14 +45,16 @@ const authLink = setContext(async (_, { headers }) => {
       Authorization: `Bearer ${token}`,
     },
   };
-});
+};
+
+const authLink = setContext(getAuthContext);
 
 /**
- * Error link - global error handling for GraphQL errors
+ * Error handler used by the ErrorLink (extracted for testability)
  */
-const errorLink = new ErrorLink(({ error, operation }) => {
+export const handleApolloError = ({ error, operation }: { error: any; operation: any }) => {
   if (CombinedGraphQLErrors.is(error)) {
-    error.errors.forEach((err) => {
+    error.errors.forEach((err: any) => {
       const { message, locations, path, extensions } = err;
       const errorCode = extensions?.errorCode as string | undefined;
 
@@ -90,12 +92,17 @@ const errorLink = new ErrorLink(({ error, operation }) => {
       }),
     );
   }
-});
+};
+
+/**
+ * Error link - global error handling for GraphQL errors
+ */
+const errorLink = new ErrorLink(handleApolloError);
 
 /**
  * Map GraphQL error codes to user-friendly messages
  */
-function mapErrorCodeToMessage(
+export function mapErrorCodeToMessage(
   errorCode: string | undefined,
   defaultMessage: string,
 ): string {

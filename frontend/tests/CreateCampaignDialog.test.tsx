@@ -20,10 +20,9 @@
  * migrating to a different test setup (e.g., Playwright for component testing).
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MockedProvider } from '@apollo/client/testing';
 import { CreateCampaignDialog } from '../src/components/CreateCampaignDialog';
 import { LIST_PUBLIC_CATALOGS, LIST_MY_CATALOGS } from '../src/lib/graphql';
 
@@ -51,108 +50,113 @@ const mockMyCatalogs = [
   },
 ];
 
-describe.skip('CreateCampaignDialog', () => {
+// Mock @apollo/client/react's useQuery at module scope. We can't spy on ESM named exports in Vitest,
+// so provide a variable implementation that tests can replace.
+let useQueryMockImpl = (query: any) => ({ data: undefined, loading: false });
+vi.mock('@apollo/client/react', () => ({
+  useQuery: (query: any) => useQueryMockImpl(query),
+}));
+
+describe('CreateCampaignDialog', () => {
   let mockOnClose: ReturnType<typeof vi.fn>;
   let mockOnSubmit: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
     mockOnClose = vi.fn();
     mockOnSubmit = vi.fn().mockResolvedValue(undefined);
+
+    // useQuery will be spied on per-test via setupUseQueryMock()
   });
 
-  const mocks = [
-    {
-      request: {
-        query: LIST_PUBLIC_CATALOGS,
-      },
-      result: {
-        data: {
-          listPublicCatalogs: mockPublicCatalogs,
-        },
-      },
-    },
-    {
-      request: {
-        query: LIST_MY_CATALOGS,
-      },
-      result: {
-        data: {
-          listMyCatalogs: mockMyCatalogs,
-        },
-      },
-    },
-  ];
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  const setupUseQueryMock = (overrides?: {
+    publicLoading?: boolean;
+    myLoading?: boolean;
+    publicData?: any;
+    myData?: any;
+  }) => {
+    useQueryMockImpl = (query: any) => {
+      if (query === LIST_PUBLIC_CATALOGS) {
+        return {
+          data: overrides?.publicData ?? { listPublicCatalogs: mockPublicCatalogs },
+          loading: overrides?.publicLoading ?? false,
+        } as any;
+      }
+      if (query === LIST_MY_CATALOGS) {
+        return {
+          data: overrides?.myData ?? { listMyCatalogs: mockMyCatalogs },
+          loading: overrides?.myLoading ?? false,
+        } as any;
+      }
+      return { data: undefined, loading: false } as any;
+    };
+  };
+
+  const getCatalogSelect = () => {
+    // Find the InputLabel element for Product Catalog and find the nearest FormControl root
+    const labels = screen.queryAllByText(/catalog/i);
+    const label = labels.find((el) => el.tagName === 'LABEL') || labels[0];
+    if (!label) return null;
+    const form = label.closest('.MuiFormControl-root');
+    return form?.querySelector('[role="combobox"]') as HTMLElement | null;
+  };
 
   it('renders when open', async () => {
-    render(
-      <MockedProvider mocks={mocks} addTypename={false}>
-        <CreateCampaignDialog open={true} onClose={mockOnClose} onSubmit={mockOnSubmit} />
-      </MockedProvider>
-    );
+    setupUseQueryMock();
+    render(<CreateCampaignDialog open={true} onClose={mockOnClose} onSubmit={mockOnSubmit} />);
 
     expect(screen.getByRole('dialog')).toBeInTheDocument();
-    expect(screen.getByText('Create New Campaign')).toBeInTheDocument();
+    expect(screen.getByText('Create New Sales Campaign')).toBeInTheDocument();
   });
 
   it('does not render when closed', () => {
-    render(
-      <MockedProvider mocks={mocks} addTypename={false}>
-        <CreateCampaignDialog open={false} onClose={mockOnClose} onSubmit={mockOnSubmit} />
-      </MockedProvider>
-    );
+    setupUseQueryMock();
+    render(<CreateCampaignDialog open={false} onClose={mockOnClose} onSubmit={mockOnSubmit} />);
 
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 
   it('displays form fields', async () => {
-    render(
-      <MockedProvider mocks={mocks} addTypename={false}>
-        <CreateCampaignDialog open={true} onClose={mockOnClose} onSubmit={mockOnSubmit} />
-      </MockedProvider>
-    );
+    setupUseQueryMock();
+    render(<CreateCampaignDialog open={true} onClose={mockOnClose} onSubmit={mockOnSubmit} />);
 
     expect(screen.getByLabelText(/campaign name/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/start date/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/end date/i)).toBeInTheDocument();
     
-    // Wait for catalog data to load
+    // Wait for catalog label to appear (MUI may not link label to combobox reliably)
     await waitFor(() => {
-      expect(screen.getByLabelText(/catalog/i)).toBeInTheDocument();
+      expect(screen.getAllByText(/catalog/i).length).toBeGreaterThan(0);
     });
   });
 
-  it('sets default start date to today', async () => {
-    render(
-      <MockedProvider mocks={mocks} addTypename={false}>
-        <CreateCampaignDialog open={true} onClose={mockOnClose} onSubmit={mockOnSubmit} />
-      </MockedProvider>
-    );
+  it('start date is empty by default', async () => {
+    setupUseQueryMock();
+    render(<CreateCampaignDialog open={true} onClose={mockOnClose} onSubmit={mockOnSubmit} />);
 
     const startDateInput = screen.getByLabelText(/start date/i) as HTMLInputElement;
-    const today = new Date().toISOString().split('T')[0];
-    
     await waitFor(() => {
-      expect(startDateInput.value).toBe(today);
+      expect(startDateInput.value).toBe('');
     });
   });
 
   it('loads and displays catalogs', async () => {
-    render(
-      <MockedProvider mocks={mocks} addTypename={false}>
-        <CreateCampaignDialog open={true} onClose={mockOnClose} onSubmit={mockOnSubmit} />
-      </MockedProvider>
-    );
+    setupUseQueryMock();
+    render(<CreateCampaignDialog open={true} onClose={mockOnClose} onSubmit={mockOnSubmit} />);
 
-    // Wait for catalogs to load
+    // Wait for catalogs to load via label presence
     await waitFor(() => {
-      const catalogSelect = screen.getByLabelText(/catalog/i);
-      expect(catalogSelect).toBeInTheDocument();
+      expect(screen.getAllByText(/catalog/i).length).toBeGreaterThan(0);
     });
 
     // Click the catalog select
     const user = userEvent.setup();
-    const catalogSelect = screen.getByLabelText(/catalog/i);
-    await user.click(catalogSelect);
+    const catalogSelect = getCatalogSelect();
+    expect(catalogSelect).toBeTruthy();
+    await user.click(catalogSelect!);
 
     // Should show all catalogs (public + private)
     await waitFor(() => {
@@ -163,14 +167,11 @@ describe.skip('CreateCampaignDialog', () => {
   });
 
   it('disables create button when required fields are missing', async () => {
-    render(
-      <MockedProvider mocks={mocks} addTypename={false}>
-        <CreateCampaignDialog open={true} onClose={mockOnClose} onSubmit={mockOnSubmit} />
-      </MockedProvider>
-    );
+    setupUseQueryMock();
+    render(<CreateCampaignDialog open={true} onClose={mockOnClose} onSubmit={mockOnSubmit} />);
 
     await waitFor(() => {
-      expect(screen.getByLabelText(/catalog/i)).toBeInTheDocument();
+      expect(screen.getAllByText(/catalog/i).length).toBeGreaterThan(0);
     });
 
     const createButton = screen.getByRole('button', { name: /create/i });
@@ -178,17 +179,14 @@ describe.skip('CreateCampaignDialog', () => {
   });
 
   it('enables create button when all required fields are filled', async () => {
-    render(
-      <MockedProvider mocks={mocks} addTypename={false}>
-        <CreateCampaignDialog open={true} onClose={mockOnClose} onSubmit={mockOnSubmit} />
-      </MockedProvider>
-    );
+    setupUseQueryMock();
+    render(<CreateCampaignDialog open={true} onClose={mockOnClose} onSubmit={mockOnSubmit} />);
 
     const user = userEvent.setup();
 
     // Wait for catalogs to load
     await waitFor(() => {
-      expect(screen.getByLabelText(/catalog/i)).toBeInTheDocument();
+      expect(screen.getAllByText(/catalog/i).length).toBeGreaterThan(0);
     });
 
     // Fill in campaign name
@@ -196,9 +194,10 @@ describe.skip('CreateCampaignDialog', () => {
     await user.clear(nameInput);
     await user.type(nameInput, 'Fall 2025 Fundraiser');
 
-    // Select a catalog
-    const catalogSelect = screen.getByLabelText(/catalog/i);
-    await user.click(catalogSelect);
+    // Select a catalog via combobox
+    const catalogSelect = getCatalogSelect();
+    expect(catalogSelect).toBeTruthy();
+    await user.click(catalogSelect!);
     await waitFor(() => {
       expect(screen.getByText('Official 2025 Catalog')).toBeInTheDocument();
     });
@@ -212,17 +211,14 @@ describe.skip('CreateCampaignDialog', () => {
   });
 
   it('calls onSubmit with correct data when form is submitted', async () => {
-    render(
-      <MockedProvider mocks={mocks} addTypename={false}>
-        <CreateCampaignDialog open={true} onClose={mockOnClose} onSubmit={mockOnSubmit} />
-      </MockedProvider>
-    );
+    setupUseQueryMock();
+    render(<CreateCampaignDialog open={true} onClose={mockOnClose} onSubmit={mockOnSubmit} />);
 
     const user = userEvent.setup();
 
     // Wait for catalogs to load
     await waitFor(() => {
-      expect(screen.getByLabelText(/catalog/i)).toBeInTheDocument();
+      expect(screen.getAllByText(/catalog/i).length).toBeGreaterThan(0);
     });
 
     // Fill in campaign name
@@ -230,9 +226,10 @@ describe.skip('CreateCampaignDialog', () => {
     await user.clear(nameInput);
     await user.type(nameInput, 'Fall 2025 Fundraiser');
 
-    // Select a catalog
-    const catalogSelect = screen.getByLabelText(/catalog/i);
-    await user.click(catalogSelect);
+    // Select a catalog via combobox
+    const catalogSelect = getCatalogSelect();
+    expect(catalogSelect).toBeTruthy();
+    await user.click(catalogSelect!);
     await waitFor(() => {
       expect(screen.getByText('Official 2025 Catalog')).toBeInTheDocument();
     });
@@ -243,29 +240,27 @@ describe.skip('CreateCampaignDialog', () => {
     await waitFor(() => expect(createButton).toBeEnabled());
     await user.click(createButton);
 
-    // Verify onSubmit was called with correct arguments
+    // Verify onSubmit was called with correct arguments (campaignName, campaignYear, catalogId, startDate?, endDate?)
     await waitFor(() => {
       expect(mockOnSubmit).toHaveBeenCalledWith(
         'Fall 2025 Fundraiser',
-        expect.any(String), // start date (today)
-        null, // end date
-        'catalog-1' // catalog ID
+        expect.any(Number), // year
+        'catalog-1', // catalog ID
+        undefined,
+        undefined
       );
     });
   });
 
   it('includes end date in submission when provided', async () => {
-    render(
-      <MockedProvider mocks={mocks} addTypename={false}>
-        <CreateCampaignDialog open={true} onClose={mockOnClose} onSubmit={mockOnSubmit} />
-      </MockedProvider>
-    );
+    setupUseQueryMock();
+    render(<CreateCampaignDialog open={true} onClose={mockOnClose} onSubmit={mockOnSubmit} />);
 
     const user = userEvent.setup();
 
     // Wait for catalogs to load
     await waitFor(() => {
-      expect(screen.getByLabelText(/catalog/i)).toBeInTheDocument();
+      expect(screen.getAllByText(/catalog/i).length).toBeGreaterThan(0);
     });
 
     // Fill in all fields including end date
@@ -277,8 +272,9 @@ describe.skip('CreateCampaignDialog', () => {
     await user.type(endDateInput, '2025-12-31');
 
     // Select a catalog
-    const catalogSelect = screen.getByLabelText(/catalog/i);
-    await user.click(catalogSelect);
+    const catalogSelect = getCatalogSelect();
+    expect(catalogSelect).toBeTruthy();
+    await user.click(catalogSelect!);
     await waitFor(() => {
       expect(screen.getByText('Official 2025 Catalog')).toBeInTheDocument();
     });
@@ -293,32 +289,31 @@ describe.skip('CreateCampaignDialog', () => {
     await waitFor(() => {
       expect(mockOnSubmit).toHaveBeenCalledWith(
         'Fall 2025 Fundraiser',
-        expect.any(String), // start date
-        '2025-12-31', // end date
-        'catalog-1'
+        expect.any(Number), // year
+        'catalog-1',
+        undefined,
+        '2025-12-31'
       );
     });
   });
 
   it('resets form after successful submission', async () => {
-    render(
-      <MockedProvider mocks={mocks} addTypename={false}>
-        <CreateCampaignDialog open={true} onClose={mockOnClose} onSubmit={mockOnSubmit} />
-      </MockedProvider>
-    );
+    setupUseQueryMock();
+    render(<CreateCampaignDialog open={true} onClose={mockOnClose} onSubmit={mockOnSubmit} />);
 
     const user = userEvent.setup();
 
     // Wait for catalogs and fill form
     await waitFor(() => {
-      expect(screen.getByLabelText(/catalog/i)).toBeInTheDocument();
+      expect(screen.getAllByText(/catalog/i).length).toBeGreaterThan(0);
     });
 
     const nameInput = screen.getByLabelText(/campaign name/i) as HTMLInputElement;
     await user.type(nameInput, 'Fall 2025');
 
-    const catalogSelect = screen.getByLabelText(/catalog/i);
-    await user.click(catalogSelect);
+    const catalogSelect = getCatalogSelect();
+    expect(catalogSelect).toBeTruthy();
+    await user.click(catalogSelect!);
     await waitFor(() => screen.getByText('Official 2025 Catalog'));
     await user.click(screen.getByText('Official 2025 Catalog'));
 
@@ -333,11 +328,8 @@ describe.skip('CreateCampaignDialog', () => {
   });
 
   it('calls onClose when cancel button is clicked', async () => {
-    render(
-      <MockedProvider mocks={mocks} addTypename={false}>
-        <CreateCampaignDialog open={true} onClose={mockOnClose} onSubmit={mockOnSubmit} />
-      </MockedProvider>
-    );
+    setupUseQueryMock();
+    render(<CreateCampaignDialog open={true} onClose={mockOnClose} onSubmit={mockOnSubmit} />);
 
     const user = userEvent.setup();
     const cancelButton = screen.getByRole('button', { name: /cancel/i });
@@ -346,62 +338,35 @@ describe.skip('CreateCampaignDialog', () => {
     expect(mockOnClose).toHaveBeenCalled();
   });
 
-  it('shows loading spinner while catalogs are loading', () => {
-    const loadingMocks = [
-      {
-        request: {
-          query: LIST_PUBLIC_CATALOGS,
-        },
-        result: {
-          data: {
-            listPublicCatalogs: [],
-          },
-        },
-        delay: 100, // Simulate slow network
-      },
-      {
-        request: {
-          query: LIST_MY_CATALOGS,
-        },
-        result: {
-          data: {
-            listMyCatalogs: [],
-          },
-        },
-        delay: 100,
-      },
-    ];
+  it('shows disabled catalog select while catalogs are loading', () => {
+    setupUseQueryMock({ publicLoading: true, myLoading: true, publicData: { listPublicCatalogs: [] }, myData: { listMyCatalogs: [] } });
 
-    render(
-      <MockedProvider mocks={loadingMocks} addTypename={false}>
-        <CreateCampaignDialog open={true} onClose={mockOnClose} onSubmit={mockOnSubmit} />
-      </MockedProvider>
-    );
+    render(<CreateCampaignDialog open={true} onClose={mockOnClose} onSubmit={mockOnSubmit} />);
 
-    expect(screen.getByRole('progressbar')).toBeInTheDocument();
+    const catalogSelect = getCatalogSelect();
+    expect(catalogSelect).toBeTruthy();
+    expect(catalogSelect).toHaveAttribute('aria-disabled', 'true');
   });
 
   it('handles submission error gracefully', async () => {
     const errorSubmit = vi.fn().mockRejectedValue(new Error('Network error'));
 
-    render(
-      <MockedProvider mocks={mocks} addTypename={false}>
-        <CreateCampaignDialog open={true} onClose={mockOnClose} onSubmit={errorSubmit} />
-      </MockedProvider>
-    );
+    setupUseQueryMock();
+    render(<CreateCampaignDialog open={true} onClose={mockOnClose} onSubmit={errorSubmit} />);
 
     const user = userEvent.setup();
 
     // Wait and fill form
     await waitFor(() => {
-      expect(screen.getByLabelText(/catalog/i)).toBeInTheDocument();
+      expect(screen.getAllByText(/catalog/i).length).toBeGreaterThan(0);
     });
 
     const nameInput = screen.getByLabelText(/campaign name/i);
     await user.type(nameInput, 'Fall 2025');
 
-    const catalogSelect = screen.getByLabelText(/catalog/i);
-    await user.click(catalogSelect);
+    const catalogSelect = getCatalogSelect();
+    expect(catalogSelect).toBeTruthy();
+    await user.click(catalogSelect!);
     await waitFor(() => screen.getByText('Official 2025 Catalog'));
     await user.click(screen.getByText('Official 2025 Catalog'));
 
