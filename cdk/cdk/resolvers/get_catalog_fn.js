@@ -23,7 +23,7 @@ export function response(ctx) {
     }
     if (!ctx.result) {
         // Include the looked-up catalogId in the error to aid debugging
-        util.error('Catalog not found for id: ' + ctx.stash.catalogId, 'NotFound');
+        util.error('Catalog not found', 'NotFound');
     }
     
     // Store catalog in stash for CreateOrderFn

@@ -29,7 +29,7 @@ export function response(ctx) {
     if (!campaign.catalogId) {
         util.error('Campaign has no catalog assigned', 'BadRequest');
     }
-    
+
     // Store campaign and catalogId in stash for next function
     ctx.stash.campaign = campaign;
     ctx.stash.catalogId = campaign.catalogId;
