@@ -591,6 +591,8 @@ def create_appsync_functions(
         code=appsync.Code.from_asset(str(RESOLVERS_DIR / "get_catalog_fn.js")),
     )
 
+
+
     # CreateOrderFn
     functions["create_order"] = appsync.AppsyncFunction(
         scope,

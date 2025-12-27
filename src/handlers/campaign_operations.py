@@ -161,6 +161,11 @@ def create_campaign(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             start_date = inp.get("startDate")
             end_date = inp.get("endDate")
 
+        # Normalize catalog_id to DB format (CATALOG#...) if a raw id was provided
+        if catalog_id and not str(catalog_id).startswith("CATALOG#"):
+            catalog_id = f"CATALOG#{catalog_id}"
+
+
         # Step 5: Validate required fields
         if not campaign_name:
             raise ValueError("campaignName is required")

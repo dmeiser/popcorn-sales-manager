@@ -1,7 +1,14 @@
 import { util } from '@aws-appsync/utils';
 
 export function request(ctx) {
-    const catalogId = ctx.stash.catalogId;
+    const rawCatalogId = ctx.stash.catalogId;
+    if (!rawCatalogId) {
+        util.error('Catalog ID not found in stash', 'BadRequest');
+    }
+    // Normalize to DB format: ensure it starts with CATALOG#
+    const catalogId = (typeof rawCatalogId === 'string' && rawCatalogId.startsWith('CATALOG#')) ? rawCatalogId : 'CATALOG#' + rawCatalogId;
+    // Save normalized id back to stash so downstream functions see the DB key
+    ctx.stash.catalogId = catalogId;
     // Direct GetItem on catalogs table
     return {
         operation: 'GetItem',
@@ -15,7 +22,8 @@ export function response(ctx) {
         util.error(ctx.error.message, ctx.error.type);
     }
     if (!ctx.result) {
-        util.error('Catalog not found', 'NotFound');
+        // Include the looked-up catalogId in the error to aid debugging
+        util.error('Catalog not found for id: ' + ctx.stash.catalogId, 'NotFound');
     }
     
     // Store catalog in stash for CreateOrderFn

@@ -216,7 +216,7 @@ class TestCreateCampaign:
         assert result["profileId"] == "PROFILE#profile-123"
         assert result["campaignName"] == "Fall"
         assert result["campaignYear"] == 2024
-        assert result["catalogId"] == "catalog-abc"
+        assert result["catalogId"] == "CATALOG#catalog-abc"
         assert result["campaignId"].startswith("CAMPAIGN#")
         mock_dynamodb_client.transact_write_items.assert_called_once()
 
@@ -311,7 +311,7 @@ class TestCreateCampaign:
         # Assert - Campaign uses Shared Campaign data
         assert result["campaignName"] == "Fall"
         assert result["campaignYear"] == 2024
-        assert result["catalogId"] == "catalog-sharedCampaign"
+        assert result["catalogId"] == "CATALOG#catalog-sharedCampaign"
         assert result["unitCampaignKey"] == "Pack#158#Springfield#IL#Fall#2024"
         assert result["sharedCampaignCode"] == "PACK158FALL2024"
 

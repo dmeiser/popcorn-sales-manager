@@ -23,7 +23,9 @@ export function request(ctx) {
     }
     if (input.catalogId !== undefined) {
         updates.push('catalogId = :catalogId');
-        exprValues[':catalogId'] = input.catalogId;
+        // Normalize catalogId to DB format (CATALOG#...)
+        const normalizedCatalogId = (typeof input.catalogId === 'string' && input.catalogId.startsWith('CATALOG#')) ? input.catalogId : 'CATALOG#' + input.catalogId;
+        exprValues[':catalogId'] = normalizedCatalogId;
     }
     
     // Always update updatedAt
@@ -63,7 +65,7 @@ export function response(ctx) {
         campaignName: input.campaignName !== undefined ? input.campaignName : campaign.campaignName,
         startDate: input.startDate !== undefined ? input.startDate : campaign.startDate,
         endDate: input.endDate !== undefined ? input.endDate : campaign.endDate,
-        catalogId: input.catalogId !== undefined ? input.catalogId : campaign.catalogId,
+        catalogId: input.catalogId !== undefined ? ((typeof input.catalogId === 'string' && input.catalogId.startsWith('CATALOG#')) ? input.catalogId : 'CATALOG#' + input.catalogId) : campaign.catalogId,
         createdAt: campaign.createdAt,
         updatedAt: util.time.nowISO8601()
     };

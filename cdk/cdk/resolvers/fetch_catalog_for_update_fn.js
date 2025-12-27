@@ -9,7 +9,13 @@ export function request(ctx) {
         };
     }
     
-    const catalogId = ctx.stash.catalogId;
+    const rawCatalogId = ctx.stash.catalogId;
+    if (!rawCatalogId) {
+        util.error('Catalog ID not found in stash', 'BadRequest');
+    }
+    // Normalize to DB format: ensure it starts with CATALOG#
+    const catalogId = (typeof rawCatalogId === 'string' && rawCatalogId.startsWith('CATALOG#')) ? rawCatalogId : 'CATALOG#' + rawCatalogId;
+    ctx.stash.catalogId = catalogId;
     // Direct GetItem on catalogs table using catalogId
     return {
         operation: 'GetItem',
@@ -28,7 +34,8 @@ export function response(ctx) {
     }
     
     if (!ctx.result) {
-        util.error('Catalog not found', 'NotFound');
+        // Include the looked-up catalogId in the error to aid debugging
+        util.error('Catalog not found for id: ' + ctx.stash.catalogId, 'NotFound');
     }
     
     // Store catalog in stash for UpdateOrderFn
