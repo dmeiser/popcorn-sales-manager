@@ -37,6 +37,7 @@ import {
 } from "@mui/material";
 import { Add as AddIcon, Delete as DeleteIcon } from "@mui/icons-material";
 import { CREATE_ORDER, UPDATE_ORDER } from "../lib/graphql";
+import { ensureProfileId, ensureCampaignId } from "../lib/ids";
 
 interface LineItem {
   productId: string;
@@ -92,6 +93,8 @@ export const OrderEditorDialog: React.FC<OrderEditorDialogProps> = ({
   products,
 }) => {
   const { profileId } = useParams<{ profileId: string }>();
+  const dbProfileId = ensureProfileId(profileId);
+  const dbCampaignId = ensureCampaignId(campaignId);
 
   // Form state
   const [customerName, setCustomerName] = useState("");
@@ -315,10 +318,6 @@ export const OrderEditorDialog: React.FC<OrderEditorDialogProps> = ({
             2,
           ),
         );
-
-        // Ensure backend expects prefixed IDs
-        const dbProfileId = profileId && profileId.startsWith('PROFILE#') ? profileId : `PROFILE#${profileId}`;
-        const dbCampaignId = campaignId && campaignId.startsWith('CAMPAIGN#') ? campaignId : `CAMPAIGN#${campaignId}`;
 
         await createOrder({
           variables: {

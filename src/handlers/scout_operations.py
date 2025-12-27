@@ -15,12 +15,21 @@ except ModuleNotFoundError:
 
 logger = get_logger(__name__)
 
-# Initialize DynamoDB client
-dynamodb = boto3.resource("dynamodb")
+
+def _get_dynamodb():
+    return boto3.resource("dynamodb")
 
 # Multi-table design V2: profiles table for profile records
 profiles_table_name = os.environ.get("PROFILES_TABLE_NAME", "kernelworx-profiles-v2-ue1-dev")
-profiles_table = dynamodb.Table(profiles_table_name)
+
+# Module-level override for tests
+profiles_table: Any | None = None
+
+
+def _get_profiles_table():
+    if profiles_table is not None:
+        return profiles_table
+    return _get_dynamodb().Table(profiles_table_name)
 
 
 def create_seller_profile(event: Dict[str, Any], context: Any) -> Dict[str, Any]:

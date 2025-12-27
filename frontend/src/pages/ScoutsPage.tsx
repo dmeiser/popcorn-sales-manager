@@ -39,6 +39,7 @@ import {
   GET_MY_ACCOUNT,
   UPDATE_MY_PREFERENCES,
 } from "../lib/graphql";
+import { ensureProfileId } from "../lib/ids";
 
 interface Profile {
   profileId: string;
@@ -252,13 +253,13 @@ export const ScoutsPage: React.FC = () => {
 
   const handleUpdateProfile = async (profileId: string, sellerName: string) => {
     await updateProfile({
-      variables: { profileId, sellerName },
+      variables: { profileId: ensureProfileId(profileId), sellerName },
     });
   };
 
   const handleDeleteProfile = async () => {
     if (!deletingProfileId) return;
-    await deleteProfile({ variables: { profileId: deletingProfileId } });
+    await deleteProfile({ variables: { profileId: ensureProfileId(deletingProfileId) } });
   };
 
   const myProfiles: Profile[] = myProfilesData?.listMyProfiles || [];

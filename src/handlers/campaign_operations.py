@@ -16,9 +16,28 @@ except ModuleNotFoundError:  # pragma: no cover
 
 logger = get_logger(__name__)
 
-# Initialize DynamoDB client
-dynamodb = boto3.resource("dynamodb")
-dynamodb_client = boto3.client("dynamodb")
+
+def _get_dynamodb():
+    return boto3.resource("dynamodb")
+
+
+def _get_dynamodb_client():
+    return boto3.client("dynamodb")
+
+
+# Expose a module-level client proxy so unit tests can patch methods like transact_write_items
+class _DynamoClientProxy:
+    def __init__(self):
+        self._client = _get_dynamodb_client()
+        # Expose the client's exceptions so tests can set exception types
+        self.exceptions = self._client.exceptions
+
+    def transact_write_items(self, *args, **kwargs):
+        return self._client.transact_write_items(*args, **kwargs)
+
+
+# Default proxy instance (tests may monkeypatch methods on this object)
+dynamodb_client: _DynamoClientProxy = _DynamoClientProxy()
 
 # Multi-table design V2
 campaigns_table_name = os.environ.get("CAMPAIGNS_TABLE_NAME", "kernelworx-campaigns-v2-ue1-dev")
@@ -26,10 +45,36 @@ shared_campaigns_table_name = os.environ.get("SHARED_CAMPAIGNS_TABLE_NAME", "ker
 shares_table_name = os.environ.get("SHARES_TABLE_NAME", "kernelworx-shares-v2-ue1-dev")
 profiles_table_name = os.environ.get("PROFILES_TABLE_NAME", "kernelworx-profiles-v2-ue1-dev")
 
-campaigns_table = dynamodb.Table(campaigns_table_name)
-shared_campaigns_table = dynamodb.Table(shared_campaigns_table_name)
-shares_table = dynamodb.Table(shares_table_name)
-profiles_table = dynamodb.Table(profiles_table_name)
+
+# Module-level variables for test monkeypatching
+campaigns_table: Any | None = None
+shared_campaigns_table: Any | None = None
+shares_table: Any | None = None
+profiles_table: Any | None = None
+
+
+def _get_campaigns_table():
+    if campaigns_table is not None:
+        return campaigns_table
+    return _get_dynamodb().Table(campaigns_table_name)
+
+
+def _get_shared_campaigns_table():
+    if shared_campaigns_table is not None:
+        return shared_campaigns_table
+    return _get_dynamodb().Table(shared_campaigns_table_name)
+
+
+def _get_shares_table():
+    if shares_table is not None:
+        return shares_table
+    return _get_dynamodb().Table(shares_table_name)
+
+
+def _get_profiles_table():
+    if profiles_table is not None:
+        return profiles_table
+    return _get_dynamodb().Table(profiles_table_name)
 
 
 def _build_unit_campaign_key(
@@ -42,7 +87,7 @@ def _build_unit_campaign_key(
 def _get_shared_campaign(shared_campaign_code: str) -> Optional[Dict[str, Any]]:
     """Retrieve a shared campaign by code."""
     try:
-        response = shared_campaigns_table.get_item(Key={"shared_campaignCode": shared_campaign_code, "SK": "METADATA"})
+        response = _get_shared_campaigns_table().get_item(Key={"shared_campaignCode": shared_campaign_code, "SK": "METADATA"})
         return response.get("Item")
     except Exception as e:
         logger.error(f"Error fetching shared campaign {shared_campaign_code}: {str(e)}")
@@ -59,7 +104,7 @@ def _get_profile(profile_id: str) -> Optional[Dict[str, Any]]:
         # Ensure we query the profile GSI with the PROFILE# prefix
         db_profile_id = profile_id if profile_id.startswith("PROFILE#") else f"PROFILE#{profile_id}"
 
-        response = profiles_table.query(
+        response = _get_profiles_table().query(
             IndexName="profileId-index",
             KeyConditionExpression="profileId = :profileId",
             ExpressionAttributeValues={":profileId": db_profile_id},

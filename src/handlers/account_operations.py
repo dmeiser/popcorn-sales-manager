@@ -22,13 +22,16 @@ except ModuleNotFoundError:  # pragma: no cover
 
 logger = get_logger(__name__)
 
-dynamodb = boto3.resource("dynamodb", endpoint_url=os.getenv("DYNAMODB_ENDPOINT"))
+
+def _get_dynamodb():
+    """Return a fresh boto3 DynamoDB resource (lazy for tests)."""
+    return boto3.resource("dynamodb", endpoint_url=os.getenv("DYNAMODB_ENDPOINT"))
 
 
 def get_accounts_table() -> Any:
     """Get DynamoDB accounts table instance (multi-table design)."""
     table_name = os.environ.get("ACCOUNTS_TABLE_NAME", "kernelworx-accounts-ue1-dev")
-    return dynamodb.Table(table_name)
+    return _get_dynamodb().Table(table_name)
 
 
 def update_my_account(event: Dict[str, Any], context: Any) -> Dict[str, Any]:

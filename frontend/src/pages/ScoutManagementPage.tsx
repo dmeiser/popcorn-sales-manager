@@ -52,6 +52,7 @@ import {
   LIST_INVITES_BY_PROFILE,
   LIST_SHARES_BY_PROFILE,
 } from "../lib/graphql";
+import { ensureProfileId } from "../lib/ids";
 
 interface Profile {
   profileId: string;
@@ -92,6 +93,7 @@ export const ScoutManagementPage: React.FC = () => {
   const profileId = encodedScoutId
     ? decodeURIComponent(encodedScoutId)
     : "";
+  const dbProfileId = ensureProfileId(profileId);
   const navigate = useNavigate();
 
   const [profileName, setProfileName] = useState("");
@@ -116,24 +118,24 @@ export const ScoutManagementPage: React.FC = () => {
   } = useQuery<{
     getProfile: Profile;
   }>(GET_PROFILE, {
-    variables: { profileId },
-    skip: !profileId,
+    variables: { profileId: dbProfileId },
+    skip: !dbProfileId,
   });
 
   // Fetch invites
   const { data: invitesData, refetch: refetchInvites } = useQuery<{
     listInvitesByProfile: ProfileInvite[];
   }>(LIST_INVITES_BY_PROFILE, {
-    variables: { profileId },
-    skip: !profileId,
+    variables: { profileId: dbProfileId },
+    skip: !dbProfileId,
   });
 
   // Fetch shares (accounts with access to this profile)
   const { data: sharesData } = useQuery<{
     listSharesByProfile: Share[];
   }>(LIST_SHARES_BY_PROFILE, {
-    variables: { profileId },
-    skip: !profileId,
+    variables: { profileId: dbProfileId },
+    skip: !dbProfileId,
   });
 
   // Initialize form when profile loads
@@ -190,7 +192,7 @@ export const ScoutManagementPage: React.FC = () => {
     try {
       await updateProfile({
         variables: {
-          profileId,
+          profileId: dbProfileId,
           sellerName: profileName.trim(),
         },
       });
@@ -204,7 +206,7 @@ export const ScoutManagementPage: React.FC = () => {
     await createInvite({
       variables: {
         input: {
-          profileId,
+          profileId: dbProfileId,
           permissions: invitePermissions,
         },
       },
@@ -215,7 +217,7 @@ export const ScoutManagementPage: React.FC = () => {
   const handleDeleteInvite = async () => {
     if (!deletingInviteCode || !profileId) return;
     await deleteInvite({
-      variables: { profileId, inviteCode: deletingInviteCode },
+      variables: { profileId: dbProfileId, inviteCode: deletingInviteCode },
     });
   };
 
@@ -224,7 +226,7 @@ export const ScoutManagementPage: React.FC = () => {
     setDeletingProfile(true);
     try {
       await deleteProfile({
-        variables: { profileId },
+        variables: { profileId: dbProfileId },
       });
     } finally {
       setDeletingProfile(false);

@@ -47,6 +47,7 @@ import {
   CREATE_CAMPAIGN,
   LIST_CAMPAIGNS_BY_PROFILE,
 } from "../lib/graphql";
+import { ensureProfileId, ensureCatalogId } from "../lib/ids";
 
 // Types
 interface SharedCampaign {
@@ -255,7 +256,7 @@ export const CreateCampaignPage: React.FC = () => {
   }>(CREATE_CAMPAIGN, {
     refetchQueries: [
       { query: LIST_MY_PROFILES },
-      { query: LIST_CAMPAIGNS_BY_PROFILE, variables: { profileId } },
+      { query: LIST_CAMPAIGNS_BY_PROFILE, variables: { profileId: ensureProfileId(profileId) } },
     ],
   });
 
@@ -411,7 +412,7 @@ export const CreateCampaignPage: React.FC = () => {
         // Manual mode - include all fields
         input.campaignName = campaignName;
         input.campaignYear = campaignYear;
-        input.catalogId = catalogId;
+        input.catalogId = ensureCatalogId(catalogId);
 
         if (unitType && unitNumber && city && state) {
           input.unitType = unitType;

@@ -24,21 +24,33 @@ except ModuleNotFoundError:  # pragma: no cover
     from ..utils.errors import AppError, ErrorCode
     from ..utils.logging import get_logger
 
-# Initialize AWS clients
-dynamodb = boto3.resource("dynamodb", endpoint_url=os.getenv("DYNAMODB_ENDPOINT"))
-s3_client = boto3.client("s3", endpoint_url=os.getenv("S3_ENDPOINT"))
+def _get_dynamodb():
+    """Return a fresh boto3 DynamoDB resource (created lazily so tests and moto work)."""
+    return boto3.resource("dynamodb", endpoint_url=os.getenv("DYNAMODB_ENDPOINT"))
+
+
+# Module-level proxy that tests can monkeypatch
+s3_client: object | None = None
+
+
+def _get_s3_client():
+    """Return the S3 client (module-level override for tests, otherwise a fresh boto3 client)."""
+    global s3_client
+    if s3_client is not None:
+        return s3_client
+    return boto3.client("s3", endpoint_url=os.getenv("S3_ENDPOINT"))
 
 
 def get_campaigns_table() -> Any:
     """Get DynamoDB campaigns table instance (multi-table design)."""
-    table_name = os.getenv("CAMPAIGNS_TABLE_NAME", "kernelworx-campaigns-ue1-dev")
-    return dynamodb.Table(table_name)
+    table_name = os.getenv("CAMPAIGNS_TABLE_NAME", "kernelworx-campaigns-v2-ue1-dev")
+    return _get_dynamodb().Table(table_name)
 
 
 def get_orders_table() -> Any:
     """Get DynamoDB orders table instance (multi-table design)."""
-    table_name = os.getenv("ORDERS_TABLE_NAME", "kernelworx-orders-ue1-dev")
-    return dynamodb.Table(table_name)
+    table_name = os.getenv("ORDERS_TABLE_NAME", "kernelworx-orders-v2-ue1-dev")
+    return _get_dynamodb().Table(table_name)
 
 
 def request_campaign_report(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
@@ -107,7 +119,8 @@ def request_campaign_report(event: Dict[str, Any], context: Any) -> Dict[str, An
         exports_bucket = os.getenv("EXPORTS_BUCKET", "kernelworx-exports-dev")
         s3_key = f"reports/{profile_id}/{campaign_id}/{report_id}.{file_extension}"
 
-        s3_client.put_object(
+        s3 = _get_s3_client()
+        s3.put_object(
             Bucket=exports_bucket,
             Key=s3_key,
             Body=report_content,
@@ -116,7 +129,7 @@ def request_campaign_report(event: Dict[str, Any], context: Any) -> Dict[str, An
 
         # Generate pre-signed URL (valid for 7 days)
         expiration = 7 * 24 * 60 * 60  # 7 days in seconds
-        report_url = s3_client.generate_presigned_url(
+        report_url = s3.generate_presigned_url(
             "get_object",
             Params={"Bucket": exports_bucket, "Key": s3_key},
             ExpiresIn=expiration,

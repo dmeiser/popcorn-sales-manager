@@ -27,6 +27,7 @@ import {
   CalendarToday as CalendarIcon,
 } from "@mui/icons-material";
 import { LIST_CAMPAIGNS_BY_PROFILE } from "../lib/graphql";
+import { ensureProfileId } from "../lib/ids";
 
 interface Campaign {
   campaignId: string;
@@ -56,7 +57,7 @@ export const ProfileCard: React.FC<ProfileCardProps> = ({
   const { data: campaignsData, loading: campaignsLoading } = useQuery<{
     listCampaignsByProfile: Campaign[];
   }>(LIST_CAMPAIGNS_BY_PROFILE, {
-    variables: { profileId },
+    variables: { profileId: ensureProfileId(profileId) },
     skip: !profileId,
   });
 

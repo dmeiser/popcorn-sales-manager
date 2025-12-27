@@ -27,6 +27,7 @@ import {
   ExpandLess as ExpandLessIcon,
 } from "@mui/icons-material";
 import { LIST_ORDERS_BY_CAMPAIGN } from "../lib/graphql";
+import { ensureCampaignId } from "../lib/ids";
 import { downloadAsCSV, downloadAsXLSX } from "../lib/reportExport";
 
 interface LineItem {
@@ -55,6 +56,7 @@ interface Order {
 export const ReportsPage: React.FC = () => {
   const { campaignId: encodedCampaignId } = useParams<{ campaignId: string }>();
   const campaignId = encodedCampaignId ? decodeURIComponent(encodedCampaignId) : "";
+  const dbCampaignId = ensureCampaignId(campaignId);
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("md"));
 
@@ -73,8 +75,8 @@ export const ReportsPage: React.FC = () => {
   const { data: ordersData, loading: ordersLoading } = useQuery<{
     listOrdersByCampaign: Order[];
   }>(LIST_ORDERS_BY_CAMPAIGN, {
-    variables: { campaignId },
-    skip: !campaignId,
+    variables: { campaignId: dbCampaignId },
+    skip: !dbCampaignId,
   });
 
   const orders = ordersData?.listOrdersByCampaign || [];

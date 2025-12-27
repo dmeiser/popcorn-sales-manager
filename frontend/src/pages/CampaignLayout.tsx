@@ -41,6 +41,7 @@ import { OrderEditorPage } from "./OrderEditorPage";
 import { ReportsPage } from "./ReportsPage";
 import { CampaignSettingsPage } from "./CampaignSettingsPage";
 import { GET_CAMPAIGN, GET_PROFILE } from "../lib/graphql";
+import { ensureProfileId, ensureCampaignId } from "../lib/ids";
 
 interface Campaign {
   campaignId: string;
@@ -68,6 +69,8 @@ export const CampaignLayout: React.FC = () => {
     ? decodeURIComponent(encodedProfileId)
     : "";
   const campaignId = encodedCampaignId ? decodeURIComponent(encodedCampaignId) : "";
+  const dbProfileId = ensureProfileId(profileId);
+  const dbCampaignId = ensureCampaignId(campaignId);
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -83,8 +86,8 @@ export const CampaignLayout: React.FC = () => {
     loading: campaignLoading,
     error: campaignError,
   } = useQuery<{ getCampaign: Campaign }>(GET_CAMPAIGN, {
-    variables: { campaignId },
-    skip: !campaignId,
+    variables: { campaignId: dbCampaignId },
+    skip: !dbCampaignId,
   });
 
   // Debug logging
@@ -105,8 +108,8 @@ export const CampaignLayout: React.FC = () => {
   const { data: profileData, loading: profileLoading } = useQuery<{
     getProfile: Profile;
   }>(GET_PROFILE, {
-    variables: { profileId },
-    skip: !profileId,
+    variables: { profileId: dbProfileId },
+    skip: !dbProfileId,
   });
 
   const campaign = campaignData?.getCampaign;

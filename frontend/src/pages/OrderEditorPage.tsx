@@ -40,6 +40,7 @@ import {
   GET_CAMPAIGN,
   GET_PROFILE,
 } from "../lib/graphql";
+import { ensureProfileId, ensureCampaignId, ensureOrderId } from "../lib/ids";
 
 interface LineItemInput {
   productId: string;
@@ -100,6 +101,9 @@ export const OrderEditorPage: React.FC = () => {
     : "";
   const campaignId = encodedCampaignId ? decodeURIComponent(encodedCampaignId) : "";
   const orderId = encodedOrderId ? decodeURIComponent(encodedOrderId) : null;
+  const dbProfileId = ensureProfileId(profileId);
+  const dbCampaignId = ensureCampaignId(campaignId);
+  const dbOrderId = ensureOrderId(orderId || undefined);
   const navigate = useNavigate();
   const isEditing = !!orderId;
 
@@ -120,16 +124,16 @@ export const OrderEditorPage: React.FC = () => {
 
   // Fetch campaign data for products
   const { data: campaignData } = useQuery<{ getCampaign: CampaignData }>(GET_CAMPAIGN, {
-    variables: { campaignId },
-    skip: !campaignId,
+    variables: { campaignId: dbCampaignId },
+    skip: !dbCampaignId,
   });
 
   // Fetch profile for permissions
   const { data: profileData } = useQuery<{ getProfile: ProfileData }>(
     GET_PROFILE,
     {
-      variables: { profileId },
-      skip: !profileId,
+      variables: { profileId: dbProfileId },
+      skip: !dbProfileId,
     },
   );
 
@@ -137,8 +141,8 @@ export const OrderEditorPage: React.FC = () => {
   const { data: orderData, loading: orderLoading } = useQuery<{
     getOrder: OrderData;
   }>(GET_ORDER, {
-    variables: { orderId },
-    skip: !orderId,
+    variables: { orderId: dbOrderId },
+    skip: !dbOrderId,
   });
 
   const products: Product[] = campaignData?.getCampaign?.catalog?.products || [];
@@ -224,7 +228,7 @@ export const OrderEditorPage: React.FC = () => {
     try {
       if (isEditing && orderId) {
         const updateInput = {
-          orderId,
+          orderId: dbOrderId,
           customerName: customerName.trim(),
           customerPhone: customerPhone.trim() || null,
           customerAddress:
@@ -245,8 +249,8 @@ export const OrderEditorPage: React.FC = () => {
         });
       } else {
         const createInput = {
-          profileId,
-          campaignId,
+          profileId: dbProfileId,
+          campaignId: dbCampaignId,
           customerName: customerName.trim(),
           customerPhone: customerPhone.trim() || null,
           customerAddress:

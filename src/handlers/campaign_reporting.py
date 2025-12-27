@@ -16,17 +16,37 @@ except ModuleNotFoundError:  # pragma: no cover
 
 logger = get_logger(__name__)
 
-# Initialize DynamoDB client
-dynamodb = boto3.resource("dynamodb")
+def _get_dynamodb():
+    return boto3.resource("dynamodb")
 
 # Multi-table design V2
 profiles_table_name = os.environ.get("PROFILES_TABLE_NAME", "kernelworx-profiles-v2-ue1-dev")
 campaigns_table_name = os.environ.get("CAMPAIGNS_TABLE_NAME", "kernelworx-campaigns-v2-ue1-dev")
 orders_table_name = os.environ.get("ORDERS_TABLE_NAME", "kernelworx-orders-v2-ue1-dev")
 
-profiles_table = dynamodb.Table(profiles_table_name)
-campaigns_table = dynamodb.Table(campaigns_table_name)
-orders_table = dynamodb.Table(orders_table_name)
+
+# Module-level variables for test monkeypatching
+profiles_table: Any | None = None
+campaigns_table: Any | None = None
+orders_table: Any | None = None
+
+
+def _get_profiles_table():
+    if profiles_table is not None:
+        return profiles_table
+    return _get_dynamodb().Table(profiles_table_name)
+
+
+def _get_campaigns_table():
+    if campaigns_table is not None:
+        return campaigns_table
+    return _get_dynamodb().Table(campaigns_table_name)
+
+
+def _get_orders_table():
+    if orders_table is not None:
+        return orders_table
+    return _get_dynamodb().Table(orders_table_name)
 
 
 def _build_unit_campaign_key(
@@ -77,7 +97,7 @@ def get_unit_report(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         # Step 1: Query GSI3 to find all campaigns matching unit+campaign criteria
         unit_campaign_key = _build_unit_campaign_key(unit_type, unit_number, city, state, campaign_name, campaign_year)
 
-        campaigns_response = campaigns_table.query(
+        campaigns_response = _get_campaigns_table().query(
             IndexName="GSI3",
             KeyConditionExpression=Key("unitCampaignKey").eq(unit_campaign_key),
             FilterExpression="catalogId = :cid",
@@ -119,7 +139,7 @@ def get_unit_report(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             if has_access:
                 # Fetch profile details using profileId-index GSI (not direct get_item)
                 # because profiles table uses ownerAccountId as PK, not profileId
-                profile_response = profiles_table.query(
+                profile_response = _get_profiles_table().query(
                     IndexName="profileId-index",
                     KeyConditionExpression="profileId = :profileId",
                     ExpressionAttributeValues={":profileId": profile_id},
@@ -159,7 +179,7 @@ def get_unit_report(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 campaign_id = campaign["campaignId"]
 
                 # Get all orders for this campaign
-                orders_response = orders_table.query(KeyConditionExpression=Key("campaignId").eq(campaign_id))
+                orders_response = _get_orders_table().query(KeyConditionExpression=Key("campaignId").eq(campaign_id))
 
                 orders = orders_response.get("Items", [])
 

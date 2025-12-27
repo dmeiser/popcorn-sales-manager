@@ -38,6 +38,7 @@ import {
   LIST_PUBLIC_CATALOGS,
   LIST_MY_CATALOGS,
 } from "../lib/graphql";
+import { ensureCampaignId, ensureCatalogId } from "../lib/ids";
 
 interface Campaign {
   campaignId: string;
@@ -70,6 +71,7 @@ export const CampaignSettingsPage: React.FC = () => {
     ? decodeURIComponent(encodedProfileId)
     : "";
   const campaignId = encodedCampaignId ? decodeURIComponent(encodedCampaignId) : "";
+  const dbCampaignId = ensureCampaignId(campaignId);
   const navigate = useNavigate();
   const [campaignName, setCampaignName] = useState("");
   const [startDate, setStartDate] = useState("");
@@ -84,8 +86,8 @@ export const CampaignSettingsPage: React.FC = () => {
     loading,
     refetch,
   } = useQuery<{ getCampaign: Campaign }>(GET_CAMPAIGN, {
-    variables: { campaignId },
-    skip: !campaignId,
+    variables: { campaignId: dbCampaignId },
+    skip: !dbCampaignId,
   });
 
   // Fetch catalogs
@@ -155,11 +157,11 @@ export const CampaignSettingsPage: React.FC = () => {
     await updateCampaign({
       variables: {
         input: {
-          campaignId,
+          campaignId: dbCampaignId,
           campaignName: campaignName.trim(),
           startDate: startDateTime,
           endDate: endDateTime,
-          catalogId,
+          catalogId: ensureCatalogId(catalogId),
         },
       },
     });
@@ -167,7 +169,7 @@ export const CampaignSettingsPage: React.FC = () => {
 
   const handleDeleteCampaign = async () => {
     if (!campaignId) return;
-    await deleteCampaign({ variables: { campaignId } });
+    await deleteCampaign({ variables: { campaignId: dbCampaignId } });
   };
 
   if (loading) {

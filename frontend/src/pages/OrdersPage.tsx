@@ -38,6 +38,7 @@ import {
   DELETE_ORDER,
   GET_PROFILE,
 } from "../lib/graphql";
+import { ensureProfileId, ensureCampaignId, ensureOrderId } from "../lib/ids";
 
 interface LineItem {
   productId: string;
@@ -73,6 +74,8 @@ export const OrdersPage: React.FC = () => {
     ? decodeURIComponent(encodedProfileId)
     : "";
   const campaignId = encodedCampaignId ? decodeURIComponent(encodedCampaignId) : "";
+  const dbProfileId = ensureProfileId(profileId);
+  const dbCampaignId = ensureCampaignId(campaignId);
   const navigate = useNavigate();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("md"));
@@ -89,8 +92,8 @@ export const OrdersPage: React.FC = () => {
   const { data: profileData } = useQuery<{ getProfile: ProfilePermissions }>(
     GET_PROFILE,
     {
-      variables: { profileId },
-      skip: !profileId,
+      variables: { profileId: dbProfileId },
+      skip: !dbProfileId,
     },
   );
 
@@ -101,8 +104,8 @@ export const OrdersPage: React.FC = () => {
     error: ordersError,
     refetch: refetchOrders,
   } = useQuery<{ listOrdersByCampaign: Order[] }>(LIST_ORDERS_BY_CAMPAIGN, {
-    variables: { campaignId },
-    skip: !campaignId,
+    variables: { campaignId: dbCampaignId },
+    skip: !dbCampaignId,
   });
 
   // Delete order mutation
@@ -131,7 +134,7 @@ export const OrdersPage: React.FC = () => {
 
   const handleDeleteOrder = async (orderId: string) => {
     if (confirm("Are you sure you want to delete this order?")) {
-      await deleteOrder({ variables: { orderId } });
+      await deleteOrder({ variables: { orderId: ensureOrderId(orderId) } });
     }
   };
 

@@ -28,6 +28,7 @@ import {
   LIST_CAMPAIGNS_BY_PROFILE,
   CREATE_CAMPAIGN,
 } from "../lib/graphql";
+import { ensureProfileId, ensureCatalogId } from "../lib/ids";
 
 interface Campaign {
   campaignId: string;
@@ -52,6 +53,7 @@ export const ScoutCampaignsPage: React.FC = () => {
   const profileId = encodedProfileId
     ? decodeURIComponent(encodedProfileId)
     : "";
+  const dbProfileId = ensureProfileId(profileId);
   const navigate = useNavigate();
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
 
@@ -61,8 +63,8 @@ export const ScoutCampaignsPage: React.FC = () => {
     loading: profileLoading,
     error: profileError,
   } = useQuery<{ getProfile: Profile }>(GET_PROFILE, {
-    variables: { profileId },
-    skip: !profileId,
+    variables: { profileId: dbProfileId },
+    skip: !dbProfileId,
   });
 
   // Fetch campaigns
@@ -72,8 +74,8 @@ export const ScoutCampaignsPage: React.FC = () => {
     error: campaignsError,
     refetch: refetchCampaigns,
   } = useQuery<{ listCampaignsByProfile: Campaign[] }>(LIST_CAMPAIGNS_BY_PROFILE, {
-    variables: { profileId },
-    skip: !profileId,
+    variables: { profileId: dbProfileId },
+    skip: !dbProfileId,
   });
 
   // Create campaign mutation
@@ -95,10 +97,10 @@ export const ScoutCampaignsPage: React.FC = () => {
     await createCampaign({
       variables: {
         input: {
-          profileId,
+          profileId: dbProfileId,
           campaignName,
           campaignYear,
-          catalogId,
+          catalogId: ensureCatalogId(catalogId),
           ...(startDate && { startDate: new Date(startDate).toISOString() }),
           ...(endDate && { endDate: new Date(endDate).toISOString() }),
         },

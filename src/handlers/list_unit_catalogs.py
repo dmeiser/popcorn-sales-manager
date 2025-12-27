@@ -16,17 +16,40 @@ except ModuleNotFoundError:  # pragma: no cover
 
 logger = get_logger(__name__)
 
-# Initialize DynamoDB client
-dynamodb = boto3.resource("dynamodb")
+
+def _get_dynamodb():
+    """Return a fresh DynamoDB resource (lazy for tests)."""
+    return boto3.resource("dynamodb")
 
 # Multi-table design V2
 profiles_table_name = os.environ.get("PROFILES_TABLE_NAME", "kernelworx-profiles-v2-ue1-dev")
 campaigns_table_name = os.environ.get("CAMPAIGNS_TABLE_NAME", "kernelworx-campaigns-v2-ue1-dev")
 catalogs_table_name = os.environ.get("CATALOGS_TABLE_NAME", "kernelworx-catalogs-ue1-dev")
 
-profiles_table = dynamodb.Table(profiles_table_name)
-campaigns_table = dynamodb.Table(campaigns_table_name)
-catalogs_table = dynamodb.Table(catalogs_table_name)
+
+# Module-level variables intended to be monkeypatched in unit tests
+profiles_table: Any | None = None
+campaigns_table: Any | None = None
+catalogs_table: Any | None = None
+
+
+def _get_profiles_table():
+    # If a test has monkeypatched the module-level `profiles_table`, use it
+    if profiles_table is not None:
+        return profiles_table
+    return _get_dynamodb().Table(profiles_table_name)
+
+
+def _get_campaigns_table():
+    if campaigns_table is not None:
+        return campaigns_table
+    return _get_dynamodb().Table(campaigns_table_name)
+
+
+def _get_catalogs_table():
+    if catalogs_table is not None:
+        return catalogs_table
+    return _get_dynamodb().Table(catalogs_table_name)
 
 
 def list_unit_catalogs(event: Dict[str, Any], context: Any) -> List[Dict[str, Any]]:
@@ -58,7 +81,7 @@ def list_unit_catalogs(event: Dict[str, Any], context: Any) -> List[Dict[str, An
         )
 
         # Step 1: Find all profiles in this unit
-        profiles_response = profiles_table.scan(
+        profiles_response = _get_profiles_table().scan(
             FilterExpression="unitType = :ut AND unitNumber = :un",
             ExpressionAttributeValues={
                 ":ut": unit_type,
@@ -96,7 +119,7 @@ def list_unit_catalogs(event: Dict[str, Any], context: Any) -> List[Dict[str, An
             profile_id = profile["profileId"]
 
             # Get campaigns for this profile matching the campaign name/year
-            campaigns_response = campaigns_table.query(
+            campaigns_response = _get_campaigns_table().query(
                 KeyConditionExpression=Key("profileId").eq(profile_id),
                 FilterExpression="campaignName = :name AND campaignYear = :year",
                 ExpressionAttributeValues={":name": campaign_name, ":year": campaign_year},
@@ -120,7 +143,7 @@ def list_unit_catalogs(event: Dict[str, Any], context: Any) -> List[Dict[str, An
 
         for catalog_id in catalog_ids:
             try:
-                catalog_response = catalogs_table.get_item(Key={"catalogId": catalog_id})
+                catalog_response = _get_catalogs_table().get_item(Key={"catalogId": catalog_id})
                 if "Item" in catalog_response:
                     catalogs.append(catalog_response["Item"])
             except Exception as e:
@@ -181,7 +204,7 @@ def list_unit_campaign_catalogs(event: Dict[str, Any], context: Any) -> List[Dic
         # Step 1: Query GSI3 to find all campaigns matching unit+campaign criteria
         unit_campaign_key = _build_unit_campaign_key(unit_type, unit_number, city, state, campaign_name, campaign_year)
 
-        campaigns_response = campaigns_table.query(
+        campaigns_response = _get_campaigns_table().query(
             IndexName="GSI3",
             KeyConditionExpression=Key("unitCampaignKey").eq(unit_campaign_key),
         )

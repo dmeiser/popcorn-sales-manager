@@ -18,26 +18,27 @@ from .logging import get_logger
 # Initialize logger
 logger = get_logger(__name__)
 
-# Initialize DynamoDB resource
-dynamodb = boto3.resource("dynamodb", endpoint_url=os.getenv("DYNAMODB_ENDPOINT"))
+def _get_dynamodb():
+    """Return a fresh boto3 DynamoDB resource (lazy for tests)."""
+    return boto3.resource("dynamodb", endpoint_url=os.getenv("DYNAMODB_ENDPOINT"))
 
 
 def get_profiles_table() -> "Table":
     """Get profiles DynamoDB table instance (multi-table design V2)."""
     table_name = os.getenv("PROFILES_TABLE_NAME", "kernelworx-profiles-v2-ue1-dev")
-    return dynamodb.Table(table_name)
+    return _get_dynamodb().Table(table_name)
 
 
 def get_shares_table() -> "Table":
     """Get shares DynamoDB table instance (new separate table)."""
     table_name = os.getenv("SHARES_TABLE_NAME", "kernelworx-shares-ue1-dev")
-    return dynamodb.Table(table_name)
+    return _get_dynamodb().Table(table_name)
 
 
 def get_accounts_table() -> "Table":
     """Get accounts DynamoDB table instance (multi-table design)."""
     table_name = os.getenv("ACCOUNTS_TABLE_NAME", "kernelworx-accounts-ue1-dev")
-    return dynamodb.Table(table_name)
+    return _get_dynamodb().Table(table_name)
 
 
 def check_profile_access(caller_account_id: str, profile_id: str, required_permission: str = "READ") -> bool:

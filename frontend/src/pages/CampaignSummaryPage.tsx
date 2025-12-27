@@ -16,6 +16,7 @@ import {
 } from "@mui/material";
 import { ShoppingCart, AttachMoney, People } from "@mui/icons-material";
 import { LIST_ORDERS_BY_CAMPAIGN } from "../lib/graphql";
+import { ensureCampaignId } from "../lib/ids";
 
 interface LineItem {
   productId: string;
@@ -36,14 +37,15 @@ interface Order {
 export const CampaignSummaryPage: React.FC = () => {
   const { campaignId: encodedCampaignId } = useParams<{ campaignId: string }>();
   const campaignId = encodedCampaignId ? decodeURIComponent(encodedCampaignId) : "";
+  const dbCampaignId = ensureCampaignId(campaignId);
 
   const {
     data: ordersData,
     loading,
     error,
   } = useQuery<{ listOrdersByCampaign: Order[] }>(LIST_ORDERS_BY_CAMPAIGN, {
-    variables: { campaignId },
-    skip: !campaignId,
+    variables: { campaignId: dbCampaignId },
+    skip: !dbCampaignId,
   });
 
   const orders = ordersData?.listOrdersByCampaign || [];

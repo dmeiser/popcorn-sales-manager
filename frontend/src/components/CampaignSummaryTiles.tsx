@@ -25,6 +25,7 @@ import {
   Inventory2,
 } from "@mui/icons-material";
 import { LIST_ORDERS_BY_CAMPAIGN } from "../lib/graphql";
+import { ensureCampaignId } from "../lib/ids";
 
 interface LineItem {
   productId: string;
@@ -49,13 +50,15 @@ interface CampaignSummaryTilesProps {
 export const CampaignSummaryTiles: React.FC<CampaignSummaryTilesProps> = ({
   campaignId,
 }) => {
+  const dbCampaignId = ensureCampaignId(campaignId);
+
   const {
     data: ordersData,
     loading,
     error,
   } = useQuery<{ listOrdersByCampaign: Order[] }>(LIST_ORDERS_BY_CAMPAIGN, {
-    variables: { campaignId },
-    skip: !campaignId,
+    variables: { campaignId: dbCampaignId },
+    skip: !dbCampaignId,
   });
 
   const orders = ordersData?.listOrdersByCampaign || [];

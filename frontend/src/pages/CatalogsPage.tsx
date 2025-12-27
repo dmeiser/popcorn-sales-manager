@@ -42,6 +42,7 @@ import {
   UPDATE_CATALOG,
   DELETE_CATALOG,
 } from "../lib/graphql";
+import { ensureProfileId } from "../lib/ids";
 
 interface Product {
   productId: string;
@@ -123,7 +124,7 @@ export const CatalogsPage: React.FC = () => {
         if (profile.profileId) {
           try {
             const { data } = await fetchCampaigns({
-              variables: { profileId: profile.profileId },
+              variables: { profileId: ensureProfileId(profile.profileId) },
             });
 
             data?.listCampaignsByProfile.forEach((campaign) => {
