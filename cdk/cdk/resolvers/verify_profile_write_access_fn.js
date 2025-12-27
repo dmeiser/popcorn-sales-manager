@@ -44,13 +44,16 @@ export function request(ctx) {
         }), 'BadRequest');
     }
     
+    // Normalize profileId to DB format: ensure it starts with PROFILE#
+    const dbProfileId = (typeof profileId === 'string' && profileId.startsWith('PROFILE#')) ? profileId : 'PROFILE#' + profileId;
+    
     // NEW STRUCTURE: Query profileId-index GSI to find profile
     return {
         operation: 'Query',
         index: 'profileId-index',
         query: {
         expression: 'profileId = :profileId',
-        expressionValues: util.dynamodb.toMapValues({ ':profileId': profileId })
+        expressionValues: util.dynamodb.toMapValues({ ':profileId': dbProfileId })
         }
     };
 }

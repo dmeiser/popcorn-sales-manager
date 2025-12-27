@@ -138,105 +138,6 @@ class CdkStack(Stack):
         # ====================================================================
         # DynamoDB Table - Single Table Design
         # ====================================================================
-
-        # Define PsmApp table (--import-existing-resources will import existing tables)
-        psm_table_name = rn("kernelworx-app")
-        print(f"✓ Defining PsmApp table: {psm_table_name}")
-
-        self.table = dynamodb.Table(
-            self,
-            "PsmApp",
-            table_name=psm_table_name,
-            partition_key=dynamodb.Attribute(name="PK", type=dynamodb.AttributeType.STRING),
-            sort_key=dynamodb.Attribute(name="SK", type=dynamodb.AttributeType.STRING),
-            billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
-            point_in_time_recovery_specification=dynamodb.PointInTimeRecoverySpecification(
-                point_in_time_recovery_enabled=True
-            ),
-            removal_policy=RemovalPolicy.RETAIN,  # Don't delete on stack destroy
-            stream=dynamodb.StreamViewType.NEW_AND_OLD_IMAGES,  # For audit logging
-        )
-
-        # Configure GSIs
-        # GSI1: Shares by target account (for "My Shared Profiles" view)
-        self.table.add_global_secondary_index(
-            index_name="GSI1",
-            partition_key=dynamodb.Attribute(name="GSI1PK", type=dynamodb.AttributeType.STRING),
-            sort_key=dynamodb.Attribute(name="GSI1SK", type=dynamodb.AttributeType.STRING),
-            projection_type=dynamodb.ProjectionType.ALL,
-        )
-
-        # GSI2: Orders by profile (for cross-campaign order queries)
-        self.table.add_global_secondary_index(
-            index_name="GSI2",
-            partition_key=dynamodb.Attribute(name="GSI2PK", type=dynamodb.AttributeType.STRING),
-            sort_key=dynamodb.Attribute(name="GSI2SK", type=dynamodb.AttributeType.STRING),
-            projection_type=dynamodb.ProjectionType.ALL,
-        )
-
-        # GSI3: Catalog ownership and sharing (for catalog management)
-        self.table.add_global_secondary_index(
-            index_name="GSI3",
-            partition_key=dynamodb.Attribute(name="GSI3PK", type=dynamodb.AttributeType.STRING),
-            sort_key=dynamodb.Attribute(name="GSI3SK", type=dynamodb.AttributeType.STRING),
-            projection_type=dynamodb.ProjectionType.ALL,
-        )
-
-        # GSI4: Profile lookup by profileId (for direct getProfile queries)
-        self.table.add_global_secondary_index(
-            index_name="GSI4",
-            partition_key=dynamodb.Attribute(name="profileId", type=dynamodb.AttributeType.STRING),
-            projection_type=dynamodb.ProjectionType.ALL,
-        )
-
-        # GSI5: Campaign lookup by campaignId (for listing all items with campaignId - orders, etc)
-        self.table.add_global_secondary_index(
-            index_name="GSI5",
-            partition_key=dynamodb.Attribute(name="campaignId", type=dynamodb.AttributeType.STRING),
-            projection_type=dynamodb.ProjectionType.ALL,
-        )
-
-        # GSI6: Order lookup by orderId (for direct getOrder queries)
-        self.table.add_global_secondary_index(
-            index_name="GSI6",
-            partition_key=dynamodb.Attribute(name="orderId", type=dynamodb.AttributeType.STRING),
-            projection_type=dynamodb.ProjectionType.ALL,
-        )
-
-        # GSI7: Campaign lookup by campaignId + SK (for direct getCampaign queries)
-        self.table.add_global_secondary_index(
-            index_name="GSI7",
-            partition_key=dynamodb.Attribute(name="campaignId", type=dynamodb.AttributeType.STRING),
-            sort_key=dynamodb.Attribute(name="SK", type=dynamodb.AttributeType.STRING),
-            projection_type=dynamodb.ProjectionType.ALL,
-        )
-
-        # GSI8: Account lookup by email (for share-direct pipeline resolver)
-        self.table.add_global_secondary_index(
-            index_name="GSI8",
-            partition_key=dynamodb.Attribute(name="email", type=dynamodb.AttributeType.STRING),
-            projection_type=dynamodb.ProjectionType.ALL,
-        )
-
-        # GSI9: Invite lookup by inviteCode (for redeem-invite pipeline resolver)
-        self.table.add_global_secondary_index(
-            index_name="GSI9",
-            partition_key=dynamodb.Attribute(name="inviteCode", type=dynamodb.AttributeType.STRING),
-            projection_type=dynamodb.ProjectionType.ALL,
-        )
-
-        # TTL configuration for invite expiration
-        # ProfileInvite and CatalogShareInvite items have expiresAt attribute
-        cfn_table = self.table.node.default_child
-        assert cfn_table is not None
-        cfn_table.time_to_live_specification = (  # type: ignore
-            dynamodb.CfnTable.TimeToLiveSpecificationProperty(
-                attribute_name="expiresAt",
-                enabled=True,
-            )
-        )
-
-        # ====================================================================
         # New Multi-Table Design (Migration from Single-Table)
         # ====================================================================
 
@@ -522,17 +423,6 @@ class CdkStack(Stack):
             ],
         )
 
-        # Grant Lambda role access to DynamoDB table
-        self.table.grant_read_write_data(self.lambda_execution_role)
-
-        # Grant Lambda role access to all GSI indexes (required for queries)
-        self.lambda_execution_role.add_to_policy(
-            iam.PolicyStatement(
-                actions=["dynamodb:Query", "dynamodb:Scan"],
-                resources=[f"{self.table.table_arn}/index/*"],
-            )
-        )
-
         # Grant Lambda role access to new multi-table design tables
         self.accounts_table.grant_read_write_data(self.lambda_execution_role)
         self.catalogs_table.grant_read_write_data(self.lambda_execution_role)
@@ -572,17 +462,6 @@ class CdkStack(Stack):
             assumed_by=iam.ServicePrincipal("appsync.amazonaws.com"),
         )
 
-        # Grant AppSync role access to DynamoDB table
-        self.table.grant_read_write_data(self.appsync_service_role)
-
-        # Grant AppSync role access to all GSI indexes (required for imported tables)
-        self.appsync_service_role.add_to_policy(
-            iam.PolicyStatement(
-                actions=["dynamodb:Query", "dynamodb:Scan"],
-                resources=[f"{self.table.table_arn}/index/*"],
-            )
-        )
-
         # Grant AppSync role access to new multi-table design tables
         self.accounts_table.grant_read_write_data(self.appsync_service_role)
         self.catalogs_table.grant_read_write_data(self.appsync_service_role)
@@ -619,7 +498,6 @@ class CdkStack(Stack):
 
         # Common Lambda environment variables
         lambda_env = {
-            "TABLE_NAME": self.table.table_name,
             "EXPORTS_BUCKET": self.exports_bucket.bucket_name,
             "POWERTOOLS_SERVICE_NAME": "kernelworx",
             "LOG_LEVEL": "INFO",
@@ -1219,7 +1097,6 @@ class CdkStack(Stack):
             api_certificate=self.api_certificate,
             hosted_zone=self.hosted_zone,
             tables={
-                "table": self.table,
                 "accounts": self.accounts_table,
                 "catalogs": self.catalogs_table,
                 "profiles": self.profiles_table,

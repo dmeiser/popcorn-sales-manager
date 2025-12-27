@@ -217,20 +217,6 @@ def create_dynamodb_datasources(
     """
     datasources: dict[str, appsync.DynamoDbDataSource] = {}
 
-    # Legacy single table (PsmApp)
-    if "table" in tables:
-        datasources["dynamodb"] = api.add_dynamo_db_data_source(
-            "DynamoDBDataSource",
-            table=tables["table"],
-        )
-        # Grant GSI permissions
-        datasources["dynamodb"].grant_principal.add_to_principal_policy(
-            iam.PolicyStatement(
-                actions=["dynamodb:Query", "dynamodb:Scan"],
-                resources=[f"{tables['table'].table_arn}/index/*"],
-            )
-        )
-
     # Multi-table datasources
     table_configs = [
         ("accounts", "AccountsDataSource"),
@@ -578,6 +564,17 @@ def create_appsync_functions(
         data_source=datasources["campaigns"],
         runtime=appsync.FunctionRuntime.JS_1_0_0,
         code=appsync.Code.from_asset(str(RESOLVERS_DIR / "get_campaign_for_order_fn.js")),
+    )
+
+    # EnsureCatalogForOrderFn (defensive): if stash.catalogId missing, query campaign and set it
+    functions["ensure_catalog_for_order"] = appsync.AppsyncFunction(
+        scope,
+        "EnsureCatalogForOrderFn",
+        name=f"EnsureCatalogForOrderFn_{env_name}",
+        api=api,
+        data_source=datasources["campaigns"],
+        runtime=appsync.FunctionRuntime.JS_1_0_0,
+        code=appsync.Code.from_asset(str(RESOLVERS_DIR / "ensure_catalog_for_order_fn.js")),
     )
 
     # GetCatalogFn
@@ -1302,6 +1299,7 @@ def create_resolvers(
             functions["verify_profile_write_access"],
             functions["check_share_permissions"],
             functions["get_campaign_for_order"],
+            functions["ensure_catalog_for_order"],
             functions["get_catalog"],
             functions["create_order"],
         ],

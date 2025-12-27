@@ -30,7 +30,6 @@ class TestCreateDynamoDBTables:
         result = create_dynamodb_tables(stack, rn)
 
         expected_keys = [
-            "table",
             "accounts_table",
             "catalogs_table",
             "profiles_table",
@@ -44,12 +43,6 @@ class TestCreateDynamoDBTables:
         for key in expected_keys:
             assert key in result, f"Missing key: {key}"
             assert isinstance(result[key], dynamodb.Table), f"{key} is not a Table"
-
-    def test_main_table_has_correct_name(self, stack, rn):
-        """Main table should have correct name in CloudFormation template."""
-        create_dynamodb_tables(stack, rn)
-        template = assertions.Template.from_stack(stack)
-        template.has_resource_properties("AWS::DynamoDB::Table", {"TableName": "kernelworx-app-ue1-test"})
 
     def test_accounts_table_has_correct_name(self, stack, rn):
         """Accounts table should have correct name in CloudFormation template."""
@@ -104,7 +97,7 @@ class TestCreateDynamoDBTables:
         create_dynamodb_tables(stack, rn)
         template = assertions.Template.from_stack(stack)
         # Check that all tables use PAY_PER_REQUEST (no ProvisionedThroughput)
-        template.resource_count_is("AWS::DynamoDB::Table", 9)
+        template.resource_count_is("AWS::DynamoDB::Table", 8)
 
     def test_different_resource_namer(self, stack):
         """Should work with different resource naming function."""
@@ -114,5 +107,4 @@ class TestCreateDynamoDBTables:
 
         create_dynamodb_tables(stack, custom_rn)
         template = assertions.Template.from_stack(stack)
-        template.has_resource_properties("AWS::DynamoDB::Table", {"TableName": "kernelworx-app-custom-prod"})
         template.has_resource_properties("AWS::DynamoDB::Table", {"TableName": "kernelworx-accounts-custom-prod"})

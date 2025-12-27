@@ -16,83 +16,6 @@ def create_dynamodb_tables(stack: Construct, rn: Callable[[str], str]) -> Dict[s
         Mapping of table names to Table constructs
     """
 
-    # PsmApp single-table (legacy)
-    psm_table_name = rn("kernelworx-app")
-    print(f"✓ Defining PsmApp table: {psm_table_name}")
-
-    table = ddb.Table(
-        stack,
-        "PsmApp",
-        table_name=psm_table_name,
-        partition_key=ddb.Attribute(name="PK", type=ddb.AttributeType.STRING),
-        sort_key=ddb.Attribute(name="SK", type=ddb.AttributeType.STRING),
-        billing_mode=ddb.BillingMode.PAY_PER_REQUEST,
-        point_in_time_recovery_specification=ddb.PointInTimeRecoverySpecification(
-            point_in_time_recovery_enabled=True
-        ),
-        removal_policy=RemovalPolicy.RETAIN,
-        stream=ddb.StreamViewType.NEW_AND_OLD_IMAGES,
-    )
-
-    # GSIs
-    table.add_global_secondary_index(
-        index_name="GSI1",
-        partition_key=ddb.Attribute(name="GSI1PK", type=ddb.AttributeType.STRING),
-        sort_key=ddb.Attribute(name="GSI1SK", type=ddb.AttributeType.STRING),
-        projection_type=ddb.ProjectionType.ALL,
-    )
-    table.add_global_secondary_index(
-        index_name="GSI2",
-        partition_key=ddb.Attribute(name="GSI2PK", type=ddb.AttributeType.STRING),
-        sort_key=ddb.Attribute(name="GSI2SK", type=ddb.AttributeType.STRING),
-        projection_type=ddb.ProjectionType.ALL,
-    )
-    table.add_global_secondary_index(
-        index_name="GSI3",
-        partition_key=ddb.Attribute(name="GSI3PK", type=ddb.AttributeType.STRING),
-        sort_key=ddb.Attribute(name="GSI3SK", type=ddb.AttributeType.STRING),
-        projection_type=ddb.ProjectionType.ALL,
-    )
-    table.add_global_secondary_index(
-        index_name="GSI4",
-        partition_key=ddb.Attribute(name="profileId", type=ddb.AttributeType.STRING),
-        projection_type=ddb.ProjectionType.ALL,
-    )
-    table.add_global_secondary_index(
-        index_name="GSI5",
-        partition_key=ddb.Attribute(name="campaignId", type=ddb.AttributeType.STRING),
-        projection_type=ddb.ProjectionType.ALL,
-    )
-    table.add_global_secondary_index(
-        index_name="GSI6",
-        partition_key=ddb.Attribute(name="orderId", type=ddb.AttributeType.STRING),
-        projection_type=ddb.ProjectionType.ALL,
-    )
-    table.add_global_secondary_index(
-        index_name="GSI7",
-        partition_key=ddb.Attribute(name="campaignId", type=ddb.AttributeType.STRING),
-        sort_key=ddb.Attribute(name="SK", type=ddb.AttributeType.STRING),
-        projection_type=ddb.ProjectionType.ALL,
-    )
-    table.add_global_secondary_index(
-        index_name="GSI8",
-        partition_key=ddb.Attribute(name="email", type=ddb.AttributeType.STRING),
-        projection_type=ddb.ProjectionType.ALL,
-    )
-    table.add_global_secondary_index(
-        index_name="GSI9",
-        partition_key=ddb.Attribute(name="inviteCode", type=ddb.AttributeType.STRING),
-        projection_type=ddb.ProjectionType.ALL,
-    )
-
-    # TTL for invites and shares in the PsmApp table
-    cfn_table = table.node.default_child
-    assert cfn_table is not None
-    cfn_table.time_to_live_specification = ddb.CfnTable.TimeToLiveSpecificationProperty(
-        attribute_name="expiresAt",
-        enabled=True,
-    )
-
     # --- Multi-table design ---
     accounts_table = ddb.Table(
         stack,
@@ -273,7 +196,6 @@ def create_dynamodb_tables(stack: Construct, rn: Callable[[str], str]) -> Dict[s
     )
 
     return {
-        "table": table,
         "accounts_table": accounts_table,
         "catalogs_table": catalogs_table,
         "profiles_table": profiles_table,
