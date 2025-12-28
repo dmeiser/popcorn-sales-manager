@@ -1,9 +1,9 @@
 import { util } from '@aws-appsync/utils';
 
 export function request(ctx) {
-    // If a catalog is already in stash, skip lookup
+    // If a catalog is already in stash, skip lookup and do not call the data source
     if (ctx.stash && ctx.stash.catalog) {
-        return {};
+        return null;
     }
 
     const rawCatalogId = ctx.stash.catalogId || (ctx.args && ctx.args.input && ctx.args.input.catalogId);

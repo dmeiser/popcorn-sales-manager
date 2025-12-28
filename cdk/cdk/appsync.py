@@ -610,7 +610,38 @@ def create_appsync_functions(
         code=appsync.Code.from_asset(str(RESOLVERS_DIR / "get_catalog_try_prefixed_fn.js")),
     )
 
+    # Diagnostic function to help debug pipeline stash issues (dev-only)
+    functions["diagnose_catalog_for_order"] = appsync.AppsyncFunction(
+        scope,
+        "DiagnoseCatalogForOrderFn",
+        name=f"DiagnoseCatalogForOrderFn_{env_name}",
+        api=api,
+        data_source=datasources["campaigns"],
+        runtime=appsync.FunctionRuntime.JS_1_0_0,
+        code=appsync.Code.from_asset(str(RESOLVERS_DIR / "diagnose_catalog_for_order_fn.js")),
+    )
 
+    # EnsureCatalogFinalFn (defensive): query campaign and stash catalogId if missing
+    functions["ensure_catalog_final"] = appsync.AppsyncFunction(
+        scope,
+        "EnsureCatalogFinalFn",
+        name=f"EnsureCatalogFinalFn_{env_name}",
+        api=api,
+        data_source=datasources["campaigns"],
+        runtime=appsync.FunctionRuntime.JS_1_0_0,
+        code=appsync.Code.from_asset(str(RESOLVERS_DIR / "ensure_catalog_final_fn.js")),
+    )
+
+    # Dev-only: LogCreateOrderState - None data source for final pipeline diagnostics
+    functions["log_create_order_state"] = appsync.AppsyncFunction(
+        scope,
+        "LogCreateOrderStateFn",
+        name=f"LogCreateOrderStateFn_{env_name}",
+        api=api,
+        data_source=datasources["none"],
+        runtime=appsync.FunctionRuntime.JS_1_0_0,
+        code=appsync.Code.from_asset(str(RESOLVERS_DIR / "log_create_order_state_fn.js")),
+    )
 
     # CreateOrderFn
     functions["create_order"] = appsync.AppsyncFunction(
@@ -1324,6 +1355,9 @@ def create_resolvers(
             functions["ensure_catalog_for_order"],
             functions["get_catalog_try_raw"],
             functions["get_catalog_try_prefixed"],
+            functions["ensure_catalog_final"],
+            functions["get_catalog"],
+            functions["log_create_order_state"],  # Dev-only logging: captures final stash before create
             functions["create_order"],
         ],
         code=appsync.Code.from_asset(str(RESOLVERS_DIR / "create_order_fn.js")),

@@ -1,15 +1,15 @@
 import { util } from '@aws-appsync/utils';
 
 export function request(ctx) {
-    // If a catalog is already in stash, skip lookup
+    // If a catalog is already in stash, skip lookup and do not call the data source
     if (ctx.stash && ctx.stash.catalog) {
-        return {};
+        return null;
     }
 
     const rawCatalogId = ctx.stash.catalogId || (ctx.args && ctx.args.input && ctx.args.input.catalogId);
     if (!rawCatalogId) {
         // Nothing to do here - allow next function to attempt prefixed lookup
-        return {};
+        return null;
     }
 
     // Try direct GetItem with the raw id first
@@ -35,5 +35,7 @@ export function response(ctx) {
     }
 
     // Not found — let the pipeline continue to the prefixed attempt
+    // Do not reference variables from the request scope here; use stash or args instead
+    console.log('GetCatalogTryRaw: No catalog found for raw id:', ctx.stash && ctx.stash.catalogId ? ctx.stash.catalogId : (ctx.args && ctx.args.input && ctx.args.input.catalogId) || 'unknown');
     return ctx.prev && ctx.prev.result ? ctx.prev.result : null;
 }

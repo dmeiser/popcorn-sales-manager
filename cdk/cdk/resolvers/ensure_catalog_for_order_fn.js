@@ -7,10 +7,10 @@ export function request(ctx) {
         util.error('campaignId missing from request', 'BadRequest');
     }
 
-    // Query GSI5 (campaignId-index) to find the campaign (V2 schema)
+    // Query campaignId-index GSI to find the campaign (V2 schema)
     return {
         operation: 'Query',
-        index: 'GSI5',
+        index: 'campaignId-index',
         query: {
             expression: 'campaignId = :campaignId',
             expressionValues: util.dynamodb.toMapValues({ ':campaignId': campaignId })
@@ -31,19 +31,16 @@ export function response(ctx) {
 
     const campaign = items[0];
 
-    // Only set the stash.catalogId if it isn't already present
-    if (!ctx.stash.catalogId) {
-        if (!campaign.catalogId) {
-            util.error('Campaign has no catalog assigned', 'BadRequest');
-        }
-        // Normalize stored campaign.catalogId to DB format (CATALOG#...)
-        const rawCatalogId = campaign.catalogId;
-        const normalizedCatalogId = (typeof rawCatalogId === 'string' && rawCatalogId.startsWith('CATALOG#')) ? rawCatalogId : 'CATALOG#' + rawCatalogId;
-        ctx.stash.catalogId = normalizedCatalogId;
-        console.log('EnsureCatalogForOrder: Set stash.catalogId to', ctx.stash.catalogId);
-    } else {
-        console.log('EnsureCatalogForOrder: stash.catalogId already present:', ctx.stash.catalogId);
+    // Always set the stash.catalogId from the campaign to ensure the pipeline has a canonical value
+    if (!campaign.catalogId) {
+        util.error('Campaign has no catalog assigned', 'BadRequest');
     }
+    // Normalize stored campaign.catalogId to DB format (CATALOG#...)
+    const rawCatalogId = campaign.catalogId;
+    const normalizedCatalogId = (typeof rawCatalogId === 'string' && rawCatalogId.startsWith('CATALOG#')) ? rawCatalogId : 'CATALOG#' + rawCatalogId;
+    ctx.stash.catalogId = normalizedCatalogId;
+    console.log('EnsureCatalogForOrder: (forced) Set stash.catalogId to', ctx.stash.catalogId);
+    console.log('EnsureCatalogForOrder: campaign=', JSON.stringify(campaign));
 
     // Return campaign info (not used downstream directly but useful in logs)
     return campaign;
