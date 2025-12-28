@@ -1,20 +1,34 @@
 import { util } from '@aws-appsync/utils';
 
 export function request(ctx) {
-    // If catalog already in stash, nothing to do — skip calling data source
+    // If catalog already in stash, nothing to do — avoid returning null (AppSync requires a valid request for data-source-bound functions)
     if (ctx.stash && ctx.stash.catalog) {
-        return null;
+        // Return a harmless GetItem that will not match any real item
+        return {
+            operation: 'GetItem',
+            key: util.dynamodb.toMapValues({ campaignId: 'NOOP' }),
+            consistentRead: true
+        };
     }
 
-    // If stash already has normalized catalogId, nothing to do (get_catalog will fetch) — skip calling data source
+    // If stash already has normalized catalogId, nothing to do — return harmless NOOP GetItem
     if (ctx.stash && ctx.stash.catalogId) {
-        return null;
+        return {
+            operation: 'GetItem',
+            key: util.dynamodb.toMapValues({ campaignId: 'NOOP' }),
+            consistentRead: true
+        };
     }
 
     const campaignId = ctx.args.input && ctx.args.input.campaignId;
     if (!campaignId) {
         console.log('EnsureCatalogFinal: no campaignId in args, skipping');
-        return null;
+        // Return harmless NOOP GetItem to satisfy data-source request contract
+        return {
+            operation: 'GetItem',
+            key: util.dynamodb.toMapValues({ campaignId: 'NOOP' }),
+            consistentRead: true
+        };
     }
 
     // Query campaignId-index to find the campaign and extract catalogId

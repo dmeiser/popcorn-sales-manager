@@ -1,15 +1,23 @@
 import { util } from '@aws-appsync/utils';
 
 export function request(ctx) {
-    // If a catalog is already in stash, skip lookup and do not call the data source
+    // If a catalog is already in stash, skip lookup — return harmless NOOP GetItem so we don't return null from a data-source-bound function
     if (ctx.stash && ctx.stash.catalog) {
-        return null;
+        return {
+            operation: 'GetItem',
+            key: util.dynamodb.toMapValues({ catalogId: 'NOOP' }),
+            consistentRead: true
+        };
     }
 
     const rawCatalogId = ctx.stash.catalogId || (ctx.args && ctx.args.input && ctx.args.input.catalogId);
     if (!rawCatalogId) {
-        // Nothing to do here - allow next function to attempt prefixed lookup
-        return null;
+        // Nothing to do here - return harmless NOOP GetItem so we don't return null
+        return {
+            operation: 'GetItem',
+            key: util.dynamodb.toMapValues({ catalogId: 'NOOP' }),
+            consistentRead: true
+        };
     }
 
     // Try direct GetItem with the raw id first
