@@ -29,11 +29,7 @@ export function request(ctx) {
 }
 
 export function response(ctx) {
-    if (ctx.error) {
-        util.error(ctx.error.message, ctx.error.type);
-    }
-
-    // If this function didn't find an item, but a previous function did, use the previous result
+    // If we didn't find an item, prefer a previously found result over propagating an error from a NOOP or empty operation
     if (!ctx.result) {
         console.log('GetCatalogTryPrefixed: No catalog found for id:', ctx.stash.catalogId);
         if (ctx.prev && ctx.prev.result) {
@@ -41,7 +37,16 @@ export function response(ctx) {
             ctx.stash.catalog = ctx.prev.result;
             return ctx.prev.result;
         }
+        // No previous result — propagate any runtime error if present, otherwise raise NotFound
+        if (ctx.error) {
+            util.error(ctx.error.message, ctx.error.type);
+        }
         util.error('Catalog not found for id: ' + ctx.stash.catalogId, 'NotFound');
+    }
+
+    // If there's an error despite having a result, surface it
+    if (ctx.error) {
+        util.error(ctx.error.message, ctx.error.type);
     }
 
     console.log('GetCatalogTryPrefixed: Found catalog with', ctx.result.products ? ctx.result.products.length : 0, 'products');
