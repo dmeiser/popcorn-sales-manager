@@ -120,10 +120,6 @@ export function request(ctx) {
 
     // Sanitize productName and other line item fields to ensure safe DynamoDB attributes.
     // Keep code minimal/portable for AppSync JS runtime (avoid complex globals or JSON.stringify on arbitrary data).
-    function isPlainObject(v) {
-        return v && typeof v === 'object' && !Array.isArray(v);
-    }
-
     for (const li of enrichedLineItems) {
         // productName must be string or null
         if (typeof li.productName !== 'string') {
@@ -133,7 +129,7 @@ export function request(ctx) {
         // Coerce numeric-like quantities to numbers (simple check)
         if (typeof li.quantity !== 'number') {
             const n = Number(li.quantity);
-            li.quantity = (n === n && Math.abs(n) !== Infinity) ? n : 0;
+            li.quantity = (n > 0) ? n : 0;
         }
 
         // Ensure productId is string or null
@@ -144,7 +140,7 @@ export function request(ctx) {
         // Remove unexpected nested plain objects (replace with null)
         for (const key of Object.keys(li)) {
             const val = li[key];
-            if (isPlainObject(val)) {
+            if (val && typeof val === 'object' && !Array.isArray(val)) {
                 li[key] = null;
             }
         }
