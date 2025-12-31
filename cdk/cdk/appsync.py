@@ -665,16 +665,6 @@ def create_appsync_functions(
         code=appsync.Code.from_asset(str(RESOLVERS_DIR / "inspect_put_item_fn.js")),
     )
 
-    # SanitizeOrderItemFn - defensive sanitization of input.lineItems before create
-    functions["sanitize_order_item"] = appsync.AppsyncFunction(
-        scope,
-        "SanitizeOrderItemFn",
-        name=f"SanitizeOrderItemFn_{env_name}",
-        api=api,
-        data_source=datasources["none"],
-        runtime=appsync.FunctionRuntime.JS_1_0_0,
-        code=appsync.Code.from_asset(str(RESOLVERS_DIR / "sanitize_order_item_fn.js")),
-    )
 
     # === PROFILE SHARING (DIRECT) FUNCTIONS ===
 
@@ -1379,7 +1369,6 @@ def create_resolvers(
             functions["get_catalog_try_prefixed"],
             functions["ensure_catalog_final"],
             functions["get_catalog"],
-            functions["sanitize_order_item"],  # Defensive sanitization before create
             functions["create_order"],
             functions["log_create_order_state"],  # Dev-only logging: captures prev.result after create
         ],
