@@ -141,8 +141,8 @@ export function request(ctx) {
         for (const key of Object.keys(li)) {
             const val = li[key];
             if (isPlainObject(val)) {
-                // Replace with null (safer) and log for diagnostics
-                console.log('CreateOrder: sanitizing unexpected object in lineItem', { key: key, val: JSON.stringify(val) });
+                // Replace with null (safer) and log for diagnostics (avoid stringifying arbitrarily nested objects)
+                console.log('CreateOrder: sanitizing unexpected object in lineItem', key);
                 li[key] = null;
             }
         }
