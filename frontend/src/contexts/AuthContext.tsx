@@ -38,21 +38,18 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   /**
    * Fetch account data from GraphQL API
    */
-  const fetchAccountData = useCallback(
-    async (_accountId: string): Promise<Account | null> => {
-      try {
-        const { data } = await apolloClient.query<{ getMyAccount: Account }>({
-          query: GET_MY_ACCOUNT,
-          fetchPolicy: "network-only", // Always fetch fresh data
-        });
-        return data?.getMyAccount ?? null;
-      } catch (error) {
-        console.error("Failed to fetch account data:", error);
-        return null;
-      }
-    },
-    [],
-  );
+  const fetchAccountData = useCallback(async (): Promise<Account | null> => {
+    try {
+      const { data } = await apolloClient.query<{ getMyAccount: Account }>({
+        query: GET_MY_ACCOUNT,
+        fetchPolicy: "network-only", // Always fetch fresh data
+      });
+      return data?.getMyAccount ?? null;
+    } catch (error) {
+      console.error("Failed to fetch account data:", error);
+      return null;
+    }
+  }, []);
 
   /**
    * Check current auth session and load account data
@@ -64,17 +61,19 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       if (session.tokens?.idToken) {
         // User has valid tokens
         setHasValidTokens(true);
-        
+
         // Get user info and account data
-        const user = await getCurrentUser();
-        const accountData = await fetchAccountData(user.userId);
+        await getCurrentUser();
+        const accountData = await fetchAccountData();
 
         if (accountData) {
           // Check admin status from JWT token claims, NOT from DynamoDB
           // The cognito:groups claim is the source of truth for permissions
-          const groups = (session.tokens.idToken.payload['cognito:groups'] as string[]) || [];
-          const isAdminFromToken = groups.includes('ADMIN');
-          
+          const groups =
+            (session.tokens.idToken.payload["cognito:groups"] as string[]) ||
+            [];
+          const isAdminFromToken = groups.includes("ADMIN");
+
           // Set account with admin status from JWT token
           setAccount({
             ...accountData,
@@ -111,7 +110,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       switch (payload.event) {
         case "signInWithRedirect":
           // User returned from Hosted UI - refresh session
-          checkAuthSession();
+          checkAuthSession().then(() => {
+            // Check if there's a saved redirect path from before OAuth login
+            const savedRedirect = sessionStorage.getItem("oauth_redirect");
+            if (savedRedirect) {
+              sessionStorage.removeItem("oauth_redirect");
+              window.location.href = savedRedirect;
+            }
+          });
           break;
         case "signInWithRedirect_failure":
           console.error("Sign in failed:", payload.data);
@@ -119,6 +125,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           break;
         case "signedOut":
           setAccount(null);
+          setHasValidTokens(false);
           setLoading(false);
           break;
         case "tokenRefresh":
@@ -128,6 +135,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         case "tokenRefresh_failure":
           console.error("Token refresh failed:", payload.data);
           setAccount(null);
+          setHasValidTokens(false);
           break;
       }
     });
@@ -242,7 +250,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
 /**
  * Hook to access auth context
+ * Note: This hook is intentionally exported alongside the provider component.
+ * This is a common React pattern for context providers.
  */
+// eslint-disable-next-line react-refresh/only-export-components
 export const useAuth = (): AuthContextValue => {
   const context = useContext(AuthContext);
   if (!context) {

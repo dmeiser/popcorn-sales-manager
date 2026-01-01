@@ -28,7 +28,7 @@ export const LandingPage: React.FC = () => {
 
   const handleLogin = () => {
     if (isAuthenticated) {
-      navigate("/profiles");
+      navigate("/scouts");
     } else {
       navigate("/login");
     }
@@ -78,7 +78,7 @@ export const LandingPage: React.FC = () => {
             startIcon={<LoginIcon />}
             onClick={handleLogin}
           >
-            {isAuthenticated ? "Go to Profiles" : "Login"}
+            {isAuthenticated ? "Go to My Scouts" : "Login"}
           </Button>
         </Toolbar>
       </AppBar>
@@ -124,7 +124,7 @@ export const LandingPage: React.FC = () => {
                   🍿 Organize Your Sales
                 </Typography>
                 <Typography variant="body1" color="text.secondary">
-                  Create seller profiles, track multiple seasons, and manage all
+                  Create scouts, track multiple campaigns, and manage all
                   your popcorn orders in one place.
                 </Typography>
               </Box>
@@ -134,8 +134,8 @@ export const LandingPage: React.FC = () => {
                   🤝 Collaborate with Others
                 </Typography>
                 <Typography variant="body1" color="text.secondary">
-                  Share seller profiles with parents, den leaders, or unit
-                  volunteers. Set read-only or edit permissions.
+                  Share scouts with parents, den leaders, or unit
+                  volunteers. Set read-only or write permissions.
                 </Typography>
               </Box>
 
@@ -191,7 +191,7 @@ export const LandingPage: React.FC = () => {
               onClick={handleLogin}
               sx={{ px: 4, py: 1.5 }}
             >
-              {isAuthenticated ? "Go to My Profiles" : "Get Started"}
+              {isAuthenticated ? "Go to My Scouts" : "Get Started"}
             </Button>
           </Box>
 

@@ -24,30 +24,37 @@ const httpLink = createHttpLink({
 
 /**
  * Authentication link - adds Cognito JWT to Authorization header
+ *
+ * IMPORTANT: This link ensures a valid token exists before sending requests.
+ * If no token is available, it throws an error to prevent unauthenticated
+ * requests from reaching AppSync with empty ctx.identity.sub values.
  */
-const authLink = setContext(async (_, { headers }) => {
-  try {
-    const session = await fetchAuthSession();
-    const token = session.tokens?.idToken?.toString();
+export const getAuthContext = async (_: any, prevContext: any) => {
+  const session = await fetchAuthSession();
+  const token = session.tokens?.idToken?.toString();
 
-    return {
-      headers: {
-        ...headers,
-        Authorization: token ? `Bearer ${token}` : "",
-      },
-    };
-  } catch (error) {
-    console.error("Failed to fetch auth session for GraphQL request:", error);
-    return { headers };
+  if (!token) {
+    // Don't send the request without a valid token
+    // This prevents race conditions where queries fire before auth is ready
+    throw new Error("No valid auth token available");
   }
-});
+
+  return {
+    headers: {
+      ...prevContext.headers,
+      Authorization: `Bearer ${token}`,
+    },
+  };
+};
+
+const authLink = setContext(getAuthContext);
 
 /**
- * Error link - global error handling for GraphQL errors
+ * Error handler used by the ErrorLink (extracted for testability)
  */
-const errorLink = new ErrorLink(({ error, operation }) => {
+export const handleApolloError = ({ error, operation }: { error: any; operation: any }) => {
   if (CombinedGraphQLErrors.is(error)) {
-    error.errors.forEach((err) => {
+    error.errors.forEach((err: any) => {
       const { message, locations, path, extensions } = err;
       const errorCode = extensions?.errorCode as string | undefined;
 
@@ -85,12 +92,17 @@ const errorLink = new ErrorLink(({ error, operation }) => {
       }),
     );
   }
-});
+};
+
+/**
+ * Error link - global error handling for GraphQL errors
+ */
+const errorLink = new ErrorLink(handleApolloError);
 
 /**
  * Map GraphQL error codes to user-friendly messages
  */
-function mapErrorCodeToMessage(
+export function mapErrorCodeToMessage(
   errorCode: string | undefined,
   defaultMessage: string,
 ): string {
@@ -108,7 +120,7 @@ function mapErrorCodeToMessage(
     // Not found errors
     NOT_FOUND: "The requested resource was not found.",
     PROFILE_NOT_FOUND: "Profile not found.",
-    SEASON_NOT_FOUND: "Season not found.",
+    CAMPAIGN_NOT_FOUND: "Campaign not found.",
     ORDER_NOT_FOUND: "Order not found.",
 
     // Conflict errors
@@ -120,8 +132,8 @@ function mapErrorCodeToMessage(
     INVITE_NOT_FOUND: "Invalid invite code.",
     ALREADY_SHARED: "This profile is already shared with this user.",
 
-    // Season/order errors
-    SEASON_LOCKED: "This season is locked and cannot be modified.",
+    // Campaign/order errors
+    CAMPAIGN_LOCKED: "This campaign is locked and cannot be modified.",
     ORDER_ALREADY_DELETED: "This order has already been deleted.",
 
     // Generic errors
@@ -148,17 +160,17 @@ export const apolloClient = new ApolloClient({
               return incoming;
             },
           },
-          listSharedProfiles: {
+          listMyShares: {
             merge(_existing, incoming) {
               return incoming;
             },
           },
-          listSeasonsByProfile: {
+          listCampaignsByProfile: {
             merge(_existing, incoming) {
               return incoming;
             },
           },
-          listOrdersBySeason: {
+          listOrdersByCampaign: {
             merge(_existing, incoming) {
               return incoming;
             },

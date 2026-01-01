@@ -49,7 +49,7 @@ class ErrorCode:
     # Business logic errors
     INVITE_EXPIRED = "INVITE_EXPIRED"
     INVITE_ALREADY_USED = "INVITE_ALREADY_USED"
-    SEASON_READ_ONLY = "SEASON_READ_ONLY"
+    CAMPAIGN_READ_ONLY = "CAMPAIGN_READ_ONLY"
     INSUFFICIENT_PERMISSIONS = "INSUFFICIENT_PERMISSIONS"
 
     # System errors
@@ -92,3 +92,17 @@ def create_error_response(error_code: str, message: str) -> Dict[str, Any]:
         "errorCode": error_code,
         "message": message,
     }
+
+
+class ValidationError(AppError):
+    """Error raised when input validation fails."""
+
+    def __init__(self, message: str, details: Optional[Dict[str, Any]] = None):
+        super().__init__(ErrorCode.INVALID_INPUT, message, details)
+
+
+class AuthorizationError(AppError):
+    """Error raised when user is not authorized to perform an action."""
+
+    def __init__(self, message: str, details: Optional[Dict[str, Any]] = None):
+        super().__init__(ErrorCode.FORBIDDEN, message, details)

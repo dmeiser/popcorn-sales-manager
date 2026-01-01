@@ -1,5 +1,6 @@
 import React from "react";
 import { useNavigate, useLocation } from "react-router-dom";
+import { useQuery } from "@apollo/client/react";
 import {
   AppBar,
   Box,
@@ -25,9 +26,12 @@ import InventoryIcon from "@mui/icons-material/Inventory";
 import AccountCircleIcon from "@mui/icons-material/AccountCircle";
 import LogoutIcon from "@mui/icons-material/Logout";
 import CardGiftcardIcon from "@mui/icons-material/CardGiftcard";
+import AssessmentIcon from "@mui/icons-material/Assessment";
+import CampaignIcon from "@mui/icons-material/Campaign";
 import { useAuth } from "../contexts/AuthContext";
 import { Toast } from "./Toast";
 import { Outlet } from "react-router-dom";
+import { LIST_MY_SHARED_CAMPAIGNS } from "../lib/graphql";
 
 const DRAWER_WIDTH = 240;
 
@@ -40,6 +44,14 @@ export const AppLayout: React.FC<{ children?: React.ReactNode }> = ({
   const location = useLocation();
   const theme = useTheme();
   const isDesktop = useMediaQuery(theme.breakpoints.up("md"));
+
+  // Check if user has any shared campaigns
+  const { data: campaignsData } = useQuery<{
+    listMySharedCampaigns: { sharedCampaignCode: string; isActive: boolean }[];
+  }>(LIST_MY_SHARED_CAMPAIGNS);
+
+  const hasSharedCampaigns = 
+    (campaignsData?.listMySharedCampaigns?.filter((c: { isActive: boolean }) => c.isActive)?.length ?? 0) > 0;
 
   const toggleMobileDrawer = () => setMobileDrawerOpen(!mobileDrawerOpen);
 
@@ -78,13 +90,13 @@ export const AppLayout: React.FC<{ children?: React.ReactNode }> = ({
       <Divider />
       <List sx={{ flexGrow: 1 }}>
         <ListItemButton
-          onClick={() => handleNavigation("/profiles")}
-          selected={isActive("/profiles")}
+          onClick={() => handleNavigation("/scouts")}
+          selected={isActive("/scouts")}
         >
           <ListItemIcon>
             <PersonIcon />
           </ListItemIcon>
-          <ListItemText primary="Seller Profiles" />
+          <ListItemText primary="My Scouts" />
         </ListItemButton>
         <ListItemButton
           onClick={() => handleNavigation("/accept-invite")}
@@ -104,6 +116,26 @@ export const AppLayout: React.FC<{ children?: React.ReactNode }> = ({
           </ListItemIcon>
           <ListItemText primary="Catalogs" />
         </ListItemButton>
+        <ListItemButton
+          onClick={() => handleNavigation("/shared-campaigns")}
+          selected={isActive("/shared-campaigns")}
+        >
+          <ListItemIcon>
+            <CampaignIcon />
+          </ListItemIcon>
+          <ListItemText primary="Shared Campaigns" />
+        </ListItemButton>
+        {hasSharedCampaigns && (
+          <ListItemButton
+            onClick={() => handleNavigation("/campaign-reports")}
+            selected={isActive("/campaign-reports")}
+          >
+            <ListItemIcon>
+              <AssessmentIcon />
+            </ListItemIcon>
+            <ListItemText primary="Campaign Reports" />
+          </ListItemButton>
+        )}
         <ListItemButton
           onClick={() => handleNavigation("/settings")}
           selected={isActive("/settings")}
@@ -141,7 +173,7 @@ export const AppLayout: React.FC<{ children?: React.ReactNode }> = ({
         position="fixed"
         sx={{ zIndex: (theme) => theme.zIndex.drawer + 1 }}
       >
-        <Container maxWidth="xl">
+        <Container maxWidth="lg">
           <Toolbar disableGutters>
             {!isDesktop && (
               <IconButton
@@ -299,12 +331,16 @@ export const AppLayout: React.FC<{ children?: React.ReactNode }> = ({
         component="main"
         sx={{
           flexGrow: 1,
+          width: 0,
           bgcolor: "background.default",
           minHeight: "100vh",
         }}
       >
         <Toolbar />
-        <Container maxWidth="lg" sx={{ py: 4 }}>
+        <Container
+          maxWidth="lg"
+          sx={{ py: { xs: 2, sm: 3, md: 4 }, px: { xs: 1, sm: 2, md: 3 } }}
+        >
           {children}
           <Outlet />
         </Container>

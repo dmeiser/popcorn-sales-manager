@@ -37,6 +37,7 @@ import {
 } from "@mui/material";
 import { Add as AddIcon, Delete as DeleteIcon } from "@mui/icons-material";
 import { CREATE_ORDER, UPDATE_ORDER } from "../lib/graphql";
+import { ensureProfileId, ensureCampaignId } from "../lib/ids";
 
 interface LineItem {
   productId: string;
@@ -74,7 +75,7 @@ interface OrderEditorDialogProps {
   onClose: () => void;
   onComplete: () => void;
   order: Order | null;
-  seasonId: string;
+  campaignId: string;
   products: Product[];
 }
 
@@ -88,10 +89,12 @@ export const OrderEditorDialog: React.FC<OrderEditorDialogProps> = ({
   onClose,
   onComplete,
   order,
-  seasonId,
+  campaignId,
   products,
 }) => {
   const { profileId } = useParams<{ profileId: string }>();
+  const dbProfileId = ensureProfileId(profileId);
+  const dbCampaignId = ensureCampaignId(campaignId);
 
   // Form state
   const [customerName, setCustomerName] = useState("");
@@ -219,7 +222,9 @@ export const OrderEditorDialog: React.FC<OrderEditorDialogProps> = ({
     if (field === "productId") {
       newLineItems[index].productId = value as string;
     } else {
-      newLineItems[index].quantity = Math.max(1, Number(value));
+      const parsed = parseInt(String(value), 10) || 1;
+      // Limit to reasonable max (GraphQL Int max is 2,147,483,647)
+      newLineItems[index].quantity = Math.min(Math.max(1, parsed), 99999);
     }
     setLineItems(newLineItems);
   };
@@ -241,7 +246,7 @@ export const OrderEditorDialog: React.FC<OrderEditorDialogProps> = ({
   const handleSubmit = async () => {
     if (!isFormValid || !profileId) return;
 
-    const input: any = {
+    const input: Record<string, unknown> = {
       customerName: customerName.trim(),
       orderDate: new Date(orderDate + "T00:00:00.000Z").toISOString(),
       paymentMethod,
@@ -306,7 +311,7 @@ export const OrderEditorDialog: React.FC<OrderEditorDialogProps> = ({
               input: {
                 ...input,
                 profileId,
-                seasonId,
+                campaignId,
               },
             },
             null,
@@ -318,41 +323,43 @@ export const OrderEditorDialog: React.FC<OrderEditorDialogProps> = ({
           variables: {
             input: {
               ...input,
-              profileId,
-              seasonId,
+              profileId: dbProfileId,
+              campaignId: dbCampaignId,
             },
           },
         });
       }
-    } catch (err: any) {
-      console.error("Failed to save order - FULL ERROR:", err);
-      console.error("Error name:", err.name);
-      console.error("Error message:", err.message);
-      console.error("Error stack:", err.stack);
-      console.error("Error constructor:", err.constructor.name);
-      console.error("Error keys:", Object.keys(err));
-      if (err.graphQLErrors) {
-        console.error("GraphQL Errors:", err.graphQLErrors);
-        console.error("First GraphQL Error:", err.graphQLErrors[0]);
-        if (err.graphQLErrors[0]) {
-          console.error("Error extensions:", err.graphQLErrors[0].extensions);
-          console.error("Error source:", err.graphQLErrors[0].source);
+    } catch (err: unknown) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const error = err as any;
+      console.error("Failed to save order - FULL ERROR:", error);
+      console.error("Error name:", error.name);
+      console.error("Error message:", error.message);
+      console.error("Error stack:", error.stack);
+      console.error("Error constructor:", error.constructor?.name);
+      console.error("Error keys:", Object.keys(error || {}));
+      if (error.graphQLErrors) {
+        console.error("GraphQL Errors:", error.graphQLErrors);
+        console.error("First GraphQL Error:", error.graphQLErrors[0]);
+        if (error.graphQLErrors[0]) {
+          console.error("Error extensions:", error.graphQLErrors[0].extensions);
+          console.error("Error source:", error.graphQLErrors[0].source);
         }
       }
-      if (err.networkError) {
-        console.error("Network Error:", err.networkError);
+      if (error.networkError) {
+        console.error("Network Error:", error.networkError);
         console.error(
           "Network Error statusCode:",
-          err.networkError?.statusCode,
+          error.networkError?.statusCode,
         );
-        console.error("Network Error result:", err.networkError?.result);
+        console.error("Network Error result:", error.networkError?.result);
       }
-      if (err.clientErrors) {
-        console.error("Client Errors:", err.clientErrors);
+      if (error.clientErrors) {
+        console.error("Client Errors:", error.clientErrors);
       }
-      console.error("STRINGIFIED ERROR:", JSON.stringify(err, null, 2));
+      console.error("STRINGIFIED ERROR:", JSON.stringify(error, null, 2));
       alert(
-        `Error: ${err.message}\n\nCheck console for full details.\n\nIs there a network request in DevTools?`,
+        `Error: ${error.message}\n\nCheck console for full details.\n\nIs there a network request in DevTools?`,
       );
     }
   };
@@ -538,7 +545,7 @@ export const OrderEditorDialog: React.FC<OrderEditorDialogProps> = ({
                                 disabled={loading}
                                 size="small"
                                 sx={{ width: 80 }}
-                                inputProps={{ min: 1 }}
+                                inputProps={{ min: 1, max: 99999, step: 1 }}
                               />
                             </TableCell>
                             <TableCell align="right">

@@ -6,7 +6,7 @@
  */
 
 import React from "react";
-import { Navigate } from "react-router-dom";
+import { Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { Box, CircularProgress, Typography } from "@mui/material";
 
@@ -21,6 +21,7 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   requireAdmin = false,
 }) => {
   const { isAuthenticated, isAdmin, loading } = useAuth();
+  const location = useLocation();
 
   // Show loading spinner while checking auth state
   if (loading) {
@@ -43,7 +44,15 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
 
   // Redirect to login if not authenticated
   if (!isAuthenticated) {
-    return <Navigate to="/login" replace />;
+    // Save the intended destination for after login
+    sessionStorage.setItem("oauth_redirect", location.pathname);
+    return (
+      <Navigate
+        to="/login"
+        state={{ from: { pathname: location.pathname } }}
+        replace
+      />
+    );
   }
 
   // Show access denied if admin required but user is not admin

@@ -1,5 +1,5 @@
 /**
- * OrdersPage - List and manage orders for a season
+ * OrdersPage - List and manage orders for a campaign
  */
 
 import React from "react";
@@ -21,18 +21,24 @@ import {
   TableRow,
   IconButton,
   Chip,
+  Collapse,
+  useMediaQuery,
+  useTheme,
 } from "@mui/material";
 import {
   Add as AddIcon,
   Edit as EditIcon,
   Delete as DeleteIcon,
+  ExpandMore as ExpandMoreIcon,
+  ExpandLess as ExpandLessIcon,
 } from "@mui/icons-material";
-import { SeasonSummaryTiles } from "../components/SeasonSummaryTiles";
+import { CampaignSummaryTiles } from "../components/CampaignSummaryTiles";
 import {
-  LIST_ORDERS_BY_SEASON,
+  LIST_ORDERS_BY_CAMPAIGN,
   DELETE_ORDER,
   GET_PROFILE,
 } from "../lib/graphql";
+import { ensureProfileId, ensureCampaignId, ensureOrderId, toUrlId } from "../lib/ids";
 
 interface LineItem {
   productId: string;
@@ -53,17 +59,43 @@ interface Order {
   notes?: string;
 }
 
+interface ProfilePermissions {
+  profileId: string;
+  isOwner: boolean;
+  permissions?: string[];
+}
+
 export const OrdersPage: React.FC = () => {
-  const { profileId: encodedProfileId, seasonId: encodedSeasonId } = useParams<{ profileId: string; seasonId: string }>();
-  const profileId = encodedProfileId ? decodeURIComponent(encodedProfileId) : "";
-  const seasonId = encodedSeasonId ? decodeURIComponent(encodedSeasonId) : "";
+  const { profileId: encodedProfileId, campaignId: encodedCampaignId } = useParams<{
+    profileId: string;
+    campaignId: string;
+  }>();
+  const profileId = encodedProfileId
+    ? decodeURIComponent(encodedProfileId)
+    : "";
+  const campaignId = encodedCampaignId ? decodeURIComponent(encodedCampaignId) : "";
+  const dbProfileId = ensureProfileId(profileId);
+  const dbCampaignId = ensureCampaignId(campaignId);
   const navigate = useNavigate();
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down("md"));
+
+  // Summary collapse state - collapsed on mobile by default, expanded on desktop
+  const [summaryExpanded, setSummaryExpanded] = React.useState(!isMobile);
+
+  // Update when screen size changes
+  React.useEffect(() => {
+    setSummaryExpanded(!isMobile);
+  }, [isMobile]);
 
   // Fetch profile (for permissions check)
-  const { data: profileData } = useQuery<{ getProfile: any }>(GET_PROFILE, {
-    variables: { profileId },
-    skip: !profileId,
-  });
+  const { data: profileData } = useQuery<{ getProfile: ProfilePermissions }>(
+    GET_PROFILE,
+    {
+      variables: { profileId: dbProfileId },
+      skip: !dbProfileId,
+    },
+  );
 
   // Fetch orders
   const {
@@ -71,9 +103,9 @@ export const OrdersPage: React.FC = () => {
     loading: ordersLoading,
     error: ordersError,
     refetch: refetchOrders,
-  } = useQuery<{ listOrdersBySeason: Order[] }>(LIST_ORDERS_BY_SEASON, {
-    variables: { seasonId },
-    skip: !seasonId,
+  } = useQuery<{ listOrdersByCampaign: Order[] }>(LIST_ORDERS_BY_CAMPAIGN, {
+    variables: { campaignId: dbCampaignId },
+    skip: !dbCampaignId,
   });
 
   // Delete order mutation
@@ -83,21 +115,26 @@ export const OrdersPage: React.FC = () => {
     },
   });
 
-  const orders = ordersData?.listOrdersBySeason || [];
+  const orders = ordersData?.listOrdersByCampaign || [];
   const profile = profileData?.getProfile;
-  const hasWritePermission = profile?.isOwner || profile?.permissions?.includes('WRITE');
+  const hasWritePermission =
+    profile?.isOwner || profile?.permissions?.includes("WRITE");
 
   const handleCreateOrder = () => {
-    navigate(`/profiles/${encodeURIComponent(profileId)}/seasons/${encodeURIComponent(seasonId)}/orders/new`);
+    navigate(
+      `/scouts/${toUrlId(profileId)}/campaigns/${toUrlId(campaignId)}/orders/new`,
+    );
   };
 
   const handleEditOrder = (orderId: string) => {
-    navigate(`/profiles/${encodeURIComponent(profileId)}/seasons/${encodeURIComponent(seasonId)}/orders/${encodeURIComponent(orderId)}/edit`);
+    navigate(
+      `/scouts/${toUrlId(profileId)}/campaigns/${toUrlId(campaignId)}/orders/${toUrlId(orderId)}/edit`,
+    );
   };
 
   const handleDeleteOrder = async (orderId: string) => {
     if (confirm("Are you sure you want to delete this order?")) {
-      await deleteOrder({ variables: { orderId } });
+      await deleteOrder({ variables: { orderId: ensureOrderId(orderId) } });
     }
   };
 
@@ -161,14 +198,29 @@ export const OrdersPage: React.FC = () => {
 
   return (
     <Box>
-      {/* Summary Tiles */}
-      <SeasonSummaryTiles seasonId={seasonId} />
+      {/* Summary Section with Collapse */}
+      <Box mb={3}>
+        <Button
+          onClick={() => setSummaryExpanded(!summaryExpanded)}
+          startIcon={summaryExpanded ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+          sx={{ mb: 1 }}
+          size="small"
+        >
+          {summaryExpanded ? "Hide Summary" : "Show Summary"}
+        </Button>
+        <Collapse in={summaryExpanded}>
+          <Box mb={2}>
+            <CampaignSummaryTiles campaignId={campaignId} />
+          </Box>
+        </Collapse>
+      </Box>
 
       {/* Header */}
       <Stack
-        direction="row"
+        direction={{ xs: "column", sm: "row" }}
         justifyContent="space-between"
-        alignItems="center"
+        alignItems={{ xs: "stretch", sm: "center" }}
+        spacing={2}
         mb={3}
       >
         <Typography variant="h5">Orders</Typography>
@@ -186,28 +238,44 @@ export const OrdersPage: React.FC = () => {
       {/* Orders Table */}
       {orders.length > 0 ? (
         <TableContainer component={Paper}>
-          <Table>
+          <Table
+            size="small"
+            sx={{
+              "& .MuiTableCell-root": {
+                px: { xs: 1, sm: 2 },
+                py: { xs: 0.75, sm: 1.5 },
+              },
+            }}
+          >
             <TableHead>
               <TableRow>
-                <TableCell>Date</TableCell>
+                <TableCell sx={{ display: { xs: "none", sm: "table-cell" } }}>
+                  Date
+                </TableCell>
                 <TableCell>Customer</TableCell>
-                <TableCell>Phone</TableCell>
+                <TableCell sx={{ display: { xs: "none", md: "table-cell" } }}>
+                  Phone
+                </TableCell>
                 <TableCell>Items</TableCell>
                 <TableCell>Payment</TableCell>
                 <TableCell align="right">Total</TableCell>
-                <TableCell align="right">Actions</TableCell>
+                {hasWritePermission && (
+                  <TableCell align="right">Actions</TableCell>
+                )}
               </TableRow>
             </TableHead>
             <TableBody>
               {orders.map((order) => (
                 <TableRow key={order.orderId} hover>
-                  <TableCell>{formatDate(order.orderDate)}</TableCell>
+                  <TableCell sx={{ display: { xs: "none", sm: "table-cell" } }}>
+                    {formatDate(order.orderDate)}
+                  </TableCell>
                   <TableCell>
                     <Typography variant="body2" fontWeight="medium">
                       {order.customerName}
                     </Typography>
                   </TableCell>
-                  <TableCell>
+                  <TableCell sx={{ display: { xs: "none", md: "table-cell" } }}>
                     <Typography variant="body2" color="text.secondary">
                       {order.customerPhone
                         ? formatPhoneNumber(order.customerPhone)
@@ -219,8 +287,7 @@ export const OrdersPage: React.FC = () => {
                       {order.lineItems.reduce(
                         (sum, item) => sum + item.quantity,
                         0,
-                      )}{" "}
-                      items
+                      )}
                     </Typography>
                   </TableCell>
                   <TableCell>
@@ -235,9 +302,12 @@ export const OrdersPage: React.FC = () => {
                       {formatCurrency(order.totalAmount)}
                     </Typography>
                   </TableCell>
-                  <TableCell align="right">
-                    {hasWritePermission && (
-                      <>
+                  {hasWritePermission && (
+                    <TableCell align="right">
+                      <Stack
+                        direction={{ xs: "column", sm: "row" }}
+                        spacing={0.5}
+                      >
                         <IconButton
                           size="small"
                           onClick={() => handleEditOrder(order.orderId)}
@@ -252,9 +322,9 @@ export const OrdersPage: React.FC = () => {
                         >
                           <DeleteIcon fontSize="small" />
                         </IconButton>
-                      </>
-                    )}
-                  </TableCell>
+                      </Stack>
+                    </TableCell>
+                  )}
                 </TableRow>
               ))}
             </TableBody>

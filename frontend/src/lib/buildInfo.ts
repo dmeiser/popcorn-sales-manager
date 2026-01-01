@@ -18,9 +18,9 @@ export const isDevelopment = (): boolean => {
   if (typeof window === "undefined") {
     return false;
   }
-  
+
   const hostname = window.location.hostname;
-  
+
   // Dev environments: localhost, dev.*, *.dev.*
   if (hostname === "localhost" || hostname === "127.0.0.1") {
     return true;
@@ -31,7 +31,7 @@ export const isDevelopment = (): boolean => {
   if (hostname.includes(".dev.")) {
     return true;
   }
-  
+
   return false;
 };
 
@@ -40,7 +40,10 @@ export const isDevelopment = (): boolean => {
  */
 export const getBuildTimeUTC = (): string => {
   const buildDate = new Date(buildInfo.buildTime);
-  return buildDate.toISOString().replace("T", " ").replace(/\.\d{3}Z$/, " UTC");
+  return buildDate
+    .toISOString()
+    .replace("T", " ")
+    .replace(/\.\d{3}Z$/, " UTC");
 };
 
 /**

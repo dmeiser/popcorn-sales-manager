@@ -5,7 +5,12 @@
 
 import React from "react";
 import { Box, Typography, Tooltip } from "@mui/material";
-import { getVersionString, getDetailedBuildInfo, isDevelopment, getShortBuildTime } from "../lib/buildInfo";
+import {
+  getVersionString,
+  getDetailedBuildInfo,
+  isDevelopment,
+  getShortBuildTime,
+} from "../lib/buildInfo";
 
 export const DevFooter: React.FC = () => {
   if (!isDevelopment()) {
@@ -29,7 +34,14 @@ export const DevFooter: React.FC = () => {
         marginTop: { xs: 2, sm: 0 },
       }}
     >
-      <Tooltip title={<span style={{ whiteSpace: "pre-line" }}>{getDetailedBuildInfo()}</span>} placement="top">
+      <Tooltip
+        title={
+          <span style={{ whiteSpace: "pre-line" }}>
+            {getDetailedBuildInfo()}
+          </span>
+        }
+        placement="top"
+      >
         <Typography
           variant="caption"
           sx={{

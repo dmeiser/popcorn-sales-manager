@@ -1,5 +1,9 @@
 /**
- * CreateProfileDialog component - Dialog for creating a new seller profile
+ * CreateProfileDialog component - Dialog for creating a new scout profile
+ *
+ * Note: Unit fields (unitType, unitNumber) have been moved to Campaign level
+ * as part of the Shared Campaign refactor. Unit information is now attached
+ * to individual campaigns rather than profiles.
  */
 
 import React, { useState } from "react";
@@ -51,13 +55,13 @@ export const CreateProfileDialog: React.FC<CreateProfileDialogProps> = ({
 
   return (
     <Dialog open={open} onClose={handleClose} maxWidth="sm" fullWidth>
-      <DialogTitle>Create New Seller Profile</DialogTitle>
+      <DialogTitle>Create New Scout</DialogTitle>
       <DialogContent>
-        <Box pt={1}>
+        <Box pt={1} display="flex" flexDirection="column" gap={2}>
           <TextField
             autoFocus
             fullWidth
-            label="Seller Name"
+            label="Scout Name"
             placeholder="e.g., Scout's First and Last Name"
             value={sellerName}
             onChange={(e) => setSellerName(e.target.value)}
@@ -67,7 +71,7 @@ export const CreateProfileDialog: React.FC<CreateProfileDialogProps> = ({
               }
             }}
             disabled={loading}
-            helperText="Enter the name of the Scout or seller"
+            helperText="Enter the name of the Scout"
           />
         </Box>
       </DialogContent>
@@ -80,7 +84,7 @@ export const CreateProfileDialog: React.FC<CreateProfileDialogProps> = ({
           variant="contained"
           disabled={!sellerName.trim() || loading}
         >
-          {loading ? "Creating..." : "Create Seller"}
+          {loading ? "Creating..." : "Create Scout"}
         </Button>
       </DialogActions>
     </Dialog>

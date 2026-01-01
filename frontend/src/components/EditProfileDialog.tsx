@@ -1,5 +1,9 @@
 /**
- * EditProfileDialog component - Dialog for editing a seller profile name
+ * EditProfileDialog component - Dialog for editing a scout profile name
+ *
+ * Note: Unit fields (unitType, unitNumber) have been moved to Campaign level
+ * as part of the Shared Campaign refactor. Unit information is now attached
+ * to individual campaigns rather than profiles.
  */
 
 import React, { useState, useEffect } from "react";
@@ -35,8 +39,12 @@ export const EditProfileDialog: React.FC<EditProfileDialogProps> = ({
     setSellerName(currentName);
   }, [currentName, open]);
 
+  const hasChanges = () => {
+    return sellerName !== currentName;
+  };
+
   const handleSubmit = async () => {
-    if (!sellerName.trim() || sellerName === currentName) return;
+    if (!sellerName.trim() || !hasChanges()) return;
 
     setLoading(true);
     try {
@@ -58,21 +66,17 @@ export const EditProfileDialog: React.FC<EditProfileDialogProps> = ({
 
   return (
     <Dialog open={open} onClose={handleClose} maxWidth="sm" fullWidth>
-      <DialogTitle>Edit Seller Profile</DialogTitle>
+      <DialogTitle>Edit Scout</DialogTitle>
       <DialogContent>
-        <Box pt={1}>
+        <Box pt={1} display="flex" flexDirection="column" gap={2}>
           <TextField
             autoFocus
             fullWidth
-            label="Seller Name"
+            label="Scout Name"
             value={sellerName}
             onChange={(e) => setSellerName(e.target.value)}
             onKeyPress={(e) => {
-              if (
-                e.key === "Enter" &&
-                sellerName.trim() &&
-                sellerName !== currentName
-              ) {
+              if (e.key === "Enter" && sellerName.trim() && hasChanges()) {
                 handleSubmit();
               }
             }}
@@ -87,7 +91,7 @@ export const EditProfileDialog: React.FC<EditProfileDialogProps> = ({
         <Button
           onClick={handleSubmit}
           variant="contained"
-          disabled={!sellerName.trim() || sellerName === currentName || loading}
+          disabled={!sellerName.trim() || !hasChanges() || loading}
         >
           {loading ? "Saving..." : "Save Changes"}
         </Button>

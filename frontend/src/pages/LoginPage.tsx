@@ -3,7 +3,7 @@
  *
  * Provides branded login interface with:
  * - Email/password authentication
- * - Social login buttons (Google, Facebook, Apple)
+ * - Social login buttons (Google, Facebook)
  * - Password reset flow
  * - Link to signup page
  */
@@ -24,12 +24,11 @@ import {
 import {
   Google as GoogleIcon,
   Facebook as FacebookIcon,
-  Apple as AppleIcon,
   Fingerprint as FingerprintIcon,
 } from "@mui/icons-material";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
-import { confirmSignIn, signIn } from "aws-amplify/auth";
+import { confirmSignIn, signIn, signInWithRedirect } from "aws-amplify/auth";
 import type { SignInOutput } from "aws-amplify/auth";
 
 export const LoginPage: React.FC = () => {
@@ -44,15 +43,17 @@ export const LoginPage: React.FC = () => {
   const [showMfa, setShowMfa] = useState(false);
   const [showPasskeyPrompt, setShowPasskeyPrompt] = useState(false);
 
-  // If already logged in, redirect to profiles
+  // Get the redirect path from location state (defaults to /profiles)
+  const from =
+    (location.state as { from?: { pathname?: string } } | undefined)?.from
+      ?.pathname || "/scouts";
+
+  // If already logged in, redirect to intended destination
   useEffect(() => {
     if (isAuthenticated) {
-      navigate("/profiles", { replace: true });
+      navigate(from, { replace: true });
     }
-  }, [isAuthenticated, navigate]);
-
-  // Get the redirect path from location state (defaults to /profiles)
-  const from = (location.state as any)?.from?.pathname || "/profiles";
+  }, [isAuthenticated, navigate, from]);
 
   const handleEmailLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -65,17 +66,23 @@ export const LoginPage: React.FC = () => {
       if (result.isSignedIn) {
         // Login successful, navigate to destination
         navigate(from, { replace: true });
-      } else if (result.nextStep?.signInStep === "CONFIRM_SIGN_IN_WITH_TOTP_CODE") {
+      } else if (
+        result.nextStep?.signInStep === "CONFIRM_SIGN_IN_WITH_TOTP_CODE"
+      ) {
         // TOTP MFA required - show MFA form
         setShowMfa(true);
         setMfaCode("");
         setLoading(false);
-      } else if (result.nextStep?.signInStep === "CONFIRM_SIGN_IN_WITH_SMS_CODE") {
+      } else if (
+        result.nextStep?.signInStep === "CONFIRM_SIGN_IN_WITH_SMS_CODE"
+      ) {
         // SMS MFA required - show MFA form
         setShowMfa(true);
         setMfaCode("");
         setLoading(false);
-      } else if (result.nextStep?.signInStep === "CONFIRM_SIGN_IN_WITH_EMAIL_CODE") {
+      } else if (
+        result.nextStep?.signInStep === "CONFIRM_SIGN_IN_WITH_EMAIL_CODE"
+      ) {
         // Email MFA required - show MFA form
         setShowMfa(true);
         setMfaCode("");
@@ -83,16 +90,20 @@ export const LoginPage: React.FC = () => {
       } else if (result.nextStep) {
         // Other challenge types
         console.log("Unexpected next step:", result.nextStep);
-        setError(`Unexpected authentication step: ${result.nextStep.signInStep}`);
+        setError(
+          `Unexpected authentication step: ${result.nextStep.signInStep}`,
+        );
         setLoading(false);
       } else {
         // No nextStep and not signed in - unclear state
         setError("Authentication failed. Please try again.");
         setLoading(false);
       }
-    } catch (err: any) {
-      console.error("Login failed:", err);
-      setError(err.message || "Login failed. Please check your credentials.");
+    } catch (err: unknown) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const error = err as any;
+      console.error("Login failed:", error);
+      setError(error.message || "Login failed. Please check your credentials.");
       setLoading(false);
     }
   };
@@ -119,9 +130,11 @@ export const LoginPage: React.FC = () => {
         setError("MFA verification failed");
         setLoading(false);
       }
-    } catch (err: any) {
-      console.error("MFA failed:", err);
-      setError(err.message || "Invalid MFA code");
+    } catch (err: unknown) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const error = err as any;
+      console.error("MFA failed:", error);
+      setError(error.message || "Invalid MFA code");
       setLoading(false);
     }
   };
@@ -187,32 +200,35 @@ export const LoginPage: React.FC = () => {
         setError(`Unexpected step: ${result.nextStep.signInStep}`);
         setLoading(false);
       }
-    } catch (err: any) {
-      console.error("Passkey login failed:", err);
+    } catch (err: unknown) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const error = err as any;
+      console.error("Passkey login failed:", error);
       setError(
-        err.message ||
+        error.message ||
           "Passkey authentication failed. Make sure you have a passkey registered.",
       );
       setLoading(false);
     }
   };
 
-  const handleSocialLogin = (provider: "Google" | "Facebook" | "Apple") => {
+  const handleSocialLogin = async (provider: "Google" | "Facebook") => {
     setError(null);
     setLoading(true);
 
     try {
-      // Redirect to Cognito Hosted UI for social login
-      const domain = import.meta.env.VITE_COGNITO_DOMAIN;
-      const clientId = import.meta.env.VITE_COGNITO_USER_POOL_CLIENT_ID;
-      const redirectUri = encodeURIComponent(
-        import.meta.env.VITE_OAUTH_REDIRECT_SIGNIN || window.location.origin,
-      );
-      const identityProvider = provider.toLowerCase();
+      // Save redirect path to sessionStorage for OAuth callback
+      if (from !== "/scouts") {
+        sessionStorage.setItem("oauth_redirect", from);
+      }
 
-      window.location.href = `https://${domain}/oauth2/authorize?client_id=${clientId}&response_type=code&redirect_uri=${redirectUri}&identity_provider=${identityProvider}&scope=openid+email+profile`;
-    } catch (err: any) {
-      console.error("Social login failed:", err);
+      // Use Amplify's signInWithRedirect for social login
+      // This ensures proper OAuth callback handling
+      await signInWithRedirect({ provider });
+    } catch (err: unknown) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const error = err as any;
+      console.error("Social login failed:", error);
       setError(`${provider} login failed. Please try again.`);
       setLoading(false);
     }
@@ -407,16 +423,6 @@ export const LoginPage: React.FC = () => {
                 disabled={loading}
               >
                 Continue with Facebook
-              </Button>
-              <Button
-                variant="outlined"
-                fullWidth
-                size="large"
-                startIcon={<AppleIcon />}
-                onClick={() => handleSocialLogin("Apple")}
-                disabled={loading}
-              >
-                Continue with Apple
               </Button>
             </Stack>
 

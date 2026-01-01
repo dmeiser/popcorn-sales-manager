@@ -36,7 +36,7 @@ export const SettingsPage: React.FC = () => {
       </Typography>
 
       {/* Quick Actions */}
-      <Paper sx={{ p: 3, mb: 3 }}>
+      <Paper sx={{ p: { xs: 2, sm: 3 }, mb: { xs: 2, sm: 3 } }}>
         <Typography variant="h6" gutterBottom>
           Quick Actions
         </Typography>
@@ -51,11 +51,11 @@ export const SettingsPage: React.FC = () => {
           </Button>
           <Button
             variant="outlined"
-            onClick={() => navigate("/profiles")}
+            onClick={() => navigate("/scouts")}
             fullWidth
             sx={{ justifyContent: "flex-start" }}
           >
-            Manage Seller Profiles
+            Manage My Scouts
           </Button>
           {account?.isAdmin && (
             <Button
@@ -72,7 +72,7 @@ export const SettingsPage: React.FC = () => {
       </Paper>
 
       {/* Data & Privacy */}
-      <Paper sx={{ p: 3, mb: 3 }}>
+      <Paper sx={{ p: { xs: 2, sm: 3 }, mb: { xs: 2, sm: 3 } }}>
         <Typography variant="h6" gutterBottom>
           Data & Privacy
         </Typography>
@@ -100,7 +100,7 @@ export const SettingsPage: React.FC = () => {
       </Paper>
 
       {/* About */}
-      <Paper sx={{ p: 3, mb: 3 }}>
+      <Paper sx={{ p: { xs: 2, sm: 3 }, mb: { xs: 2, sm: 3 } }}>
         <Typography variant="h6" gutterBottom>
           About KernelWorx
         </Typography>
@@ -118,7 +118,7 @@ export const SettingsPage: React.FC = () => {
           <Typography variant="body2" color="text.secondary">
             <strong>Repository:</strong>{" "}
             <a
-              href="https://github.com/dmeiser/popcorn-sales-manager"
+              href="https://github.com/dmeiser/kernelworx"
               target="_blank"
               rel="noopener noreferrer"
             >
@@ -131,7 +131,7 @@ export const SettingsPage: React.FC = () => {
       {/* Logout */}
       <Paper
         sx={{
-          p: 3,
+          p: { xs: 2, sm: 3 },
           borderColor: "error.main",
           borderWidth: 1,
           borderStyle: "solid",

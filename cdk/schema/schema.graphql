@@ -42,7 +42,9 @@ type Account {
   familyName: String
   city: String
   state: String
-  unitNumber: String
+  unitType: String
+  unitNumber: Int
+  preferences: AWSJSON
   createdAt: AWSDateTime!
   updatedAt: AWSDateTime!
 }
@@ -57,13 +59,19 @@ type SellerProfile {
   permissions: [PermissionType!]
 }
 
-type Season {
-  seasonId: ID!
+type Campaign {
+  campaignId: ID!
   profileId: ID!
-  seasonName: String!
-  startDate: AWSDateTime!
+  campaignName: String!
+  campaignYear: Int!
+  startDate: AWSDateTime
   endDate: AWSDateTime
   catalogId: ID!
+  unitType: String          # NEW: Optional unit information
+  unitNumber: Int           # NEW: Required when unitType provided
+  city: String              # NEW: Required when unitType provided (for unit uniqueness)
+  state: String             # NEW: Required when unitType provided (for unit uniqueness)
+  sharedCampaignCode: String       # NEW: If campaign was created from shared campaign
   createdAt: AWSDateTime!
   updatedAt: AWSDateTime!
   catalog: Catalog
@@ -90,10 +98,30 @@ type Product @aws_cognito_user_pools {
   sortOrder: Int!
 }
 
+type SharedCampaign {
+  sharedCampaignCode: String!
+  catalogId: ID!
+  catalog: Catalog!
+  campaignName: String!
+  campaignYear: Int!
+  startDate: AWSDate
+  endDate: AWSDate
+  unitType: String!
+  unitNumber: Int!
+  city: String!
+  state: String!
+  createdBy: ID!
+  createdByName: String!
+  creatorMessage: String
+  description: String
+  isActive: Boolean!
+  createdAt: AWSDateTime!
+}
+
 type Order {
   orderId: ID!
   profileId: ID!
-  seasonId: ID!
+  campaignId: ID!
   customerName: String!
   customerPhone: String
   customerAddress: Address
@@ -125,9 +153,29 @@ type Share {
   shareId: ID!
   profileId: ID!
   targetAccountId: ID!
+  targetAccount: Account
   permissions: [PermissionType!]!
   createdAt: AWSDateTime!
   createdByAccountId: ID!
+}
+
+# Lightweight share info (deprecated - use SharedProfile from listMyShares)
+type ShareInfo {
+  profileId: ID!
+  permissions: [PermissionType!]!
+}
+
+# Full profile data with share permissions - returned by listMyShares
+type SharedProfile {
+  profileId: ID!
+  ownerAccountId: ID!
+  sellerName: String!
+  unitType: String
+  unitNumber: Int
+  createdAt: AWSDateTime!
+  updatedAt: AWSDateTime!
+  isOwner: Boolean!
+  permissions: [PermissionType!]!
 }
 
 type ProfileInvite {
@@ -139,9 +187,35 @@ type ProfileInvite {
   createdByAccountId: ID!
 }
 
-type SeasonReport {
+type UnitReport {
+  unitType: String!
+  unitNumber: Int!
+  campaignName: String!
+  campaignYear: Int!
+  sellers: [UnitSellerSummary!]!
+  totalSales: Float!
+  totalOrders: Int!
+}
+
+type UnitSellerSummary {
+  profileId: ID!
+  sellerName: String!
+  totalSales: Float!
+  orderCount: Int!
+  orders: [UnitOrderDetail!]!
+}
+
+type UnitOrderDetail {
+  orderId: ID!
+  customerName: String!
+  orderDate: AWSDateTime!
+  totalAmount: Float!
+  lineItems: [LineItem!]!
+}
+
+type CampaignReport {
   reportId: ID!
-  seasonId: ID!
+  campaignId: ID!
   profileId: ID!
   reportUrl: AWSURL
   status: String!
@@ -162,17 +236,25 @@ input UpdateSellerProfileInput {
   sellerName: String!
 }
 
-input CreateSeasonInput {
+input CreateCampaignInput {
   profileId: ID!
-  seasonName: String!
-  startDate: AWSDateTime!
+  campaignName: String
+  campaignYear: Int
+  startDate: AWSDateTime
   endDate: AWSDateTime
-  catalogId: ID!
+  catalogId: ID
+  unitType: String
+  unitNumber: Int
+  city: String
+  state: String
+  sharedCampaignCode: String
+  shareWithCreator: Boolean
 }
 
-input UpdateSeasonInput {
-  seasonId: ID!
-  seasonName: String
+input UpdateCampaignInput {
+  campaignId: ID!
+  campaignName: String
+  campaignYear: Int
   startDate: AWSDateTime
   endDate: AWSDateTime
   catalogId: ID
@@ -193,7 +275,7 @@ input ProductInput {
 
 input CreateOrderInput {
   profileId: ID!
-  seasonId: ID!
+  campaignId: ID!
   customerName: String!
   customerPhone: String
   customerAddress: AddressInput
@@ -226,6 +308,27 @@ input AddressInput {
   zipCode: String
 }
 
+input CreateSharedCampaignInput {
+  catalogId: ID!
+  campaignName: String!
+  campaignYear: Int!
+  startDate: AWSDate
+  endDate: AWSDate
+  unitType: String!
+  unitNumber: Int!
+  city: String!
+  state: String!
+  creatorMessage: String
+  description: String
+}
+
+input UpdateSharedCampaignInput {
+  sharedCampaignCode: String!
+  creatorMessage: String
+  description: String
+  isActive: Boolean
+}
+
 input CreateProfileInviteInput {
   profileId: ID!
   permissions: [PermissionType!]!
@@ -247,16 +350,22 @@ input RevokeShareInput {
   targetAccountId: ID!
 }
 
+input TransferProfileOwnershipInput {
+  profileId: ID!
+  newOwnerAccountId: ID!
+}
+
 input UpdateMyAccountInput {
   givenName: String
   familyName: String
   city: String
   state: String
-  unitNumber: String
+  unitType: String
+  unitNumber: Int
 }
 
-input RequestSeasonReportInput {
-  seasonId: ID!
+input RequestCampaignReportInput {
+  campaignId: ID!
   format: String
 }
 
@@ -271,11 +380,11 @@ type Query {
   # Profile queries
   getProfile(profileId: ID!): SellerProfile
   listMyProfiles: [SellerProfile!]!
-  listSharedProfiles: [SellerProfile!]!
+  listMyShares: [SharedProfile!]!
   
-  # Season queries
-  getSeason(seasonId: ID!): Season
-  listSeasonsByProfile(profileId: ID!): [Season!]!
+  # Campaign queries
+  getCampaign(campaignId: ID!): Campaign
+  listCampaignsByProfile(profileId: ID!): [Campaign!]!
   
   # Catalog queries
   getCatalog(catalogId: ID!): Catalog @aws_cognito_user_pools
@@ -284,12 +393,22 @@ type Query {
   
   # Order queries
   getOrder(orderId: ID!): Order
-  listOrdersBySeason(seasonId: ID!): [Order!]!
+  listOrdersByCampaign(campaignId: ID!): [Order!]!
   listOrdersByProfile(profileId: ID!): [Order!]!
   
   # Share queries
   listSharesByProfile(profileId: ID!): [Share!]!
   listInvitesByProfile(profileId: ID!): [ProfileInvite!]!
+  
+  # Shared campaign queries
+  getSharedCampaign(sharedCampaignCode: String!): SharedCampaign
+  listMySharedCampaigns: [SharedCampaign!]!
+  findSharedCampaigns(unitType: String!, unitNumber: Int!, city: String!, state: String!, campaignName: String!, campaignYear: Int!): [SharedCampaign!]!
+  
+  # Unit reporting
+  listUnitCatalogs(unitType: String!, unitNumber: Int!, campaignName: String!, campaignYear: Int!): [Catalog!]!
+  listUnitCampaignCatalogs(unitType: String!, unitNumber: Int!, city: String!, state: String!, campaignName: String!, campaignYear: Int!): [Catalog!]!
+  getUnitReport(unitType: String!, unitNumber: Int!, city: String, state: String, campaignName: String!, campaignYear: Int!, catalogId: ID!): UnitReport
 }
 
 # ============================================================================
@@ -299,16 +418,17 @@ type Query {
 type Mutation {
   # Account mutations
   updateMyAccount(input: UpdateMyAccountInput!): Account!
+  updateMyPreferences(preferences: AWSJSON!): Account!
   
   # Profile mutations
   createSellerProfile(input: CreateSellerProfileInput!): SellerProfile!
   updateSellerProfile(input: UpdateSellerProfileInput!): SellerProfile!
   deleteSellerProfile(profileId: ID!): Boolean!
   
-  # Season mutations
-  createSeason(input: CreateSeasonInput!): Season!
-  updateSeason(input: UpdateSeasonInput!): Season!
-  deleteSeason(seasonId: ID!): Boolean!
+  # Campaign mutations
+  createCampaign(input: CreateCampaignInput!): Campaign!
+  updateCampaign(input: UpdateCampaignInput!): Campaign!
+  deleteCampaign(campaignId: ID!): Boolean!
   
   # Catalog mutations
   createCatalog(input: CreateCatalogInput!): Catalog!
@@ -320,15 +440,23 @@ type Mutation {
   updateOrder(input: UpdateOrderInput!): Order!
   deleteOrder(orderId: ID!): Boolean!
   
+  # Shared campaign mutations
+  createSharedCampaign(input: CreateSharedCampaignInput!): SharedCampaign!
+  
+  updateSharedCampaign(input: UpdateSharedCampaignInput!): SharedCampaign!
+  
+  deleteSharedCampaign(sharedCampaignCode: String!): Boolean!
+  
   # Sharing mutations
   createProfileInvite(input: CreateProfileInviteInput!): ProfileInvite!
   deleteProfileInvite(profileId: ID!, inviteCode: ID!): Boolean!
   redeemProfileInvite(input: RedeemProfileInviteInput!): Share!
   shareProfileDirect(input: ShareProfileDirectInput!): Share!
   revokeShare(input: RevokeShareInput!): Boolean!
+  transferProfileOwnership(input: TransferProfileOwnershipInput!): SellerProfile!
   
   # Report generation
-  requestSeasonReport(input: RequestSeasonReportInput!): SeasonReport!
+  requestCampaignReport(input: RequestCampaignReportInput!): CampaignReport!
 }
 
 # ============================================================================

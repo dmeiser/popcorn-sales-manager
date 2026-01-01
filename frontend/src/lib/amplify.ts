@@ -18,7 +18,6 @@ Amplify.configure({
           redirectSignOut: [import.meta.env.VITE_OAUTH_REDIRECT_SIGNOUT],
           responseType: "code",
         },
-
       },
     },
   },

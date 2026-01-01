@@ -34,14 +34,17 @@ const renderWithRouter = (
       () => new Promise(() => {}) // Never resolves - simulates loading
     );
   } else if (isAuthenticated) {
+     
     vi.mocked(amplifyAuth.fetchAuthSession).mockResolvedValue({
       tokens: { idToken: { toString: () => 'mock-token' } },
     } as any);
+     
     vi.mocked(amplifyAuth.getCurrentUser).mockResolvedValue({
       userId: isAdmin ? 'admin-123' : 'user-123',
       username: isAdmin ? 'admin' : 'user',
     } as any);
   } else {
+     
     vi.mocked(amplifyAuth.fetchAuthSession).mockResolvedValue({
       tokens: undefined,
     } as any);

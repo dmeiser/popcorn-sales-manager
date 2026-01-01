@@ -37,9 +37,10 @@ import {
   CREATE_ORDER,
   UPDATE_ORDER,
   GET_ORDER,
-  GET_SEASON,
+  GET_CAMPAIGN,
   GET_PROFILE,
 } from "../lib/graphql";
+import { ensureProfileId, ensureCampaignId, ensureOrderId, toUrlId } from "../lib/ids";
 
 interface LineItemInput {
   productId: string;
@@ -52,15 +53,57 @@ interface Product {
   price: number;
 }
 
+interface Catalog {
+  products: Product[];
+}
+
+interface CampaignData {
+  campaignId: string;
+  catalog?: Catalog;
+}
+
+interface ProfileData {
+  profileId: string;
+  isOwner: boolean;
+  permissions?: string[];
+}
+
+interface OrderAddress {
+  street?: string;
+  city?: string;
+  state?: string;
+  zipCode?: string;
+}
+
+interface OrderLineItem {
+  productId: string;
+  quantity: number;
+}
+
+interface OrderData {
+  orderId: string;
+  customerName?: string;
+  customerPhone?: string;
+  customerAddress?: OrderAddress;
+  paymentMethod?: string;
+  notes?: string;
+  lineItems: OrderLineItem[];
+}
+
 export const OrderEditorPage: React.FC = () => {
   const {
     profileId: encodedProfileId,
-    seasonId: encodedSeasonId,
+    campaignId: encodedCampaignId,
     orderId: encodedOrderId,
-  } = useParams<{ profileId: string; seasonId: string; orderId?: string }>();
-  const profileId = encodedProfileId ? decodeURIComponent(encodedProfileId) : "";
-  const seasonId = encodedSeasonId ? decodeURIComponent(encodedSeasonId) : "";
+  } = useParams<{ profileId: string; campaignId: string; orderId?: string }>();
+  const profileId = encodedProfileId
+    ? decodeURIComponent(encodedProfileId)
+    : "";
+  const campaignId = encodedCampaignId ? decodeURIComponent(encodedCampaignId) : "";
   const orderId = encodedOrderId ? decodeURIComponent(encodedOrderId) : null;
+  const dbProfileId = ensureProfileId(profileId);
+  const dbCampaignId = ensureCampaignId(campaignId);
+  const dbOrderId = ensureOrderId(orderId || undefined);
   const navigate = useNavigate();
   const isEditing = !!orderId;
 
@@ -79,27 +122,30 @@ export const OrderEditorPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Fetch season data for products
-  const { data: seasonData } = useQuery<{ getSeason: any }>(GET_SEASON, {
-    variables: { seasonId },
-    skip: !seasonId,
+  // Fetch campaign data for products
+  const { data: campaignData } = useQuery<{ getCampaign: CampaignData }>(GET_CAMPAIGN, {
+    variables: { campaignId: dbCampaignId },
+    skip: !dbCampaignId,
   });
 
   // Fetch profile for permissions
-  const { data: profileData } = useQuery<{ getProfile: any }>(GET_PROFILE, {
-    variables: { profileId },
-    skip: !profileId,
-  });
+  const { data: profileData } = useQuery<{ getProfile: ProfileData }>(
+    GET_PROFILE,
+    {
+      variables: { profileId: dbProfileId },
+      skip: !dbProfileId,
+    },
+  );
 
   // Fetch existing order if editing
   const { data: orderData, loading: orderLoading } = useQuery<{
-    getOrder: any;
+    getOrder: OrderData;
   }>(GET_ORDER, {
-    variables: { orderId },
-    skip: !orderId,
+    variables: { orderId: dbOrderId },
+    skip: !dbOrderId,
   });
 
-  const products: Product[] = seasonData?.getSeason?.catalog?.products || [];
+  const products: Product[] = campaignData?.getCampaign?.catalog?.products || [];
   const profile = profileData?.getProfile;
   const hasWritePermission =
     profile?.isOwner || profile?.permissions?.includes("WRITE");
@@ -117,10 +163,10 @@ export const OrderEditorPage: React.FC = () => {
       setPaymentMethod(order.paymentMethod || "CASH");
       setNotes(order.notes || "");
       setLineItems(
-        order.lineItems.map((item: any) => ({
+        order.lineItems.map((item: OrderLineItem) => ({
           productId: item.productId,
           quantity: item.quantity,
-        }))
+        })),
       );
     }
   }, [orderData]);
@@ -140,11 +186,13 @@ export const OrderEditorPage: React.FC = () => {
   const handleLineItemChange = (
     index: number,
     field: "productId" | "quantity",
-    value: string
+    value: string,
   ) => {
     const newItems = [...lineItems];
     if (field === "quantity") {
-      newItems[index][field] = parseInt(value) || 1;
+      const parsed = parseInt(value) || 1;
+      // Limit to reasonable max (GraphQL Int max is 2,147,483,647)
+      newItems[index][field] = Math.min(Math.max(1, parsed), 99999);
     } else {
       newItems[index][field] = value;
     }
@@ -168,7 +216,7 @@ export const OrderEditorPage: React.FC = () => {
     }
 
     const validLineItems = lineItems.filter(
-      (item) => item.productId && item.quantity > 0
+      (item) => item.productId && item.quantity > 0,
     );
     if (validLineItems.length === 0) {
       setError("At least one product is required");
@@ -180,7 +228,7 @@ export const OrderEditorPage: React.FC = () => {
     try {
       if (isEditing && orderId) {
         const updateInput = {
-          orderId,
+          orderId: dbOrderId,
           customerName: customerName.trim(),
           customerPhone: customerPhone.trim() || null,
           customerAddress:
@@ -201,8 +249,8 @@ export const OrderEditorPage: React.FC = () => {
         });
       } else {
         const createInput = {
-          profileId,
-          seasonId,
+          profileId: dbProfileId,
+          campaignId: dbCampaignId,
           customerName: customerName.trim(),
           customerPhone: customerPhone.trim() || null,
           customerAddress:
@@ -226,17 +274,18 @@ export const OrderEditorPage: React.FC = () => {
 
       // Navigate back to orders page
       navigate(
-        `/profiles/${encodeURIComponent(profileId)}/seasons/${encodeURIComponent(seasonId)}/orders`
+        `/scouts/${toUrlId(profileId)}/campaigns/${toUrlId(campaignId)}/orders`,
       );
-    } catch (err: any) {
-      setError(err.message || "Failed to save order");
+    } catch (err: unknown) {
+      const error = err as { message?: string };
+      setError(error.message || "Failed to save order");
       setLoading(false);
     }
   };
 
   const handleCancel = () => {
     navigate(
-      `/profiles/${encodeURIComponent(profileId)}/seasons/${encodeURIComponent(seasonId)}/orders`
+      `/scouts/${toUrlId(profileId)}/campaigns/${toUrlId(campaignId)}/orders`,
     );
   };
 
@@ -274,7 +323,9 @@ export const OrderEditorPage: React.FC = () => {
   }
 
   if (!hasWritePermission) {
-    return <Alert severity="error">You don't have permission to edit orders</Alert>;
+    return (
+      <Alert severity="error">You don't have permission to edit orders</Alert>
+    );
   }
 
   return (
@@ -284,7 +335,7 @@ export const OrderEditorPage: React.FC = () => {
         <Link
           component="button"
           variant="body2"
-          onClick={() => navigate("/profiles")}
+          onClick={() => navigate("/scouts")}
           sx={{ textDecoration: "none", cursor: "pointer" }}
         >
           Profiles
@@ -292,12 +343,10 @@ export const OrderEditorPage: React.FC = () => {
         <Link
           component="button"
           variant="body2"
-          onClick={() =>
-            navigate(`/profiles/${encodeURIComponent(profileId)}`)
-          }
+          onClick={() => navigate(`/scouts/${toUrlId(profileId)}/campaigns`)}
           sx={{ textDecoration: "none", cursor: "pointer" }}
         >
-          Seasons
+          Campaigns
         </Link>
         <Link
           component="button"
@@ -313,12 +362,7 @@ export const OrderEditorPage: React.FC = () => {
       </Breadcrumbs>
 
       {/* Header */}
-      <Stack
-        direction="row"
-        alignItems="center"
-        spacing={2}
-        mb={3}
-      >
+      <Stack direction="row" alignItems="center" spacing={2} mb={3}>
         <IconButton onClick={handleCancel} edge="start">
           <ArrowBackIcon />
         </IconButton>
@@ -422,7 +466,9 @@ export const OrderEditorPage: React.FC = () => {
           </TableHead>
           <TableBody>
             {lineItems.map((item, index) => {
-              const product = products.find((p) => p.productId === item.productId);
+              const product = products.find(
+                (p) => p.productId === item.productId,
+              );
               const subtotal = product ? product.price * item.quantity : 0;
               return (
                 <TableRow key={index}>
@@ -453,7 +499,7 @@ export const OrderEditorPage: React.FC = () => {
                       disabled={loading}
                       size="small"
                       sx={{ width: 80 }}
-                      inputProps={{ min: 1 }}
+                      inputProps={{ min: 1, max: 99999, step: 1 }}
                     />
                   </TableCell>
                   <TableCell align="right">

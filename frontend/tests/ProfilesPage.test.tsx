@@ -1,11 +1,19 @@
 /**
- * ProfilesPage component tests
+ * ScoutsPage component tests
  * 
- * NOTE: These tests are currently skipped due to a Vitest/MUI Grid import issue.
- * The Grid component in MUI v7 uses ESM exports that don't resolve properly in Vitest.
+ * NOTE: These tests are currently skipped due to:
+ * 1. A Vitest/MUI Grid import issue - The Grid component in MUI v7 uses ESM exports 
+ *    that don't resolve properly in Vitest.
+ * 2. API changes - listSharedProfiles was replaced with listMyShares which returns 
+ *    just share info ({profileId, permissions}), and the frontend now fetches 
+ *    full profiles via parallel getProfile calls.
+ * 
  * The page works correctly in runtime. Related components (ProfileCard, dialogs) have full coverage.
  * 
- * TODO: Investigate Vitest ESM configuration or wait for MUI v7 stable release.
+ * TODO: When unskipping these tests:
+ * - Investigate Vitest ESM configuration or wait for MUI v7 stable release.
+ * - Update mocks to use LIST_MY_SHARES and GET_PROFILE instead of LIST_SHARED_PROFILES
+ * - Mock apolloClient.query() for the parallel profile fetching
  */
 
 import { describe, test, expect, vi } from 'vitest';
@@ -13,10 +21,9 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MockedProvider } from '@apollo/client/testing';
 import { BrowserRouter } from 'react-router-dom';
-import { ProfilesPage } from '../src/pages/ProfilesPage';
+import { ScoutsPage } from '../src/pages/ScoutsPage';
 import {
   LIST_MY_PROFILES,
-  LIST_SHARED_PROFILES,
   CREATE_SELLER_PROFILE,
   UPDATE_SELLER_PROFILE,
 } from '../src/lib/graphql';
@@ -31,7 +38,7 @@ vi.mock('react-router-dom', async () => {
   };
 });
 
-describe.skip('ProfilesPage', () => {
+describe.skip('ScoutsPage', () => {
   test('shows loading state initially', () => {
     const mocks = [
       {
@@ -59,7 +66,7 @@ describe.skip('ProfilesPage', () => {
     render(
       <MockedProvider mocks={mocks} addTypename={false}>
         <BrowserRouter>
-          <ProfilesPage />
+          <ScoutsPage />
         </BrowserRouter>
       </MockedProvider>
     );
@@ -94,14 +101,14 @@ describe.skip('ProfilesPage', () => {
     render(
       <MockedProvider mocks={mocks} addTypename={false}>
         <BrowserRouter>
-          <ProfilesPage />
+          <ScoutsPage />
         </BrowserRouter>
       </MockedProvider>
     );
 
     await waitFor(() => {
       expect(
-        screen.getByText(/You don't have any seller profiles yet/i)
+        screen.getByText(/You don't have any scouts yet/i)
       ).toBeInTheDocument();
     });
   });
@@ -146,7 +153,7 @@ describe.skip('ProfilesPage', () => {
     render(
       <MockedProvider mocks={mocks} addTypename={false}>
         <BrowserRouter>
-          <ProfilesPage />
+          <ScoutsPage />
         </BrowserRouter>
       </MockedProvider>
     );
@@ -192,7 +199,7 @@ describe.skip('ProfilesPage', () => {
     render(
       <MockedProvider mocks={mocks} addTypename={false}>
         <BrowserRouter>
-          <ProfilesPage />
+          <ScoutsPage />
         </BrowserRouter>
       </MockedProvider>
     );
@@ -244,7 +251,7 @@ describe.skip('ProfilesPage', () => {
     render(
       <MockedProvider mocks={mocks} addTypename={false}>
         <BrowserRouter>
-          <ProfilesPage />
+          <ScoutsPage />
         </BrowserRouter>
       </MockedProvider>
     );
@@ -280,7 +287,7 @@ describe.skip('ProfilesPage', () => {
     render(
       <MockedProvider mocks={mocks} addTypename={false}>
         <BrowserRouter>
-          <ProfilesPage />
+          <ScoutsPage />
         </BrowserRouter>
       </MockedProvider>
     );
@@ -318,20 +325,20 @@ describe.skip('ProfilesPage', () => {
     render(
       <MockedProvider mocks={mocks} addTypename={false}>
         <BrowserRouter>
-          <ProfilesPage />
+          <ScoutsPage />
         </BrowserRouter>
       </MockedProvider>
     );
 
     await waitFor(() => {
-      expect(screen.getByText(/You don't have any seller profiles yet/i)).toBeInTheDocument();
+      expect(screen.getByText(/You don't have any scouts yet/i)).toBeInTheDocument();
     });
 
-    const createButton = screen.getByRole('button', { name: /Create Seller/i });
+    const createButton = screen.getByRole('button', { name: /Create Scout/i });
     await user.click(createButton);
 
     expect(screen.getByRole('dialog')).toBeInTheDocument();
-    expect(screen.getByText('Create New Seller Profile')).toBeInTheDocument();
+    expect(screen.getByText('Create New Scout')).toBeInTheDocument();
   });
 
   test('creates new profile via dialog', async () => {
@@ -395,25 +402,25 @@ describe.skip('ProfilesPage', () => {
     render(
       <MockedProvider mocks={mocks} addTypename={false}>
         <BrowserRouter>
-          <ProfilesPage />
+          <ScoutsPage />
         </BrowserRouter>
       </MockedProvider>
     );
 
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: /Create Seller/i })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /Create Scout/i })).toBeInTheDocument();
     });
 
     // Open dialog
-    const createButton = screen.getByRole('button', { name: /Create Seller/i });
+    const createButton = screen.getByRole('button', { name: /Create Scout/i });
     await user.click(createButton);
 
     // Fill in name
-    const nameInput = screen.getByLabelText(/Seller Name/i);
+    const nameInput = screen.getByLabelText(/Scout Name/i);
     await user.type(nameInput, 'New Scout');
 
     // Submit
-    const submitButton = screen.getByRole('button', { name: /Create Seller/i });
+    const submitButton = screen.getByRole('button', { name: /Create Scout/i });
     await user.click(submitButton);
 
     // Dialog should close
@@ -457,7 +464,7 @@ describe.skip('ProfilesPage', () => {
     render(
       <MockedProvider mocks={mocks} addTypename={false}>
         <BrowserRouter>
-          <ProfilesPage />
+          <ScoutsPage />
         </BrowserRouter>
       </MockedProvider>
     );
@@ -470,7 +477,7 @@ describe.skip('ProfilesPage', () => {
     await user.click(editButton);
 
     expect(screen.getByRole('dialog')).toBeInTheDocument();
-    expect(screen.getByText('Edit Seller Profile')).toBeInTheDocument();
+    expect(screen.getByText('Edit Scout')).toBeInTheDocument();
   });
 
   test('updates profile name via edit dialog', async () => {
@@ -551,7 +558,7 @@ describe.skip('ProfilesPage', () => {
     render(
       <MockedProvider mocks={mocks} addTypename={false}>
         <BrowserRouter>
-          <ProfilesPage />
+          <ScoutsPage />
         </BrowserRouter>
       </MockedProvider>
     );
@@ -565,7 +572,7 @@ describe.skip('ProfilesPage', () => {
     await user.click(editButton);
 
     // Clear and type new name
-    const nameInput = screen.getByLabelText(/Seller Name/i);
+    const nameInput = screen.getByLabelText(/Scout Name/i);
     await user.clear(nameInput);
     await user.type(nameInput, 'Scout Updated');
 

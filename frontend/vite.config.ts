@@ -31,14 +31,25 @@ export default defineConfig({
     port: 5173,
     strictPort: true,
     https: {
-      key: fs.readFileSync('.cert/key.pem'),
-      cert: fs.readFileSync('.cert/cert.pem'),
+      // Use local certificate if it exists, otherwise fall back to dev certificate
+      key: fs.existsSync('.cert/key-local.pem') 
+        ? fs.readFileSync('.cert/key-local.pem')
+        : fs.readFileSync('.cert/key.pem'),
+      cert: fs.existsSync('.cert/cert-local.pem')
+        ? fs.readFileSync('.cert/cert-local.pem')
+        : fs.readFileSync('.cert/cert.pem'),
+    },
+    hmr: {
+      host: 'local.dev.appworx.app',
+      protocol: 'wss',
+      port: 5173,
     },
   },
   test: {
     globals: true,
     environment: 'jsdom',
     setupFiles: './tests/setup.ts',
+    exclude: ['**/node_modules/**', '**/dist/**', '**/tests/e2e/**'],
     server: {
       deps: {
         inline: ['@mui/material'],

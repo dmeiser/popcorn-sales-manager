@@ -21,6 +21,7 @@ import {
   Link as MuiLink,
   Checkbox,
   FormControlLabel,
+  MenuItem,
 } from "@mui/material";
 import { useNavigate } from "react-router-dom";
 import {
@@ -31,9 +32,11 @@ import {
 } from "aws-amplify/auth";
 import { useMutation } from "@apollo/client/react";
 import { UPDATE_MY_ACCOUNT } from "../lib/graphql";
+import { useAuth } from "../contexts/AuthContext";
 
 export const SignupPage: React.FC = () => {
   const navigate = useNavigate();
+  const { refreshSession } = useAuth();
   const [updateMyAccount] = useMutation(UPDATE_MY_ACCOUNT);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -42,6 +45,7 @@ export const SignupPage: React.FC = () => {
   const [familyName, setFamilyName] = useState("");
   const [city, setCity] = useState("");
   const [state, setState] = useState("");
+  const [unitType, setUnitType] = useState("");
   const [unitNumber, setUnitNumber] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -116,20 +120,23 @@ export const SignupPage: React.FC = () => {
         setSuccess("Account created successfully!");
         setTimeout(() => navigate("/login"), 1500);
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Signup failed:", err);
+      const error = err as { name?: string; message?: string };
 
       // Provide user-friendly error messages
-      if (err.name === "UsernameExistsException") {
+      if (error.name === "UsernameExistsException") {
         setError("An account with this email already exists");
-      } else if (err.name === "InvalidPasswordException") {
+      } else if (error.name === "InvalidPasswordException") {
         setError(
           "Password does not meet requirements: minimum 8 characters with uppercase, lowercase, numbers, and symbols",
         );
-      } else if (err.name === "InvalidParameterException") {
-        setError(err.message || "Invalid input. Please check your information");
+      } else if (error.name === "InvalidParameterException") {
+        setError(
+          error.message || "Invalid input. Please check your information",
+        );
       } else {
-        setError(err.message || "Signup failed. Please try again");
+        setError(error.message || "Signup failed. Please try again");
       }
     } finally {
       setLoading(false);
@@ -162,8 +169,18 @@ export const SignupPage: React.FC = () => {
           await autoSignIn();
 
           // Store optional fields if provided
-          if (givenName || familyName || city || state || unitNumber) {
+          if (
+            givenName ||
+            familyName ||
+            city ||
+            state ||
+            unitType ||
+            unitNumber
+          ) {
             try {
+              const parsedUnitNumber = unitNumber.trim()
+                ? parseInt(unitNumber.trim(), 10)
+                : undefined;
               await updateMyAccount({
                 variables: {
                   input: {
@@ -171,7 +188,8 @@ export const SignupPage: React.FC = () => {
                     ...(familyName && { familyName }),
                     ...(city && { city }),
                     ...(state && { state }),
-                    ...(unitNumber && { unitNumber }),
+                    ...(unitType && { unitType }),
+                    ...(parsedUnitNumber && { unitNumber: parsedUnitNumber }),
                   },
                 },
               });
@@ -182,8 +200,9 @@ export const SignupPage: React.FC = () => {
             }
           }
 
-          // Auto sign-in successful, redirect to profiles
-          navigate("/profiles");
+          // Auto sign-in successful, refresh auth context and redirect
+          await refreshSession();
+          navigate("/scouts");
         } catch (autoSignInError) {
           // Auto sign-in API call failed, but user might still be authenticated
           // Check actual auth state instead of assuming
@@ -195,10 +214,11 @@ export const SignupPage: React.FC = () => {
           try {
             // Check if user is actually authenticated
             await fetchAuthSession();
-            // User is authenticated, proceed to profiles
+            // User is authenticated, refresh context and proceed to profiles
             console.log("User is authenticated despite autoSignIn failure");
-            navigate("/profiles");
-          } catch (sessionError) {
+            await refreshSession();
+            navigate("/scouts");
+          } catch {
             // User is not authenticated, redirect to login
             console.log("User is not authenticated, redirecting to login");
             setSuccess("Please log in with your new account");
@@ -206,15 +226,16 @@ export const SignupPage: React.FC = () => {
           }
         }
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Email verification failed:", err);
+      const error = err as { name?: string; message?: string };
 
-      if (err.name === "CodeMismatchException") {
+      if (error.name === "CodeMismatchException") {
         setError("Invalid verification code. Please check and try again");
-      } else if (err.name === "ExpiredCodeException") {
+      } else if (error.name === "ExpiredCodeException") {
         setError("Verification code expired. Please request a new one");
       } else {
-        setError(err.message || "Verification failed. Please try again");
+        setError(error.message || "Verification failed. Please try again");
       }
     } finally {
       setLoading(false);
@@ -438,11 +459,36 @@ export const SignupPage: React.FC = () => {
 
           <TextField
             fullWidth
-            label="Unit/Pack/Troop Number"
+            select
+            label="Unit Type (Optional)"
+            value={unitType}
+            onChange={(e) => setUnitType(e.target.value)}
+            margin="normal"
+            helperText="Select the type of Scouting unit"
+          >
+            <MenuItem value="">None</MenuItem>
+            <MenuItem value="Pack">Pack (Cub Scouts)</MenuItem>
+            <MenuItem value="Troop">Troop (Scouts BSA)</MenuItem>
+            <MenuItem value="Crew">Crew (Venturing)</MenuItem>
+            <MenuItem value="Ship">Ship (Sea Scouts)</MenuItem>
+            <MenuItem value="Post">Post (Exploring)</MenuItem>
+            <MenuItem value="Club">Club (Exploring)</MenuItem>
+          </TextField>
+
+          <TextField
+            fullWidth
+            type="number"
+            label="Unit Number (Optional)"
             value={unitNumber}
             onChange={(e) => setUnitNumber(e.target.value)}
             margin="normal"
-            helperText="Optional (e.g., Pack 123, Troop 456)"
+            helperText="Optional (e.g., 123, 456)"
+            slotProps={{
+              htmlInput: {
+                min: 1,
+                step: 1,
+              },
+            }}
           />
 
           <TextField

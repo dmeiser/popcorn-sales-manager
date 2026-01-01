@@ -13,15 +13,19 @@ import { DevFooter } from "./components/DevFooter";
 import { LandingPage } from "./pages/LandingPage";
 import { LoginPage } from "./pages/LoginPage";
 import { SignupPage } from "./pages/SignupPage";
-import { ProfilesPage } from "./pages/ProfilesPage";
-import { ProfileSeasonsPage } from "./pages/ProfileSeasonsPage";
-import { SellerProfileManagementPage } from "./pages/SellerProfileManagementPage";
-import { SeasonLayout } from "./pages/SeasonLayout";
+import { ScoutsPage } from "./pages/ScoutsPage";
+import { ScoutCampaignsPage } from "./pages/ScoutCampaignsPage";
+import { ScoutManagementPage } from "./pages/ScoutManagementPage";
+import { CampaignLayout } from "./pages/CampaignLayout";
 import { SettingsPage } from "./pages/SettingsPage";
 import { UserSettingsPage } from "./pages/UserSettingsPage";
 import { AcceptInvitePage } from "./pages/AcceptInvitePage";
 import { AdminPage } from "./pages/AdminPage";
 import { CatalogsPage } from "./pages/CatalogsPage";
+import { CampaignReportsPage } from "./pages/CampaignReportsPage";
+import { CreateCampaignPage } from "./pages/CreateCampaignPage";
+import { SharedCampaignsPage } from "./pages/SharedCampaignsPage";
+import { CreateSharedCampaignPage } from "./pages/CreateSharedCampaignPage";
 import { apolloClient } from "./lib/apollo";
 import { theme } from "./lib/theme";
 import { AppLayout } from "./components/AppLayout";
@@ -38,6 +42,31 @@ function App() {
               <Route path="/" element={<LandingPage />} />
               <Route path="/login" element={<LoginPage />} />
               <Route path="/signup" element={<SignupPage />} />
+
+              {/* Shared Campaign short-link route */}
+              <Route
+                path="/c/:sharedCampaignCode"
+                element={
+                  <ProtectedRoute>
+                    <AppLayout>
+                      <CreateCampaignPage />
+                    </AppLayout>
+                  </ProtectedRoute>
+                }
+              />
+
+              {/* Manual create campaign route */}
+              <Route
+                path="/create-campaign"
+                element={
+                  <ProtectedRoute>
+                    <AppLayout>
+                      <CreateCampaignPage />
+                    </AppLayout>
+                  </ProtectedRoute>
+                }
+              />
+
               <Route
                 path="/accept-invite"
                 element={
@@ -51,44 +80,44 @@ function App() {
 
               {/* Protected routes */}
               <Route
-                path="/profiles"
+                path="/scouts"
                 element={
                   <ProtectedRoute>
                     <AppLayout>
-                      <ProfilesPage />
+                      <ScoutsPage />
                     </AppLayout>
                   </ProtectedRoute>
                 }
               />
 
               <Route
-                path="/profiles/:profileId/seasons"
+                path="/scouts/:profileId/campaigns"
                 element={
                   <ProtectedRoute>
                     <AppLayout>
-                      <ProfileSeasonsPage />
+                      <ScoutCampaignsPage />
                     </AppLayout>
                   </ProtectedRoute>
                 }
               />
 
               <Route
-                path="/profiles/:profileId/manage"
+                path="/scouts/:profileId/manage"
                 element={
                   <ProtectedRoute>
                     <AppLayout>
-                      <SellerProfileManagementPage />
+                      <ScoutManagementPage />
                     </AppLayout>
                   </ProtectedRoute>
                 }
               />
 
               <Route
-                path="/profiles/:profileId/seasons/:seasonId/*"
+                path="/scouts/:profileId/campaigns/:campaignId/*"
                 element={
                   <ProtectedRoute>
                     <AppLayout>
-                      <SeasonLayout />
+                      <CampaignLayout />
                     </AppLayout>
                   </ProtectedRoute>
                 }
@@ -122,6 +151,39 @@ function App() {
                   <ProtectedRoute>
                     <AppLayout>
                       <CatalogsPage />
+                    </AppLayout>
+                  </ProtectedRoute>
+                }
+              />
+
+              <Route
+                path="/campaign-reports"
+                element={
+                  <ProtectedRoute>
+                    <AppLayout>
+                      <CampaignReportsPage />
+                    </AppLayout>
+                  </ProtectedRoute>
+                }
+              />
+
+              <Route
+                path="/shared-campaigns"
+                element={
+                  <ProtectedRoute>
+                    <AppLayout>
+                      <SharedCampaignsPage />
+                    </AppLayout>
+                  </ProtectedRoute>
+                }
+              />
+
+              <Route
+                path="/shared-campaigns/create"
+                element={
+                  <ProtectedRoute>
+                    <AppLayout>
+                      <CreateSharedCampaignPage />
                     </AppLayout>
                   </ProtectedRoute>
                 }

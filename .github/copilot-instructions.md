@@ -22,10 +22,18 @@ Essential knowledge for GitHub Copilot when working on this volunteer-run Scouti
 - ❌ NEVER manually delete AWS resources created by CloudFormation
 - ❌ NEVER run `aws cloudformation update-stack` or similar commands without permission
 - ❌ NEVER deploy to production environment without explicit permission
+- ❌ NEVER run aws cloudformation delete-stack
+- ❌ NEVER create situations where rollback will destroy resources
+- ❌ NEVER perform AWS operations without understanding their impact on stack state
 - ✅ You ARE permitted to deploy to **dev environment only** by running `./deploy.sh` in the `cdk/` folder as part of normal workflow
 - ✅ ALWAYS use `cdk diff` to preview changes before deploying
 - ✅ ONLY use read-only AWS CLI commands (describe, list, get) for verification
 - ✅ ASK before running any AWS command that modifies infrastructure outside of CDK
+- ✅ ALWAYS preserve existing resources (RemovalPolicy.RETAIN)
+- ✅ ALWAYS import existing resources instead of creating new ones
+- ✅ ALWAYS ask before running ANY AWS CLI command that modifies infrastructure
+- ✅ ALWAYS fix problems via code changes, not by deleting resources
+
 
 **NEVER modify .env files without explicit permission!**
 
@@ -58,15 +66,15 @@ Essential knowledge for GitHub Copilot when working on this volunteer-run Scouti
 **Core Entities**:
 - **Account**: Cognito user + app metadata (`isAdmin`)
 - **SellerProfile**: Individual seller (Scout), owned by Account
-- **Season**: Fundraising season for a SellerProfile
+- **Campaign**: Fundraising campaign for a SellerProfile
 - **Catalog**: Product catalog (admin-managed or user-created)
 - **Order**: Customer order with line items, payment method
 - **Share**: Per-profile access grant (READ or WRITE permissions)
 
 **Key Relationships**:
 - Account owns multiple SellerProfiles
-- SellerProfile has multiple Seasons
-- Season uses one Catalog and has multiple Orders
+- SellerProfile has multiple Campaigns
+- Campaign uses one Catalog and has multiple Orders
 - Share grants Account access to another Account's SellerProfile
 
 ## 3. Python Code Standards (Backend)
@@ -77,18 +85,18 @@ Essential knowledge for GitHub Copilot when working on this volunteer-run Scouti
 1. Write code
 2. Write tests (100% coverage)
 3. Run: `uv run isort src/ tests/`
-4. Run: `uv run black src/ tests/`
+4. Run: `uv run ruff format src/ tests/`
 5. Run: `uv run mypy src/` (0 errors)
 6. Run: `uv run pytest tests/unit --cov=src --cov-fail-under=100` (100% coverage, all pass)
 
 **Configuration** (`pyproject.toml`):
 ```toml
-[tool.black]
-line-length = 100
-target-version = ["py313"]
+[tool.ruff]
+line-length = 120
 
 [tool.isort]
 profile = "black"
+line_length = 120
 
 [tool.mypy]
 strict = true
@@ -253,7 +261,7 @@ def check_profile_access(caller_account_id: str, profile_id: str, action: str) -
     "query": {
         "expression": "PK = :pk AND begins_with(SK, :sk)",
         "expressionValues": {
-            ":pk": $util.dynamodb.toDynamoDBJson($ctx.args.seasonId),
+            ":pk": $util.dynamodb.toDynamoDBJson($ctx.args.campaignId),
             ":sk": $util.dynamodb.toDynamoDBJson("ORDER#")
         }
     }
@@ -299,15 +307,15 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
 
 **DynamoDB Query Pattern** (single-table):
 ```python
-# Get all seasons for a profile
+# Get all campaigns for a profile
 response = table.query(
     KeyConditionExpression='PK = :pk AND begins_with(SK, :sk)',
     ExpressionAttributeValues={
         ':pk': f'PROFILE#{profile_id}',
-        ':sk': 'SEASON#'
+        ':sk': 'CAMPAIGN#'
     }
 )
-seasons = response['Items']
+campaigns = response['Items']
 ```
 
 **S3 Report Generation**:
@@ -315,7 +323,7 @@ seasons = response['Items']
 import openpyxl
 from io import BytesIO
 
-def generate_report(profile_id: str, season_id: str) -> str:
+def generate_report(profile_id: str, campaign_id: str) -> str:
     """Generate XLSX report and upload to S3. Returns download URL."""
     # Create workbook
     wb = openpyxl.Workbook()
@@ -329,7 +337,7 @@ def generate_report(profile_id: str, season_id: str) -> str:
     buffer.seek(0)
     
     # Upload to S3
-    s3_key = f'reports/{profile_id}/{season_id}/report.xlsx'
+    s3_key = f'reports/{profile_id}/{campaign_id}/report.xlsx'
     s3_client.put_object(Bucket='exports-bucket', Key=s3_key, Body=buffer.getvalue())
     
     # Return pre-signed URL
@@ -395,7 +403,7 @@ def generate_report(profile_id: str, season_id: str) -> str:
 uv sync
 
 # Format code
-uv run isort src/ tests/ && uv run black src/ tests/
+uv run isort src/ tests/ && uv run ruff format src/ tests/ 
 
 # Type check
 uv run mypy src/

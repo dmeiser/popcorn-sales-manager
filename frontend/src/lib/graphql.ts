@@ -20,14 +20,20 @@ export const SELLER_PROFILE_FRAGMENT = gql`
   }
 `;
 
-export const SEASON_FRAGMENT = gql`
-  fragment SeasonFields on Season {
-    seasonId
+export const CAMPAIGN_FRAGMENT = gql`
+  fragment CampaignFields on Campaign {
+    campaignId
     profileId
-    seasonName
+    campaignName
+    campaignYear
     startDate
     endDate
     catalogId
+    unitType
+    unitNumber
+    city
+    state
+    sharedCampaignCode
     createdAt
     updatedAt
     totalOrders
@@ -39,7 +45,7 @@ export const ORDER_FRAGMENT = gql`
   fragment OrderFields on Order {
     orderId
     profileId
-    seasonId
+    campaignId
     customerName
     customerPhone
     customerAddress {
@@ -96,7 +102,9 @@ export const GET_MY_ACCOUNT = gql`
       familyName
       city
       state
+      unitType
       unitNumber
+      preferences
       createdAt
       updatedAt
     }
@@ -112,9 +120,19 @@ export const UPDATE_MY_ACCOUNT = gql`
       familyName
       city
       state
+      unitType
       unitNumber
       createdAt
       updatedAt
+    }
+  }
+`;
+
+export const UPDATE_MY_PREFERENCES = gql`
+  mutation UpdateMyPreferences($preferences: AWSJSON!) {
+    updateMyPreferences(preferences: $preferences) {
+      accountId
+      preferences
     }
   }
 `;
@@ -128,11 +146,18 @@ export const LIST_MY_PROFILES = gql`
   }
 `;
 
-export const LIST_SHARED_PROFILES = gql`
-  ${SELLER_PROFILE_FRAGMENT}
-  query ListSharedProfiles {
-    listSharedProfiles {
-      ...SellerProfileFields
+export const LIST_MY_SHARES = gql`
+  query ListMyShares {
+    listMyShares {
+      profileId
+      ownerAccountId
+      sellerName
+      unitType
+      unitNumber
+      createdAt
+      updatedAt
+      isOwner
+      permissions
     }
   }
 `;
@@ -146,20 +171,20 @@ export const GET_PROFILE = gql`
   }
 `;
 
-export const LIST_SEASONS_BY_PROFILE = gql`
-  ${SEASON_FRAGMENT}
-  query ListSeasonsByProfile($profileId: ID!) {
-    listSeasonsByProfile(profileId: $profileId) {
-      ...SeasonFields
+export const LIST_CAMPAIGNS_BY_PROFILE = gql`
+  ${CAMPAIGN_FRAGMENT}
+  query ListCampaignsByProfile($profileId: ID!) {
+    listCampaignsByProfile(profileId: $profileId) {
+      ...CampaignFields
     }
   }
 `;
 
-export const GET_SEASON = gql`
-  ${SEASON_FRAGMENT}
-  query GetSeason($seasonId: ID!) {
-    getSeason(seasonId: $seasonId) {
-      ...SeasonFields
+export const GET_CAMPAIGN = gql`
+  ${CAMPAIGN_FRAGMENT}
+  query GetCampaign($campaignId: ID!) {
+    getCampaign(campaignId: $campaignId) {
+      ...CampaignFields
       catalog {
         catalogId
         catalogName
@@ -175,10 +200,10 @@ export const GET_SEASON = gql`
   }
 `;
 
-export const LIST_ORDERS_BY_SEASON = gql`
+export const LIST_ORDERS_BY_CAMPAIGN = gql`
   ${ORDER_FRAGMENT}
-  query ListOrdersBySeason($seasonId: ID!) {
-    listOrdersBySeason(seasonId: $seasonId) {
+  query ListOrdersByCampaign($campaignId: ID!) {
+    listOrdersByCampaign(campaignId: $campaignId) {
       ...OrderFields
     }
   }
@@ -239,6 +264,11 @@ export const LIST_SHARES_BY_PROFILE = gql`
       shareId
       profileId
       targetAccountId
+      targetAccount {
+        email
+        givenName
+        familyName
+      }
       permissions
       createdAt
       createdByAccountId
@@ -276,27 +306,27 @@ export const DELETE_SELLER_PROFILE = gql`
   }
 `;
 
-export const CREATE_SEASON = gql`
-  ${SEASON_FRAGMENT}
-  mutation CreateSeason($input: CreateSeasonInput!) {
-    createSeason(input: $input) {
-      ...SeasonFields
+export const CREATE_CAMPAIGN = gql`
+  ${CAMPAIGN_FRAGMENT}
+  mutation CreateCampaign($input: CreateCampaignInput!) {
+    createCampaign(input: $input) {
+      ...CampaignFields
     }
   }
 `;
 
-export const UPDATE_SEASON = gql`
-  ${SEASON_FRAGMENT}
-  mutation UpdateSeason($input: UpdateSeasonInput!) {
-    updateSeason(input: $input) {
-      ...SeasonFields
+export const UPDATE_CAMPAIGN = gql`
+  ${CAMPAIGN_FRAGMENT}
+  mutation UpdateCampaign($input: UpdateCampaignInput!) {
+    updateCampaign(input: $input) {
+      ...CampaignFields
     }
   }
 `;
 
-export const DELETE_SEASON = gql`
-  mutation DeleteSeason($seasonId: ID!) {
-    deleteSeason(seasonId: $seasonId)
+export const DELETE_CAMPAIGN = gql`
+  mutation DeleteCampaign($campaignId: ID!) {
+    deleteCampaign(campaignId: $campaignId)
   }
 `;
 
@@ -324,11 +354,11 @@ export const DELETE_ORDER = gql`
   }
 `;
 
-export const REQUEST_SEASON_REPORT = gql`
-  mutation RequestSeasonReport($input: RequestSeasonReportInput!) {
-    requestSeasonReport(input: $input) {
+export const REQUEST_CAMPAIGN_REPORT = gql`
+  mutation RequestCampaignReport($input: RequestCampaignReportInput!) {
+    requestCampaignReport(input: $input) {
       reportId
-      seasonId
+      campaignId
       profileId
       reportUrl
       status
@@ -383,6 +413,15 @@ export const REVOKE_SHARE = gql`
   }
 `;
 
+export const TRANSFER_PROFILE_OWNERSHIP = gql`
+  ${SELLER_PROFILE_FRAGMENT}
+  mutation TransferProfileOwnership($input: TransferProfileOwnershipInput!) {
+    transferProfileOwnership(input: $input) {
+      ...SellerProfileFields
+    }
+  }
+`;
+
 export const CREATE_CATALOG = gql`
   ${CATALOG_FRAGMENT}
   mutation CreateCatalog($input: CreateCatalogInput!) {
@@ -410,5 +449,201 @@ export const DELETE_CATALOG = gql`
 export const DELETE_PROFILE_INVITE = gql`
   mutation DeleteProfileInvite($profileId: ID!, $inviteCode: ID!) {
     deleteProfileInvite(profileId: $profileId, inviteCode: $inviteCode)
+  }
+`;
+
+export const GET_UNIT_REPORT = gql`
+  query GetUnitReport(
+    $unitType: String!
+    $unitNumber: Int!
+    $city: String
+    $state: String
+    $campaignName: String!
+    $campaignYear: Int!
+    $catalogId: ID!
+  ) {
+    getUnitReport(
+      unitType: $unitType
+      unitNumber: $unitNumber
+      city: $city
+      state: $state
+      campaignName: $campaignName
+      campaignYear: $campaignYear
+      catalogId: $catalogId
+    ) {
+      unitType
+      unitNumber
+      campaignName
+      campaignYear
+      totalSales
+      totalOrders
+      sellers {
+        profileId
+        sellerName
+        totalSales
+        orderCount
+        orders {
+          orderId
+          customerName
+          orderDate
+          totalAmount
+          lineItems {
+            productId
+            productName
+            quantity
+            pricePerUnit
+            subtotal
+          }
+        }
+      }
+    }
+  }
+`;
+
+export const LIST_UNIT_CATALOGS = gql`
+  ${CATALOG_FRAGMENT}
+  query ListUnitCatalogs(
+    $unitType: String!
+    $unitNumber: Int!
+    $campaignName: String!
+    $campaignYear: Int!
+  ) {
+    listUnitCatalogs(
+      unitType: $unitType
+      unitNumber: $unitNumber
+      campaignName: $campaignName
+      campaignYear: $campaignYear
+    ) {
+      ...CatalogFields
+    }
+  }
+`;
+
+// ============================================================================
+// Campaign shared campaign Fragment
+// ============================================================================
+
+export const SHARED_CAMPAIGN_FRAGMENT = gql`
+  fragment SharedCampaignFields on SharedCampaign {
+    sharedCampaignCode
+    catalogId
+    catalog {
+      catalogId
+      catalogName
+    }
+    campaignName
+    campaignYear
+    startDate
+    endDate
+    unitType
+    unitNumber
+    city
+    state
+    createdBy
+    createdByName
+    creatorMessage
+    description
+    isActive
+    createdAt
+  }
+`;
+
+// ============================================================================
+// Campaign shared campaign Queries
+// ============================================================================
+
+export const GET_SHARED_CAMPAIGN = gql`
+  ${SHARED_CAMPAIGN_FRAGMENT}
+  query GetSharedCampaign($sharedCampaignCode: String!) {
+    getSharedCampaign(sharedCampaignCode: $sharedCampaignCode) {
+      ...SharedCampaignFields
+    }
+  }
+`;
+
+export const LIST_MY_SHARED_CAMPAIGNS = gql`
+  ${SHARED_CAMPAIGN_FRAGMENT}
+  query ListMySharedCampaigns {
+    listMySharedCampaigns {
+      ...SharedCampaignFields
+    }
+  }
+`;
+
+export const FIND_SHARED_CAMPAIGNS = gql`
+  ${SHARED_CAMPAIGN_FRAGMENT}
+  query FindSharedCampaigns(
+    $unitType: String!
+    $unitNumber: Int!
+    $city: String!
+    $state: String!
+    $campaignName: String!
+    $campaignYear: Int!
+  ) {
+    findSharedCampaigns(
+      unitType: $unitType
+      unitNumber: $unitNumber
+      city: $city
+      state: $state
+      campaignName: $campaignName
+      campaignYear: $campaignYear
+    ) {
+      ...SharedCampaignFields
+    }
+  }
+`;
+
+// ============================================================================
+// Unit Campaign Catalogs Query (replacement for listUnitCatalogs)
+// ============================================================================
+
+export const LIST_UNIT_CAMPAIGN_CATALOGS = gql`
+  ${CATALOG_FRAGMENT}
+  query ListUnitCampaignCatalogs(
+    $unitType: String!
+    $unitNumber: Int!
+    $city: String!
+    $state: String!
+    $campaignName: String!
+    $campaignYear: Int!
+  ) {
+    listUnitCampaignCatalogs(
+      unitType: $unitType
+      unitNumber: $unitNumber
+      city: $city
+      state: $state
+      campaignName: $campaignName
+      campaignYear: $campaignYear
+    ) {
+      ...CatalogFields
+    }
+  }
+`;
+
+// ============================================================================
+// Campaign shared campaign Mutations
+// ============================================================================
+
+export const CREATE_SHARED_CAMPAIGN = gql`
+  ${SHARED_CAMPAIGN_FRAGMENT}
+  mutation CreateSharedCampaign($input: CreateSharedCampaignInput!) {
+    createSharedCampaign(input: $input) {
+      ...SharedCampaignFields
+    }
+  }
+`;
+
+export const UPDATE_SHARED_CAMPAIGN = gql`
+  ${SHARED_CAMPAIGN_FRAGMENT}
+  mutation UpdateSharedCampaign($input: UpdateSharedCampaignInput!) {
+    updateSharedCampaign(input: $input) {
+      ...SharedCampaignFields
+    }
+  }
+`;
+
+export const DELETE_SHARED_CAMPAIGN = gql`
+  mutation DeleteSharedCampaign($sharedCampaignCode: String!) {
+    deleteSharedCampaign(sharedCampaignCode: $sharedCampaignCode)
   }
 `;

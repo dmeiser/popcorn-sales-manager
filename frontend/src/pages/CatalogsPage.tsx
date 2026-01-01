@@ -2,7 +2,7 @@
  * CatalogsPage - Manage product catalogs (public and user-owned)
  */
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { useQuery, useMutation, useLazyQuery } from "@apollo/client/react";
 import { useAuth } from "../contexts/AuthContext";
 import {
@@ -36,12 +36,13 @@ import {
   LIST_PUBLIC_CATALOGS,
   LIST_MY_CATALOGS,
   LIST_MY_PROFILES,
-  LIST_SHARED_PROFILES,
-  LIST_SEASONS_BY_PROFILE,
+  LIST_MY_SHARES,
+  LIST_CAMPAIGNS_BY_PROFILE,
   CREATE_CATALOG,
   UPDATE_CATALOG,
   DELETE_CATALOG,
 } from "../lib/graphql";
+import { ensureProfileId } from "../lib/ids";
 
 interface Product {
   productId: string;
@@ -59,6 +60,7 @@ interface Catalog {
   products: Product[];
   createdAt: string;
   updatedAt: string;
+  isDeleted?: boolean;
 }
 
 export const CatalogsPage: React.FC = () => {
@@ -84,47 +86,57 @@ export const CatalogsPage: React.FC = () => {
   } = useQuery<{ listMyCatalogs: Catalog[] }>(LIST_MY_CATALOGS);
 
   // Fetch user's profiles to check catalog usage
-  const { data: myProfilesData } = useQuery<{ listMyProfiles: any[] }>(
-    LIST_MY_PROFILES,
-  );
+  const { data: myProfilesData } = useQuery<{
+    listMyProfiles: Array<{ profileId: string }>;
+  }>(LIST_MY_PROFILES);
   const { data: sharedProfilesData } = useQuery<{
-    listSharedProfiles: any[];
-  }>(LIST_SHARED_PROFILES);
+    listMyShares: { profileId: string; permissions: string[] }[];
+  }>(LIST_MY_SHARES);
 
-  // Get all user's profile IDs
-  const allUserProfiles = [
-    ...(myProfilesData?.listMyProfiles || []),
-    ...(sharedProfilesData?.listSharedProfiles || []),
-  ];
+  // Get all user's profile IDs (owned + shared)
+  const allUserProfiles = useMemo(
+    () => [
+      ...(myProfilesData?.listMyProfiles || []).map((p) => ({
+        profileId: p.profileId,
+      })),
+      ...(sharedProfilesData?.listMyShares || []).map((p) => ({
+        profileId: p.profileId,
+      })),
+    ],
+    [myProfilesData, sharedProfilesData],
+  );
 
   // State to track catalogs in use
   const [catalogsInUse, setCatalogsInUse] = useState<Set<string>>(new Set());
 
-  // Lazy query for fetching seasons
-  const [fetchSeasons] = useLazyQuery<{ listSeasonsByProfile: any[] }>(
-    LIST_SEASONS_BY_PROFILE,
-  );
+  // Lazy query for fetching campaigns
+  const [fetchCampaigns] = useLazyQuery<{
+    listCampaignsByProfile: Array<{ catalogId: string }>;
+  }>(LIST_CAMPAIGNS_BY_PROFILE);
 
-  // Fetch seasons for all profiles and determine catalog usage
+  // Fetch campaigns for all profiles and determine catalog usage
   useEffect(() => {
-    const fetchAllSeasons = async () => {
+    const fetchAllCampaigns = async () => {
       const catalogIds = new Set<string>();
 
-      // Fetch seasons for each profile sequentially to respect Hooks rules
+      // Fetch campaigns for each profile sequentially to respect Hooks rules
       for (const profile of allUserProfiles) {
         if (profile.profileId) {
           try {
-            const { data } = await fetchSeasons({
-              variables: { profileId: profile.profileId },
+            const { data } = await fetchCampaigns({
+              variables: { profileId: ensureProfileId(profile.profileId) },
             });
 
-            data?.listSeasonsByProfile.forEach((season) => {
-              if (season.catalogId) {
-                catalogIds.add(season.catalogId);
+            data?.listCampaignsByProfile.forEach((campaign) => {
+              if (campaign.catalogId) {
+                catalogIds.add(campaign.catalogId);
               }
             });
           } catch (error) {
-            console.error(`Failed to fetch seasons for profile ${profile.profileId}:`, error);
+            console.error(
+              `Failed to fetch campaigns for profile ${profile.profileId}:`,
+              error,
+            );
           }
         }
       }
@@ -133,9 +145,9 @@ export const CatalogsPage: React.FC = () => {
     };
 
     if (allUserProfiles.length > 0) {
-      fetchAllSeasons();
+      fetchAllCampaigns();
     }
-  }, [myProfilesData, sharedProfilesData, fetchSeasons]);
+  }, [allUserProfiles, fetchCampaigns]);
 
   // Create catalog
   const [createCatalog] = useMutation(CREATE_CATALOG, {
@@ -164,11 +176,15 @@ export const CatalogsPage: React.FC = () => {
   const publicCatalogs = publicData?.listPublicCatalogs || [];
   const myPrivateCatalogs = myData?.listMyCatalogs || [];
 
-  // Combine private catalogs with public catalogs I own
+
+  // Combine private catalogs with public catalogs I own, excluding deleted catalogs
   const myCatalogs = [
-    ...myPrivateCatalogs,
-    ...publicCatalogs.filter((catalog) =>
-      myPrivateCatalogs.every((myCat) => myCat.catalogId !== catalog.catalogId),
+    ...myPrivateCatalogs.filter((c) => c.isDeleted !== true),
+    ...publicCatalogs.filter(
+      (catalog) =>
+        myPrivateCatalogs.every(
+          (myCat) => myCat.catalogId !== catalog.catalogId,
+        ) && catalog.isDeleted !== true,
     ),
   ];
 
@@ -256,7 +272,9 @@ export const CatalogsPage: React.FC = () => {
               <TableCell>Type</TableCell>
               <TableCell>Products</TableCell>
               <TableCell>Created</TableCell>
-              {showActionsColumn && <TableCell align="right">Actions</TableCell>}
+              {showActionsColumn && (
+                <TableCell align="right">Actions</TableCell>
+              )}
             </TableRow>
           </TableHead>
           <TableBody>
@@ -377,7 +395,7 @@ export const CatalogsPage: React.FC = () => {
       <Alert severity="info" sx={{ mb: 3 }}>
         <Typography variant="body2">
           <strong>Public catalogs</strong> are visible to all users and can be
-          used by anyone when creating seasons.
+          used by anyone when creating campaigns.
           <strong> Private catalogs</strong> are only visible to you and can be
           used for your own tracking.
         </Typography>
