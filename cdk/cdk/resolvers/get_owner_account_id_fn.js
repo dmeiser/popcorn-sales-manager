@@ -1,5 +1,10 @@
 import { util } from '@aws-appsync/utils';
 
+/**
+ * Field resolver for ownerAccountId
+ * Returns the ownerAccountId as-is (with ACCOUNT# prefix).
+ * All IDs in GraphQL should include their type prefix.
+ */
 export function request(ctx) {
     // NONE datasource - no actual request needed
     return {
@@ -8,10 +13,6 @@ export function request(ctx) {
 }
 
 export function response(ctx) {
-    // Strip the ACCOUNT# prefix from ownerAccountId to get the actual account ID
-    const ownerAccountId = ctx.source.ownerAccountId || '';
-    if (ownerAccountId.startsWith('ACCOUNT#')) {
-        return ownerAccountId.substring(8);
-    }
-    return ownerAccountId;
+    // Return ownerAccountId as-is with ACCOUNT# prefix
+    return ctx.source.ownerAccountId;
 }

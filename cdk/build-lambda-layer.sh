@@ -20,6 +20,7 @@ echo "📦 Installing Python dependencies..."
 pip install \
     boto3 \
     openpyxl \
+    defusedxml \
     -t "$LAYER_DIR" \
     --upgrade \
     --quiet

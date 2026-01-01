@@ -266,7 +266,6 @@ def create_lambda_datasources(
     datasources: dict[str, appsync.LambdaDataSource] = {}
 
     lambda_ds_configs = [
-        ("list_my_shares", "ListMySharesDS"),
         ("create_profile", "CreateProfileDS"),
         ("request_campaign_report", "RequestCampaignReportDS"),
         ("unit_reporting", "UnitReportingDS"),
@@ -274,6 +273,7 @@ def create_lambda_datasources(
         ("list_unit_campaign_catalogs", "ListUnitCampaignCatalogsDS"),
         ("campaign_operations", "CampaignOperationsDS"),
         ("update_my_account", "UpdateMyAccountDS"),
+        ("transfer_ownership", "TransferOwnershipDS"),
     ]
 
     for fn_key, ds_name in lambda_ds_configs:
@@ -1274,7 +1274,7 @@ def create_resolvers(
             functions["verify_profile_owner_for_revoke"],
             functions["delete_share"],
         ],
-        code=appsync.Code.from_asset(str(RESOLVERS_DIR / "delete_share_fn.js")),
+        code=appsync.Code.from_asset(str(RESOLVERS_DIR / "revoke_share_pipeline_resolver.js")),
     )
 
     # deleteProfileInvite Pipeline
@@ -1287,7 +1287,7 @@ def create_resolvers(
             functions["delete_profile_invite"],
             functions["delete_invite_item"],
         ],
-        code=appsync.Code.from_asset(str(RESOLVERS_DIR / "delete_invite_item_fn.js")),
+        code=appsync.Code.from_asset(str(RESOLVERS_DIR / "delete_profile_invite_pipeline_resolver.js")),
     )
 
     # updateCampaign Pipeline
@@ -1302,7 +1302,7 @@ def create_resolvers(
             functions["check_share_permissions"],
             functions["update_campaign"],
         ],
-        code=appsync.Code.from_asset(str(RESOLVERS_DIR / "update_campaign_fn.js")),
+        code=appsync.Code.from_asset(str(RESOLVERS_DIR / "update_campaign_pipeline_resolver_v2.js")),
     )
 
     # deleteCampaign Pipeline
@@ -1319,7 +1319,7 @@ def create_resolvers(
             functions["delete_campaign_orders"],
             functions["delete_campaign"],
         ],
-        code=appsync.Code.from_asset(str(RESOLVERS_DIR / "delete_campaign_fn.js")),
+        code=appsync.Code.from_asset(str(RESOLVERS_DIR / "delete_campaign_pipeline_resolver_v2.js")),
     )
 
     # updateOrder Pipeline
@@ -1336,7 +1336,7 @@ def create_resolvers(
             functions["fetch_catalog_for_update"],
             functions["update_order"],
         ],
-        code=appsync.Code.from_asset(str(RESOLVERS_DIR / "update_order_fn.js")),
+        code=appsync.Code.from_asset(str(RESOLVERS_DIR / "update_order_pipeline_resolver_v2.js")),
     )
 
     # deleteOrder Pipeline
@@ -1351,7 +1351,7 @@ def create_resolvers(
             functions["check_share_permissions"],
             functions["delete_order"],
         ],
-        code=appsync.Code.from_asset(str(RESOLVERS_DIR / "delete_order_fn.js")),
+        code=appsync.Code.from_asset(str(RESOLVERS_DIR / "delete_order_pipeline_resolver_v2.js")),
     )
 
     # createOrder Pipeline
@@ -1387,7 +1387,7 @@ def create_resolvers(
             functions["check_existing_share"],
             functions["create_share"],
         ],
-        code=appsync.Code.from_asset(str(RESOLVERS_DIR / "create_share_fn.js")),
+        code=appsync.Code.from_asset(str(RESOLVERS_DIR / "share_profile_direct_pipeline_resolver.js")),
     )
 
     # redeemProfileInvite Pipeline
@@ -1402,7 +1402,7 @@ def create_resolvers(
             functions["create_share"],
             functions["mark_invite_used"],
         ],
-        code=appsync.Code.from_asset(str(RESOLVERS_DIR / "mark_invite_used_fn.js")),
+        code=appsync.Code.from_asset(str(RESOLVERS_DIR / "redeem_profile_invite_pipeline_resolver.js")),
     )
 
     # === QUERY RESOLVERS ===
@@ -1489,11 +1489,14 @@ $util.toJson($ctx.result)
         code=appsync.Code.from_asset(str(RESOLVERS_DIR / "list_my_profiles_fn.js")),
     )
 
-    # listMyShares (Lambda)
-    lambda_datasources["list_my_shares"].create_resolver(
-        "ListMySharesResolver",
+    # listMyShares - Just query shares, use field resolvers for profile data
+    api.create_resolver(
+        "ListMySharesResolverV2",  # Changed ID to force replacement
         type_name="Query",
         field_name="listMyShares",
+        data_source=datasources["shares"],
+        runtime=appsync.FunctionRuntime.JS_1_0_0,
+        code=appsync.Code.from_asset(str(RESOLVERS_DIR / "list_my_shares_resolver.js")),
     )
 
     # getCampaign Pipeline
@@ -1508,7 +1511,7 @@ $util.toJson($ctx.result)
             functions["check_share_read_permissions"],
             functions["return_campaign"],
         ],
-        code=appsync.Code.from_asset(str(RESOLVERS_DIR / "return_campaign_fn.js")),
+        code=appsync.Code.from_asset(str(RESOLVERS_DIR / "get_campaign_resolver.js")),
     )
 
     # listCampaignsByProfile Pipeline
@@ -1537,7 +1540,7 @@ $util.toJson($ctx.result)
             functions["check_share_read_permissions"],
             functions["return_order"],
         ],
-        code=appsync.Code.from_asset(str(RESOLVERS_DIR / "return_order_fn.js")),
+        code=appsync.Code.from_asset(str(RESOLVERS_DIR / "get_order_resolver.js")),
     )
 
     # listOrdersByCampaign Pipeline
@@ -1552,7 +1555,7 @@ $util.toJson($ctx.result)
             functions["check_share_read_permissions"],
             functions["query_orders_by_campaign"],
         ],
-        code=appsync.Code.from_asset(str(RESOLVERS_DIR / "query_orders_by_campaign_fn.js")),
+        code=appsync.Code.from_asset(str(RESOLVERS_DIR / "list_orders_by_campaign_resolver.js")),
     )
 
     # listOrdersByProfile Pipeline
@@ -1566,7 +1569,7 @@ $util.toJson($ctx.result)
             functions["check_share_read_permissions"],
             functions["query_orders_by_profile"],
         ],
-        code=appsync.Code.from_asset(str(RESOLVERS_DIR / "query_orders_by_profile_fn.js")),
+        code=appsync.Code.from_asset(str(RESOLVERS_DIR / "list_orders_by_profile_resolver.js")),
     )
 
     # listSharesByProfile Pipeline
@@ -1580,7 +1583,7 @@ $util.toJson($ctx.result)
             functions["check_write_permission"],
             functions["query_shares"],
         ],
-        code=appsync.Code.from_asset(str(RESOLVERS_DIR / "query_shares_fn.js")),
+        code=appsync.Code.from_asset(str(RESOLVERS_DIR / "list_shares_by_profile_resolver.js")),
     )
 
     # listInvitesByProfile Pipeline
@@ -1674,8 +1677,7 @@ $util.toJson($ctx.result)
     "version": "2017-02-28",
     "operation": "GetItem",
     "key": {
-        "sharedCampaignCode": $util.dynamodb.toDynamoDBJson($ctx.args.sharedCampaignCode),
-        "SK": $util.dynamodb.toDynamoDBJson("METADATA")
+        "sharedCampaignCode": $util.dynamodb.toDynamoDBJson($ctx.args.sharedCampaignCode)
     }
 }
             """
@@ -1716,7 +1718,7 @@ $util.toJson($ctx.result)
         field_name="findSharedCampaigns",
         data_source=datasources["shared_campaigns"],
         runtime=appsync.FunctionRuntime.JS_1_0_0,
-        code=appsync.Code.from_asset(str(RESOLVERS_DIR / "query_invites_fn.js")),
+        code=appsync.Code.from_asset(str(RESOLVERS_DIR / "find_shared_campaigns_resolver.js")),
     )
 
     # createSharedCampaign Pipeline
@@ -1731,7 +1733,7 @@ $util.toJson($ctx.result)
             functions["get_account_for_shared_campaign"],
             functions["create_shared_campaign"],
         ],
-        code=appsync.Code.from_asset(str(RESOLVERS_DIR / "create_shared_campaign_fn.js")),
+        code=appsync.Code.from_asset(str(RESOLVERS_DIR / "create_shared_campaign_pipeline_resolver.js")),
     )
 
     # updateSharedCampaign Pipeline
@@ -1744,7 +1746,7 @@ $util.toJson($ctx.result)
             functions["get_shared_campaign_for_update"],
             functions["update_shared_campaign"],
         ],
-        code=appsync.Code.from_asset(str(RESOLVERS_DIR / "update_shared_campaign_fn.js")),
+        code=appsync.Code.from_asset(str(RESOLVERS_DIR / "update_shared_campaign_pipeline_resolver.js")),
     )
 
     # deleteSharedCampaign Pipeline
@@ -1757,7 +1759,7 @@ $util.toJson($ctx.result)
             profile_delete_functions["get_shared_campaign_for_delete"],
             functions["delete_shared_campaign"],
         ],
-        code=appsync.Code.from_asset(str(RESOLVERS_DIR / "get_shared_campaign_for_delete_fn.js")),
+        code=appsync.Code.from_asset(str(RESOLVERS_DIR / "delete_shared_campaign_pipeline_resolver.js")),
     )
 
     # === FIELD RESOLVERS ===
@@ -1912,6 +1914,33 @@ $util.toJson($ctx.result)
         ),
     )
 
+    # Share.targetAccount (JS)
+    datasources["accounts"].create_resolver(
+        "ShareTargetAccountResolver",
+        type_name="Share",
+        field_name="targetAccount",
+        runtime=appsync.FunctionRuntime.JS_1_0_0,
+        code=appsync.Code.from_asset(str(RESOLVERS_DIR / "share_target_account_resolver.js")),
+    )
+
+    # SharedProfile field resolvers - fetch profile data from profiles table
+    shared_profile_fields = [
+        ("sellerName", "SellerName"),
+        ("ownerAccountId", "OwnerAccountId"),
+        ("unitType", "UnitType"),
+        ("unitNumber", "UnitNumber"),
+        ("createdAt", "CreatedAt"),
+        ("updatedAt", "UpdatedAt"),
+    ]
+    for field_name, construct_suffix in shared_profile_fields:
+        datasources["profiles"].create_resolver(
+            f"SharedProfile{construct_suffix}Resolver",
+            type_name="SharedProfile",
+            field_name=field_name,
+            runtime=appsync.FunctionRuntime.JS_1_0_0,
+            code=appsync.Code.from_asset(str(RESOLVERS_DIR / "shared_profile_field_resolver.js")),
+        )
+
     # Account.accountId (JS) - Strip "ACCOUNT#" prefix
     datasources["none"].create_resolver(
         "AccountIdResolver",
@@ -1969,7 +1998,7 @@ $util.toJson($ctx.result)
             profile_delete_functions["delete_profile_ownership"],
             profile_delete_functions["delete_profile_metadata"],
         ],
-        code=appsync.Code.from_asset(str(RESOLVERS_DIR / "delete_profile_metadata_fn.js")),
+        code=appsync.Code.from_asset(str(RESOLVERS_DIR / "delete_seller_profile_resolver.js")),
     )
 
     # createCatalog (VTL)
@@ -2167,11 +2196,18 @@ $util.toJson($ctx.result)
         field_name="updateMyAccount",
     )
 
+    # transferProfileOwnership (Lambda)
+    lambda_datasources["transfer_ownership"].create_resolver(
+        "TransferProfileOwnershipResolver",
+        type_name="Mutation",
+        field_name="transferProfileOwnership",
+    )
+
     # updateMyPreferences (JS)
     datasources["accounts"].create_resolver(
         "UpdateMyPreferencesResolver",
         type_name="Mutation",
         field_name="updateMyPreferences",
         runtime=appsync.FunctionRuntime.JS_1_0_0,
-        code=appsync.Code.from_asset(str(RESOLVERS_DIR / "delete_catalog_fn.js")),
+        code=appsync.Code.from_asset(str(RESOLVERS_DIR / "update_my_preferences_resolver.js")),
     )

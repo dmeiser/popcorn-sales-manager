@@ -41,6 +41,11 @@ export function request(ctx) {
         }
         // totalAmount remains 0.0 when catalog is missing
     } else {
+        // Validate lineItems is not empty
+        if (!input.lineItems || input.lineItems.length === 0) {
+            util.error('Order must have at least one line item', 'BadRequest');
+        }
+        
         // Build products lookup map and enrich line items as normal
         const productsMap = {};
         for (const product of catalog.products || []) {
@@ -118,48 +123,22 @@ export function request(ctx) {
         util.error('Invalid orderId for PutItem: ' + JSON.stringify(orderId), 'BadRequest');
     }
 
-    // Sanitize productName and other line item fields to ensure safe DynamoDB attributes.
-    // Keep code minimal/portable for AppSync JS runtime (avoid complex globals or JSON.stringify on arbitrary data).
+    // Sanitize productName to ensure it's either a string or null. Non-string values (including empty objects)
+    // can produce invalid DynamoDB attribute shapes when marshalled by AppSync.
     for (const li of enrichedLineItems) {
-        // productName must be string or null
         if (typeof li.productName !== 'string') {
             li.productName = null;
-        }
-
-        // Coerce numeric-like quantities to numbers (simple check)
-        if (typeof li.quantity !== 'number') {
-            const n = Number(li.quantity);
-            li.quantity = (n > 0) ? n : 0;
-        }
-
-        // Ensure productId is string or null
-        if (typeof li.productId !== 'string') {
-            li.productId = null;
-        }
-
-        // Remove unexpected nested plain objects (replace with null)
-        for (const key of Object.keys(li)) {
-            const val = li[key];
-            if (val && typeof val === 'object' && !Array.isArray(val)) {
-                li[key] = null;
-            }
         }
     }
 
     // Orders table schema (V2): partition_key = campaignId, sort_key = orderId
     // Validate and log keys clearly
-    // Defensive: coerce campaignId/orderId to strings to avoid DynamoDB key type errors
-    const campaignIdSafe = (typeof campaignId === 'string') ? campaignId : String(campaignId);
-    const orderIdSafe = (typeof orderId === 'string') ? orderId : String(orderId);
-
-    // Diagnostic: log types of productName fields to capture any non-string values that escape sanitization
-    console.log('CreateOrder: lineItems productName types', (enrichedLineItems || []).map(li => typeof li.productName));
-    console.log('CreateOrder: PutItem keys', { campaignId: campaignIdSafe, orderId: orderIdSafe });
+    console.log('CreateOrder: PutItem keys', { campaignId: campaignId, orderId: orderId });
 
 
     return {
         operation: 'PutItem',
-        key: util.dynamodb.toMapValues({ campaignId: campaignIdSafe, orderId: orderIdSafe }),
+        key: util.dynamodb.toMapValues({ campaignId: campaignId, orderId: orderId }),
         attributeValues: util.dynamodb.toMapValues(orderItem)
     };
 }

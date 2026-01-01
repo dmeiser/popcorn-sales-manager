@@ -178,7 +178,8 @@ describe('Profile Query Operations Integration Tests', () => {
       expect(data.getProfile).toBeDefined();
       expect(data.getProfile.profileId).toBe(profileId);
       expect(data.getProfile.sellerName).toBe(profileName);
-      expect(data.getProfile.ownerAccountId).toBe(ownerAccountId);
+      // ownerAccountId is returned with ACCOUNT# prefix per normalization rules
+      expect(data.getProfile.ownerAccountId).toBe(`ACCOUNT#${ownerAccountId}`);
       expect(data.getProfile.isOwner).toBe(true);
       // Owner gets full READ and WRITE permissions
       expect(data.getProfile.permissions).toEqual(['READ', 'WRITE']);
@@ -634,7 +635,8 @@ describe('Profile Query Operations Integration Tests', () => {
       expect(profile.permissions).toContain('WRITE');
       // Verify full profile fields are returned
       expect(profile.sellerName).toBe(profileName);
-      expect(profile.ownerAccountId).toBe(ownerAccountId);
+      // ownerAccountId is returned with ACCOUNT# prefix per normalization rules
+      expect(profile.ownerAccountId).toBe(`ACCOUNT#${ownerAccountId}`);
       expect(profile.isOwner).toBe(false);  // Shared with contributor, not owner
       expect(profile.createdAt).toBeDefined();
       expect(profile.updatedAt).toBeDefined();

@@ -1,22 +1,13 @@
 /**
  * Field resolver for Account.accountId
- * Strips the "ACCOUNT#" prefix from the raw DynamoDB value
+ * Returns the accountId as-is (with ACCOUNT# prefix).
+ * All IDs in GraphQL should include their type prefix.
  */
 export function request(ctx) {
     return {};
 }
 
 export function response(ctx) {
-    const rawAccountId = ctx.source.accountId;
-    
-    if (!rawAccountId) {
-        return null;
-    }
-    
-    // Strip "ACCOUNT#" prefix if present
-    if (rawAccountId.startsWith("ACCOUNT#")) {
-        return rawAccountId.substring(8); // "ACCOUNT#".length = 8
-    }
-    
-    return rawAccountId;
+    // Return accountId as-is with ACCOUNT# prefix
+    return ctx.source.accountId;
 }

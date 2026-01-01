@@ -38,7 +38,7 @@ import {
   LIST_PUBLIC_CATALOGS,
   LIST_MY_CATALOGS,
 } from "../lib/graphql";
-import { ensureCampaignId, ensureCatalogId } from "../lib/ids";
+import { ensureCampaignId, ensureCatalogId, toUrlId } from "../lib/ids";
 
 interface Campaign {
   campaignId: string;
@@ -125,7 +125,7 @@ export const CampaignSettingsPage: React.FC = () => {
   // Delete campaign mutation
   const [deleteCampaign] = useMutation(DELETE_CAMPAIGN, {
     onCompleted: () => {
-      navigate(`/scouts/${encodeURIComponent(profileId || "")}/campaigns`);
+      navigate(`/scouts/${toUrlId(profileId)}/campaigns`);
     },
   });
 
@@ -148,19 +148,13 @@ export const CampaignSettingsPage: React.FC = () => {
     setUnitChangeConfirmOpen(false);
     if (!campaignId || !campaignName.trim() || !catalogId) return;
 
-    // Convert YYYY-MM-DD to ISO 8601 datetime
-    const startDateTime = new Date(startDate + "T00:00:00.000Z").toISOString();
-    const endDateTime = endDate
-      ? new Date(endDate + "T23:59:59.999Z").toISOString()
-      : null;
-
     await updateCampaign({
       variables: {
         input: {
           campaignId: dbCampaignId,
           campaignName: campaignName.trim(),
-          startDate: startDateTime,
-          endDate: endDateTime,
+          startDate: startDate || undefined,
+          endDate: endDate || undefined,
           catalogId: ensureCatalogId(catalogId),
         },
       },
@@ -187,10 +181,8 @@ export const CampaignSettingsPage: React.FC = () => {
 
   const hasChanges =
     campaign &&
-    campaign.campaignName &&
-    campaign.startDate &&
     (campaignName !== campaign.campaignName ||
-      startDate !== campaign.startDate.split("T")[0] ||
+      startDate !== (campaign.startDate?.split("T")[0] || "") ||
       endDate !== (campaign.endDate?.split("T")[0] || "") ||
       catalogId !== campaign.catalogId);
 
@@ -207,7 +199,7 @@ export const CampaignSettingsPage: React.FC = () => {
           variant="text"
           color="primary"
           onClick={() =>
-            navigate(`/scouts/${encodeURIComponent(profileId)}/manage`)
+            navigate(`/scouts/${toUrlId(profileId)}/manage`)
           }
         >
           Manage Scout

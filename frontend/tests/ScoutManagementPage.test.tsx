@@ -93,7 +93,7 @@ describe('ScoutManagementPage', () => {
     render(
       <MemoryRouter initialEntries={[`/scouts/${encodeURIComponent(RAW_ID)}/manage`]}>
         <Routes>
-          <Route path="/scouts/:scoutId/manage" element={<ScoutManagementPage />} />
+          <Route path="/scouts/:profileId/manage" element={<ScoutManagementPage />} />
         </Routes>
       </MemoryRouter>,
     );
@@ -106,7 +106,7 @@ describe('ScoutManagementPage', () => {
     render(
       <MemoryRouter initialEntries={[`/scouts/${encodeURIComponent(RAW_ID)}/manage`]}>
         <Routes>
-          <Route path="/scouts/:scoutId/manage" element={<ScoutManagementPage />} />
+          <Route path="/scouts/:profileId/manage" element={<ScoutManagementPage />} />
         </Routes>
       </MemoryRouter>,
     );
@@ -146,7 +146,7 @@ describe('ScoutManagementPage', () => {
     render(
       <MemoryRouter initialEntries={[`/scouts/${encodeURIComponent(RAW_ID)}/manage`]}>
         <Routes>
-          <Route path="/scouts/:scoutId/manage" element={<ScoutManagementPage />} />
+          <Route path="/scouts/:profileId/manage" element={<ScoutManagementPage />} />
         </Routes>
       </MemoryRouter>,
     );
@@ -182,7 +182,7 @@ describe('ScoutManagementPage', () => {
     render(
       <MemoryRouter initialEntries={[`/scouts/${encodeURIComponent(RAW_ID)}/manage`]}>
         <Routes>
-          <Route path="/scouts/:scoutId/manage" element={<ScoutManagementPage />} />
+          <Route path="/scouts/:profileId/manage" element={<ScoutManagementPage />} />
         </Routes>
       </MemoryRouter>,
     );
@@ -208,7 +208,7 @@ describe('ScoutManagementPage', () => {
     render(
       <MemoryRouter initialEntries={[`/scouts/${encodeURIComponent(RAW_ID)}/manage`]}>
         <Routes>
-          <Route path="/scouts/:scoutId/manage" element={<ScoutManagementPage />} />
+          <Route path="/scouts/:profileId/manage" element={<ScoutManagementPage />} />
         </Routes>
       </MemoryRouter>,
     );
@@ -222,7 +222,7 @@ describe('ScoutManagementPage', () => {
     render(
       <MemoryRouter initialEntries={[`/scouts/${encodeURIComponent(RAW_ID)}/manage`]}>
         <Routes>
-          <Route path="/scouts/:scoutId/manage" element={<ScoutManagementPage />} />
+          <Route path="/scouts/:profileId/manage" element={<ScoutManagementPage />} />
         </Routes>
       </MemoryRouter>,
     );
@@ -235,7 +235,7 @@ describe('ScoutManagementPage', () => {
     render(
       <MemoryRouter initialEntries={[`/scouts/${encodeURIComponent(RAW_ID)}/manage`]}>
         <Routes>
-          <Route path="/scouts/:scoutId/manage" element={<ScoutManagementPage />} />
+          <Route path="/scouts/:profileId/manage" element={<ScoutManagementPage />} />
         </Routes>
       </MemoryRouter>,
     );
@@ -252,7 +252,7 @@ describe('ScoutManagementPage', () => {
     render(
       <MemoryRouter initialEntries={[`/scouts/${encodeURIComponent(RAW_ID)}/manage`]}>
         <Routes>
-          <Route path="/scouts/:scoutId/manage" element={<ScoutManagementPage />} />
+          <Route path="/scouts/:profileId/manage" element={<ScoutManagementPage />} />
         </Routes>
       </MemoryRouter>,
     );
@@ -279,7 +279,7 @@ describe('ScoutManagementPage', () => {
     render(
       <MemoryRouter initialEntries={[`/scouts/${encodeURIComponent(RAW_ID)}/manage`]}>
         <Routes>
-          <Route path="/scouts/:scoutId/manage" element={<ScoutManagementPage />} />
+          <Route path="/scouts/:profileId/manage" element={<ScoutManagementPage />} />
         </Routes>
       </MemoryRouter>,
     );
@@ -300,7 +300,7 @@ describe('ScoutManagementPage', () => {
     render(
       <MemoryRouter initialEntries={[`/scouts/${encodeURIComponent(RAW_ID)}/manage`]}>
         <Routes>
-          <Route path="/scouts/:scoutId/manage" element={<ScoutManagementPage />} />
+          <Route path="/scouts/:profileId/manage" element={<ScoutManagementPage />} />
         </Routes>
       </MemoryRouter>,
     );
@@ -324,7 +324,7 @@ describe('ScoutManagementPage', () => {
     render(
       <MemoryRouter initialEntries={[`/scouts/${encodeURIComponent(RAW_ID)}/manage`]}>
         <Routes>
-          <Route path="/scouts/:scoutId/manage" element={<ScoutManagementPage />} />
+          <Route path="/scouts/:profileId/manage" element={<ScoutManagementPage />} />
         </Routes>
       </MemoryRouter>,
     );
@@ -337,7 +337,7 @@ describe('ScoutManagementPage', () => {
     render(
       <MemoryRouter initialEntries={[`/scouts/${encodeURIComponent(RAW_ID)}/manage`]}>
         <Routes>
-          <Route path="/scouts/:scoutId/manage" element={<ScoutManagementPage />} />
+          <Route path="/scouts/:profileId/manage" element={<ScoutManagementPage />} />
         </Routes>
       </MemoryRouter>,
     );
@@ -352,7 +352,7 @@ describe('ScoutManagementPage', () => {
     render(
       <MemoryRouter initialEntries={[`/scouts/${encodeURIComponent(RAW_ID)}/manage`]}>
         <Routes>
-          <Route path="/scouts/:scoutId/manage" element={<ScoutManagementPage />} />
+          <Route path="/scouts/:profileId/manage" element={<ScoutManagementPage />} />
         </Routes>
       </MemoryRouter>,
     );
@@ -364,7 +364,7 @@ describe('ScoutManagementPage', () => {
     render(
       <MemoryRouter initialEntries={[`/scouts/${encodeURIComponent(RAW_ID)}/manage`]}>
         <Routes>
-          <Route path="/scouts/:scoutId/manage" element={<ScoutManagementPage />} />
+          <Route path="/scouts/:profileId/manage" element={<ScoutManagementPage />} />
           <Route path="/scouts" element={<div>ScoutList</div>} />
         </Routes>
       </MemoryRouter>,

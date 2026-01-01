@@ -41,7 +41,7 @@ import { OrderEditorPage } from "./OrderEditorPage";
 import { ReportsPage } from "./ReportsPage";
 import { CampaignSettingsPage } from "./CampaignSettingsPage";
 import { GET_CAMPAIGN, GET_PROFILE } from "../lib/graphql";
-import { ensureProfileId, ensureCampaignId } from "../lib/ids";
+import { ensureProfileId, ensureCampaignId, toUrlId } from "../lib/ids";
 
 interface Campaign {
   campaignId: string;
@@ -120,7 +120,7 @@ export const CampaignLayout: React.FC = () => {
 
   const handleTabChange = (_event: React.SyntheticEvent, newValue: string) => {
     navigate(
-      `/scouts/${encodeURIComponent(profileId)}/campaigns/${encodeURIComponent(campaignId)}/${newValue}`,
+      `/scouts/${toUrlId(profileId)}/campaigns/${toUrlId(campaignId)}/${newValue}`,
     );
   };
 
@@ -161,7 +161,7 @@ export const CampaignLayout: React.FC = () => {
           component="button"
           variant="body1"
           onClick={() =>
-            navigate(`/scouts/${encodeURIComponent(profileId)}/campaigns`)
+            navigate(`/scouts/${toUrlId(profileId)}/campaigns`)
           }
           sx={{ textDecoration: "none", cursor: "pointer" }}
         >
@@ -178,7 +178,7 @@ export const CampaignLayout: React.FC = () => {
           edge="start"
           color="inherit"
           onClick={() =>
-            navigate(`/scouts/${encodeURIComponent(profileId)}/campaigns`)
+            navigate(`/scouts/${toUrlId(profileId)}/campaigns`)
           }
           sx={{ mr: 2 }}
         >

@@ -72,10 +72,10 @@ def create_seller_profile(event: Dict[str, Any], context: Any) -> Dict[str, Any]
         owner_account_id_stored = f"ACCOUNT#{caller_account_id}"
         now = datetime.now(timezone.utc).isoformat()
 
-        # Profile data to return (matches GraphQL schema - no prefix for API clients)
+        # Profile data to return - ownerAccountId WITH ACCOUNT# prefix per normalization rules
         profile_data = {
             "profileId": profile_id,
-            "ownerAccountId": caller_account_id,  # Return without prefix
+            "ownerAccountId": owner_account_id_stored,  # Return with ACCOUNT# prefix
             "sellerName": seller_name,
             "createdAt": now,
             "updatedAt": now,

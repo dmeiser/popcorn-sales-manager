@@ -27,7 +27,7 @@ import {
   CalendarToday as CalendarIcon,
 } from "@mui/icons-material";
 import { LIST_CAMPAIGNS_BY_PROFILE } from "../lib/graphql";
-import { ensureProfileId } from "../lib/ids";
+import { ensureProfileId, toUrlId } from "../lib/ids";
 
 interface Campaign {
   campaignId: string;
@@ -73,15 +73,13 @@ export const ProfileCard: React.FC<ProfileCardProps> = ({
       : null;
 
   const handleViewCampaigns = () => {
-    navigate(`/scouts/${encodeURIComponent(profileId)}/campaigns`);
+    navigate(`/scouts/${toUrlId(profileId)}/campaigns`);
   };
 
   const handleViewLatestCampaign = () => {
     if (latestCampaign) {
       navigate(
-        `/scouts/${encodeURIComponent(profileId)}/campaigns/${encodeURIComponent(
-          latestCampaign.campaignId,
-        )}`,
+        `/scouts/${toUrlId(profileId)}/campaigns/${toUrlId(latestCampaign.campaignId)}`,
       );
     }
   };
@@ -217,7 +215,7 @@ export const ProfileCard: React.FC<ProfileCardProps> = ({
             color="primary"
             startIcon={<SettingsIcon />}
             onClick={() =>
-              navigate(`/scouts/${encodeURIComponent(profileId)}/manage`)
+              navigate(`/scouts/${toUrlId(profileId)}/manage`)
             }
           >
             Manage Scout
