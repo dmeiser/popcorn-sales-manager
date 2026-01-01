@@ -4,6 +4,7 @@
 
 import React from "react";
 import { useNavigate } from "react-router-dom";
+import { toUrlId } from "../lib/ids";
 import {
   Card,
   CardContent,
@@ -43,7 +44,7 @@ export const CampaignCard: React.FC<CampaignCardProps> = ({
 
   const handleViewCampaign = () => {
     navigate(
-      `/scouts/${encodeURIComponent(profileId)}/campaigns/${encodeURIComponent(campaignId)}`,
+      `/scouts/${toUrlId(profileId)}/campaigns/${toUrlId(campaignId)}`,
     );
   };
 

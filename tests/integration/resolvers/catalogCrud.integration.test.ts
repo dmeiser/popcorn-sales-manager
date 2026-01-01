@@ -978,7 +978,8 @@ describe('Catalog CRUD Integration Tests', () => {
         const { DynamoDBClient, PutItemCommand, DeleteItemCommand } = await import('@aws-sdk/client-dynamodb');
         const dynamoClient = new DynamoDBClient({ region: 'us-east-1' });
         
-        const catalogId = `admin-managed-test-${Date.now()}`;
+        // Use CATALOG# prefix to match resolver normalization
+        const catalogId = `CATALOG#admin-managed-test-${Date.now()}`;
         const now = new Date().toISOString();
         
         // Insert ADMIN_MANAGED catalog directly into DynamoDB (catalogs table uses catalogId as PK)
@@ -1095,8 +1096,8 @@ describe('Catalog CRUD Integration Tests', () => {
         });
         const catalogId = createData.createCatalog.catalogId;
 
-        // Verify contributor is the owner
-        expect(createData.createCatalog.ownerAccountId).toBe(contributorAccountId);
+        // Verify contributor is the owner (ownerAccountId has ACCOUNT# prefix per normalization rules)
+        expect(createData.createCatalog.ownerAccountId).toBe(`ACCOUNT#${contributorAccountId}`);
 
         // Act: Admin user (owner) deletes contributor's catalog - should succeed
         const { data }: any = await ownerClient.mutate({

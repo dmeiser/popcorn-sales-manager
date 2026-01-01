@@ -112,7 +112,7 @@ type SharedCampaign {
   state: String!
   createdBy: ID!
   createdByName: String!
-  creatorMessage: String!
+  creatorMessage: String
   description: String
   isActive: Boolean!
   createdAt: AWSDateTime!
@@ -318,7 +318,7 @@ input CreateSharedCampaignInput {
   unitNumber: Int!
   city: String!
   state: String!
-  creatorMessage: String!
+  creatorMessage: String
   description: String
 }
 
@@ -348,6 +348,11 @@ input ShareProfileDirectInput {
 input RevokeShareInput {
   profileId: ID!
   targetAccountId: ID!
+}
+
+input TransferProfileOwnershipInput {
+  profileId: ID!
+  newOwnerAccountId: ID!
 }
 
 input UpdateMyAccountInput {
@@ -448,6 +453,7 @@ type Mutation {
   redeemProfileInvite(input: RedeemProfileInviteInput!): Share!
   shareProfileDirect(input: ShareProfileDirectInput!): Share!
   revokeShare(input: RevokeShareInput!): Boolean!
+  transferProfileOwnership(input: TransferProfileOwnershipInput!): SellerProfile!
   
   # Report generation
   requestCampaignReport(input: RequestCampaignReportInput!): CampaignReport!

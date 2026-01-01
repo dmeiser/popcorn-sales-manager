@@ -93,16 +93,20 @@ def check_profile_access(caller_account_id: str, profile_id: str, required_permi
     # Check if caller has appropriate share (NOW USES SHARES TABLE)
     # Shares table: PK=profileId, SK=targetAccountId
     shares_table = get_shares_table()
-    share_response = shares_table.get_item(Key={"profileId": db_profile_id, "targetAccountId": caller_account_id})
+    
+    # Normalize caller_account_id with ACCOUNT# prefix for shares table lookup
+    db_caller_id = caller_account_id if caller_account_id.startswith("ACCOUNT#") else f"ACCOUNT#{caller_account_id}"
+    share_response = shares_table.get_item(Key={"profileId": db_profile_id, "targetAccountId": db_caller_id})
 
     if "Item" in share_response:
         share = share_response["Item"]
         permissions = share.get("permissions", [])
 
-        # Type assertion: permissions is a list of strings
-        if isinstance(permissions, list):
+        # Type assertion: permissions can be a list, set, or None
+        # Handle both list (from boto3 high-level) and set (from DynamoDB StringSet SS type)
+        if isinstance(permissions, (list, set)):
             # Normalize permissions to uppercase for case-insensitive comparison
-            # Handle both native Python lists ["READ"] and raw DynamoDB format [{"S": "READ"}]
+            # Handle both native Python lists/sets ["READ"] and raw DynamoDB format [{"S": "READ"}]
             normalized_permissions = []
             for perm in permissions:
                 if isinstance(perm, str):

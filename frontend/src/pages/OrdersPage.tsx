@@ -38,7 +38,7 @@ import {
   DELETE_ORDER,
   GET_PROFILE,
 } from "../lib/graphql";
-import { ensureProfileId, ensureCampaignId, ensureOrderId } from "../lib/ids";
+import { ensureProfileId, ensureCampaignId, ensureOrderId, toUrlId } from "../lib/ids";
 
 interface LineItem {
   productId: string;
@@ -122,13 +122,13 @@ export const OrdersPage: React.FC = () => {
 
   const handleCreateOrder = () => {
     navigate(
-      `/scouts/${encodeURIComponent(profileId)}/campaigns/${encodeURIComponent(campaignId)}/orders/new`,
+      `/scouts/${toUrlId(profileId)}/campaigns/${toUrlId(campaignId)}/orders/new`,
     );
   };
 
   const handleEditOrder = (orderId: string) => {
     navigate(
-      `/scouts/${encodeURIComponent(profileId)}/campaigns/${encodeURIComponent(campaignId)}/orders/${encodeURIComponent(orderId)}/edit`,
+      `/scouts/${toUrlId(profileId)}/campaigns/${toUrlId(campaignId)}/orders/${toUrlId(orderId)}/edit`,
     );
   };
 
