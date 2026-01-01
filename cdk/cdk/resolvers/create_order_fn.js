@@ -41,6 +41,11 @@ export function request(ctx) {
         }
         // totalAmount remains 0.0 when catalog is missing
     } else {
+        // Validate lineItems is not empty
+        if (!input.lineItems || input.lineItems.length === 0) {
+            util.error('Order must have at least one line item', 'BadRequest');
+        }
+        
         // Build products lookup map and enrich line items as normal
         const productsMap = {};
         for (const product of catalog.products || []) {

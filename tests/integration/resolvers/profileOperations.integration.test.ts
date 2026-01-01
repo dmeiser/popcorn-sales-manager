@@ -171,7 +171,8 @@ describe('Profile Operations Integration Tests', () => {
       // Assert
       expect(data.createSellerProfile.profileId).toMatch(/^PROFILE#/);
       expect(data.createSellerProfile.sellerName).toBe(profileName);
-      expect(data.createSellerProfile.ownerAccountId).toBe(ownerAccountId);
+      // ownerAccountId is returned with ACCOUNT# prefix per normalization rules
+      expect(data.createSellerProfile.ownerAccountId).toBe(`ACCOUNT#${ownerAccountId}`);
       expect(data.createSellerProfile.createdAt).toBeDefined();
       expect(data.createSellerProfile.updatedAt).toBeDefined();
     });
@@ -208,8 +209,8 @@ describe('Profile Operations Integration Tests', () => {
       const testProfileId = data.createSellerProfile.profileId;
       createdProfileIds.push(testProfileId);
 
-      // Assert
-      expect(data.createSellerProfile.ownerAccountId).toBe(ownerAccountId);
+      // Assert - ownerAccountId is returned with ACCOUNT# prefix per normalization rules
+      expect(data.createSellerProfile.ownerAccountId).toBe(`ACCOUNT#${ownerAccountId}`);
     });
 
     it('sets timestamps (createdAt, updatedAt)', async () => {

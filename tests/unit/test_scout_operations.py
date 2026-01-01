@@ -36,8 +36,8 @@ class TestCreateSellerProfile:
         # Assert
         assert result["profileId"].startswith("PROFILE#")
         assert result["sellerName"] == "Test Scout"
-        # In multi-table design, API returns clean ownerAccountId without ACCOUNT# prefix
-        assert result["ownerAccountId"] == event["identity"]["sub"]
+        # ownerAccountId returned with ACCOUNT# prefix per normalization rules
+        assert result["ownerAccountId"] == f"ACCOUNT#{event['identity']['sub']}"
         assert "createdAt" in result
         assert "updatedAt" in result
 

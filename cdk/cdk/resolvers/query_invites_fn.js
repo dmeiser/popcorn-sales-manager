@@ -1,8 +1,8 @@
 import { util } from '@aws-appsync/utils';
 
 export function request(ctx) {
-    // If not authorized, return no-op
-    if (!ctx.stash.isOwner && !ctx.stash.hasWritePermission) {
+    // OWNER-ONLY access (not shared users with WRITE)
+    if (!ctx.stash.isOwner) {
         return {
             operation: 'Query',
             index: 'profileId-index',
@@ -36,21 +36,34 @@ export function response(ctx) {
         util.error(ctx.error.message, ctx.error.type);
     }
     
-    // If not authorized, return empty array
-    if (!ctx.stash.isOwner && !ctx.stash.hasWritePermission) {
+    // OWNER-ONLY access (not shared users with WRITE)
+    if (!ctx.stash.isOwner) {
         return [];
     }
     
     const items = ctx.result.items || [];
+    const nowEpochSeconds = Math.floor(util.time.nowEpochSeconds());
     
-    // Transform items to match GraphQL schema
-    const transformedItems = [];
-    for (const item of items) {
-        const transformed = {
+    // Transform items to match GraphQL schema, filtering out expired and used invites
+    // Note: AppSync JS runtime does not support 'continue', so we use filter logic instead
+    const validItems = items.filter((item) => {
+        // Skip expired invites (expiresAt is epoch seconds)
+        if (item.expiresAt && item.expiresAt < nowEpochSeconds) {
+            return false;
+        }
+        
+        // Skip used invites (has used=true or usedAt set)
+        if (item.used === true || item.usedAt) {
+            return false;
+        }
+        
+        return true;
+    });
+    
+    const transformedItems = validItems.map((item) => {
+        return {
             inviteCode: item.inviteCode,
-            profileId: item.profileId && item.profileId.startsWith('PROFILE#') 
-                ? item.profileId.substring(8) 
-                : item.profileId,
+            profileId: item.profileId, // Keep PROFILE# prefix
             permissions: item.permissions,
             // Convert epoch seconds to ISO 8601 string
             expiresAt: util.time.epochMilliSecondsToISO8601(item.expiresAt * 1000),
@@ -58,8 +71,7 @@ export function response(ctx) {
             // Map createdBy to createdByAccountId
             createdByAccountId: item.createdBy
         };
-        transformedItems.push(transformed);
-    }
+    });
     
     return transformedItems;
 }

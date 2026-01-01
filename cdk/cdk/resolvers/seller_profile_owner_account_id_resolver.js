@@ -1,13 +1,13 @@
+/**
+ * Field resolver for SellerProfile.ownerAccountId
+ * Returns the ownerAccountId as-is (with ACCOUNT# prefix).
+ * All IDs in GraphQL should include their type prefix.
+ */
 export function request(ctx) {
     return {};
 }
 
 export function response(ctx) {
-    const ownerAccountId = ctx.source.ownerAccountId;
-    if (!ownerAccountId) return null;
-    // Strip ACCOUNT# prefix if present
-    if (ownerAccountId.startsWith('ACCOUNT#')) {
-        return ownerAccountId.substring(8);
-    }
-    return ownerAccountId;
+    // Return ownerAccountId as-is with ACCOUNT# prefix
+    return ctx.source.ownerAccountId;
 }

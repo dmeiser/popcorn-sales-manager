@@ -47,7 +47,7 @@ import {
   CREATE_CAMPAIGN,
   LIST_CAMPAIGNS_BY_PROFILE,
 } from "../lib/graphql";
-import { ensureProfileId, ensureCatalogId } from "../lib/ids";
+import { ensureProfileId, ensureCatalogId, toUrlId } from "../lib/ids";
 
 // Types
 interface SharedCampaign {
@@ -445,7 +445,7 @@ const debouncedFindSharedCampaigns = useMemo(() => {
           });
         }
         navigate(
-          `/scouts/${encodeURIComponent(profileId)}/campaigns/${encodeURIComponent(createdCampaign.campaignId)}`,
+          `/scouts/${toUrlId(profileId)}/campaigns/${toUrlId(createdCampaign.campaignId)}`,
         );
       }
     } catch (error) {

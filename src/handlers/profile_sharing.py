@@ -213,9 +213,9 @@ def list_my_shares(event: Dict[str, Any], context: Any) -> List[Dict[str, Any]]:
                 owner_account_id_raw = profile.get("ownerAccountId", "")
                 if not isinstance(owner_account_id_raw, str):
                     owner_account_id_raw = ""
-                # Strip ACCOUNT# prefix for API response
-                owner_id_clean = (
-                    owner_account_id_raw[8:] if owner_account_id_raw.startswith("ACCOUNT#") else owner_account_id_raw
+                # Keep ACCOUNT# prefix per normalization rules (add if missing)
+                owner_account_id = (
+                    owner_account_id_raw if owner_account_id_raw.startswith("ACCOUNT#") else f"ACCOUNT#{owner_account_id_raw}"
                 )
                 # Convert permissions from set (DynamoDB SS type) to list for JSON serialization
                 permissions = share.get("permissions", [])
@@ -223,7 +223,7 @@ def list_my_shares(event: Dict[str, Any], context: Any) -> List[Dict[str, Any]]:
                 result.append(
                     {
                         "profileId": profile_id_str,  # Keep PROFILE# prefix
-                        "ownerAccountId": owner_id_clean,
+                        "ownerAccountId": owner_account_id,  # Keep ACCOUNT# prefix per normalization rules
                         "sellerName": profile.get("sellerName"),
                         "unitType": profile.get("unitType"),
                         "unitNumber": profile.get("unitNumber"),

@@ -246,7 +246,7 @@ class TestListMyShares:
         # Assert
         assert len(result) == 1
         assert result[0]["profileId"] == profile_id
-        assert result[0]["ownerAccountId"] == sample_account_id  # Prefix stripped
+        assert result[0]["ownerAccountId"] == f"ACCOUNT#{sample_account_id}"  # With ACCOUNT# prefix per normalization
         assert result[0]["sellerName"] == "Shared Scout"
         assert result[0]["permissions"] == ["READ"]
         assert result[0]["isOwner"] is False
@@ -526,8 +526,8 @@ class TestListMyShares:
         event = {**appsync_event, "identity": {"sub": another_account_id}}
         result = list_my_shares(event, lambda_context)
 
-        # ownerAccountId should have prefix stripped
-        assert result[0]["ownerAccountId"] == sample_account_id
+        # ownerAccountId should keep ACCOUNT# prefix per normalization rules
+        assert result[0]["ownerAccountId"] == owner_id_with_prefix
         # profileId should keep its prefix
         assert result[0]["profileId"] == profile_id
 
@@ -570,8 +570,8 @@ class TestListMyShares:
         event = {**appsync_event, "identity": {"sub": another_account_id}}
         result = list_my_shares(event, lambda_context)
 
-        # Without prefix, ownerAccountId returned as-is
-        assert result[0]["ownerAccountId"] == sample_account_id
+        # Without prefix in DB, ACCOUNT# prefix is added per normalization rules
+        assert result[0]["ownerAccountId"] == f"ACCOUNT#{sample_account_id}"
 
     def test_exception_wrapped_in_app_error(
         self,
@@ -797,9 +797,9 @@ class TestListMyShares:
         ):
             result = list_my_shares(event, lambda_context)
 
-        # The profile with None owner should still be processed, but with empty string
+        # The profile with None owner should still be processed, but with ACCOUNT# prefix on empty
         assert len(result) == 1
-        assert result[0]["ownerAccountId"] == ""
+        assert result[0]["ownerAccountId"] == "ACCOUNT#"  # ACCOUNT# prefix added to empty string
 
     def test_handles_unprocessed_keys(
         self,

@@ -40,7 +40,7 @@ import {
   GET_CAMPAIGN,
   GET_PROFILE,
 } from "../lib/graphql";
-import { ensureProfileId, ensureCampaignId, ensureOrderId } from "../lib/ids";
+import { ensureProfileId, ensureCampaignId, ensureOrderId, toUrlId } from "../lib/ids";
 
 interface LineItemInput {
   productId: string;
@@ -274,7 +274,7 @@ export const OrderEditorPage: React.FC = () => {
 
       // Navigate back to orders page
       navigate(
-        `/scouts/${encodeURIComponent(profileId)}/campaigns/${encodeURIComponent(campaignId)}/orders`,
+        `/scouts/${toUrlId(profileId)}/campaigns/${toUrlId(campaignId)}/orders`,
       );
     } catch (err: unknown) {
       const error = err as { message?: string };
@@ -285,7 +285,7 @@ export const OrderEditorPage: React.FC = () => {
 
   const handleCancel = () => {
     navigate(
-      `/scouts/${encodeURIComponent(profileId)}/campaigns/${encodeURIComponent(campaignId)}/orders`,
+      `/scouts/${toUrlId(profileId)}/campaigns/${toUrlId(campaignId)}/orders`,
     );
   };
 
@@ -343,7 +343,7 @@ export const OrderEditorPage: React.FC = () => {
         <Link
           component="button"
           variant="body2"
-          onClick={() => navigate(`/scouts/${encodeURIComponent(profileId)}`)}
+          onClick={() => navigate(`/scouts/${toUrlId(profileId)}/campaigns`)}
           sx={{ textDecoration: "none", cursor: "pointer" }}
         >
           Campaigns

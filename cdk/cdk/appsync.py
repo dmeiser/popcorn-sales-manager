@@ -1274,7 +1274,7 @@ def create_resolvers(
             functions["verify_profile_owner_for_revoke"],
             functions["delete_share"],
         ],
-        code=appsync.Code.from_asset(str(RESOLVERS_DIR / "delete_share_fn.js")),
+        code=appsync.Code.from_asset(str(RESOLVERS_DIR / "revoke_share_pipeline_resolver.js")),
     )
 
     # deleteProfileInvite Pipeline
@@ -1287,7 +1287,7 @@ def create_resolvers(
             functions["delete_profile_invite"],
             functions["delete_invite_item"],
         ],
-        code=appsync.Code.from_asset(str(RESOLVERS_DIR / "delete_invite_item_fn.js")),
+        code=appsync.Code.from_asset(str(RESOLVERS_DIR / "delete_profile_invite_pipeline_resolver.js")),
     )
 
     # updateCampaign Pipeline
@@ -1319,7 +1319,7 @@ def create_resolvers(
             functions["delete_campaign_orders"],
             functions["delete_campaign"],
         ],
-        code=appsync.Code.from_asset(str(RESOLVERS_DIR / "delete_campaign_fn.js")),
+        code=appsync.Code.from_asset(str(RESOLVERS_DIR / "delete_campaign_pipeline_resolver_v2.js")),
     )
 
     # updateOrder Pipeline
@@ -1387,7 +1387,7 @@ def create_resolvers(
             functions["check_existing_share"],
             functions["create_share"],
         ],
-        code=appsync.Code.from_asset(str(RESOLVERS_DIR / "create_share_fn.js")),
+        code=appsync.Code.from_asset(str(RESOLVERS_DIR / "share_profile_direct_pipeline_resolver.js")),
     )
 
     # redeemProfileInvite Pipeline
@@ -1508,7 +1508,7 @@ $util.toJson($ctx.result)
             functions["check_share_read_permissions"],
             functions["return_campaign"],
         ],
-        code=appsync.Code.from_asset(str(RESOLVERS_DIR / "return_campaign_fn.js")),
+        code=appsync.Code.from_asset(str(RESOLVERS_DIR / "get_campaign_resolver.js")),
     )
 
     # listCampaignsByProfile Pipeline
@@ -1537,7 +1537,7 @@ $util.toJson($ctx.result)
             functions["check_share_read_permissions"],
             functions["return_order"],
         ],
-        code=appsync.Code.from_asset(str(RESOLVERS_DIR / "return_order_fn.js")),
+        code=appsync.Code.from_asset(str(RESOLVERS_DIR / "get_order_resolver.js")),
     )
 
     # listOrdersByCampaign Pipeline
@@ -1580,7 +1580,7 @@ $util.toJson($ctx.result)
             functions["check_write_permission"],
             functions["query_shares"],
         ],
-        code=appsync.Code.from_asset(str(RESOLVERS_DIR / "query_shares_fn.js")),
+        code=appsync.Code.from_asset(str(RESOLVERS_DIR / "list_shares_by_profile_resolver.js")),
     )
 
     # listInvitesByProfile Pipeline
@@ -1716,7 +1716,7 @@ $util.toJson($ctx.result)
         field_name="findSharedCampaigns",
         data_source=datasources["shared_campaigns"],
         runtime=appsync.FunctionRuntime.JS_1_0_0,
-        code=appsync.Code.from_asset(str(RESOLVERS_DIR / "query_invites_fn.js")),
+        code=appsync.Code.from_asset(str(RESOLVERS_DIR / "find_shared_campaigns_resolver.js")),
     )
 
     # createSharedCampaign Pipeline
@@ -1744,7 +1744,7 @@ $util.toJson($ctx.result)
             functions["get_shared_campaign_for_update"],
             functions["update_shared_campaign"],
         ],
-        code=appsync.Code.from_asset(str(RESOLVERS_DIR / "update_shared_campaign_fn.js")),
+        code=appsync.Code.from_asset(str(RESOLVERS_DIR / "update_shared_campaign_pipeline_resolver.js")),
     )
 
     # deleteSharedCampaign Pipeline
@@ -1757,7 +1757,7 @@ $util.toJson($ctx.result)
             profile_delete_functions["get_shared_campaign_for_delete"],
             functions["delete_shared_campaign"],
         ],
-        code=appsync.Code.from_asset(str(RESOLVERS_DIR / "get_shared_campaign_for_delete_fn.js")),
+        code=appsync.Code.from_asset(str(RESOLVERS_DIR / "delete_shared_campaign_pipeline_resolver.js")),
     )
 
     # === FIELD RESOLVERS ===
@@ -1969,7 +1969,7 @@ $util.toJson($ctx.result)
             profile_delete_functions["delete_profile_ownership"],
             profile_delete_functions["delete_profile_metadata"],
         ],
-        code=appsync.Code.from_asset(str(RESOLVERS_DIR / "delete_profile_metadata_fn.js")),
+        code=appsync.Code.from_asset(str(RESOLVERS_DIR / "delete_seller_profile_resolver.js")),
     )
 
     # createCatalog (VTL)

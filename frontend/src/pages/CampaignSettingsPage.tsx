@@ -38,7 +38,7 @@ import {
   LIST_PUBLIC_CATALOGS,
   LIST_MY_CATALOGS,
 } from "../lib/graphql";
-import { ensureCampaignId, ensureCatalogId } from "../lib/ids";
+import { ensureCampaignId, ensureCatalogId, toUrlId } from "../lib/ids";
 
 interface Campaign {
   campaignId: string;
@@ -125,7 +125,7 @@ export const CampaignSettingsPage: React.FC = () => {
   // Delete campaign mutation
   const [deleteCampaign] = useMutation(DELETE_CAMPAIGN, {
     onCompleted: () => {
-      navigate(`/scouts/${encodeURIComponent(profileId || "")}/campaigns`);
+      navigate(`/scouts/${toUrlId(profileId)}/campaigns`);
     },
   });
 
@@ -199,7 +199,7 @@ export const CampaignSettingsPage: React.FC = () => {
           variant="text"
           color="primary"
           onClick={() =>
-            navigate(`/scouts/${encodeURIComponent(profileId)}/manage`)
+            navigate(`/scouts/${toUrlId(profileId)}/manage`)
           }
         >
           Manage Scout
