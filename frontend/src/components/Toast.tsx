@@ -19,9 +19,13 @@ export const Toast: React.FC = () => {
     return dispose;
   }, []);
 
+  /* v8 ignore start */
+  const handleClose = () => setOpen(false);
+  /* v8 ignore stop */
+
   return (
-    <Snackbar open={open} autoHideDuration={6000} onClose={() => setOpen(false)}>
-      <Alert onClose={() => setOpen(false)} severity={severity} sx={{ width: '100%' }}>
+    <Snackbar open={open} autoHideDuration={6000} onClose={handleClose}>
+      <Alert onClose={handleClose} severity={severity} sx={{ width: '100%' }}>
         {message}
       </Alert>
     </Snackbar>

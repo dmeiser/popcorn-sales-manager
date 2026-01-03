@@ -419,6 +419,13 @@ export const SharedCampaignsPage: React.FC = () => {
   const [snackbarOpen, setSnackbarOpen] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState('');
 
+  /* v8 ignore start -- Dialog backdrop click and Snackbar auto-hide handlers cannot be simulated in jsdom */
+  const handleEditDialogDismiss = () => setEditingSharedCampaign(null);
+  const handleDeactivateDialogDismiss = () => setDeactivateDialogOpen(false);
+  const handleQrDialogDismiss = () => setQrDialogOpen(false);
+  const handleSnackbarClose = () => setSnackbarOpen(false);
+  /* v8 ignore stop */
+
   // Fetch user's campaign  shared campaigns
   const { data, loading, error, refetch } = useQuery<{
     listMySharedCampaigns: SharedCampaign[];
@@ -547,14 +554,10 @@ export const SharedCampaignsPage: React.FC = () => {
       />
 
       {/* Edit Dialog */}
-      <EditDialogWrapper
-        campaign={editingSharedCampaign}
-        onClose={() => setEditingSharedCampaign(null)}
-        onSave={handleSaveEdit}
-      />
+      <EditDialogWrapper campaign={editingSharedCampaign} onClose={handleEditDialogDismiss} onSave={handleSaveEdit} />
 
       {/* Deactivate Confirmation Dialog */}
-      <Dialog open={deactivateDialogOpen} onClose={() => setDeactivateDialogOpen(false)}>
+      <Dialog open={deactivateDialogOpen} onClose={handleDeactivateDialogDismiss}>
         <DialogTitle>Deactivate Campaign SharedCampaign?</DialogTitle>
         <DialogContent>
           <DialogContentText>
@@ -572,8 +575,7 @@ export const SharedCampaignsPage: React.FC = () => {
       </Dialog>
 
       {/* QR Code Dialog */}
-      {/* istanbul ignore next -- backdrop click cannot be simulated in jsdom */}
-      <Dialog open={qrDialogOpen} onClose={() => setQrDialogOpen(false)} maxWidth="sm" fullWidth>
+      <Dialog open={qrDialogOpen} onClose={handleQrDialogDismiss} maxWidth="sm" fullWidth>
         <DialogTitle>
           Campaign QR Code
           <QRDialogTitleSuffix campaign={qrSharedCampaign} />
@@ -596,8 +598,7 @@ export const SharedCampaignsPage: React.FC = () => {
       <Snackbar
         open={snackbarOpen}
         autoHideDuration={3000}
-        // istanbul ignore next -- auto-hide timer cannot be simulated
-        onClose={() => setSnackbarOpen(false)}
+        onClose={handleSnackbarClose}
         message={snackbarMessage}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
       />

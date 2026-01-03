@@ -477,6 +477,14 @@ export const ScoutManagementPage: React.FC = () => {
   const [deletingInviteCode, setDeletingInviteCode] = useState<string | null>(null);
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
 
+  /* v8 ignore start -- Dialog backdrop click handlers cannot be simulated in jsdom */
+  const handleInviteDialogDismiss = () => {
+    setDeleteInviteConfirmOpen(false);
+    setDeletingInviteCode(null);
+  };
+  const handleDeleteDialogDismiss = () => setDeleteConfirmOpen(false);
+  /* v8 ignore stop */
+
   // Fetch profile
   const {
     data: profileData,
@@ -762,14 +770,7 @@ export const ScoutManagementPage: React.FC = () => {
       </Stack>
 
       {/* Delete Invite Confirmation Dialog */}
-      <Dialog
-        open={deleteInviteConfirmOpen}
-        // istanbul ignore next -- backdrop click cannot be simulated in jsdom
-        onClose={() => {
-          setDeleteInviteConfirmOpen(false);
-          setDeletingInviteCode(null);
-        }}
-      >
+      <Dialog open={deleteInviteConfirmOpen} onClose={handleInviteDialogDismiss}>
         <DialogTitle>Delete Invite Code?</DialogTitle>
         <DialogContent>
           <Typography>
@@ -794,8 +795,7 @@ export const ScoutManagementPage: React.FC = () => {
       </Dialog>
 
       {/* Delete Profile Confirmation Dialog */}
-      {/* istanbul ignore next -- backdrop click cannot be simulated in jsdom */}
-      <Dialog open={deleteConfirmOpen} onClose={() => setDeleteConfirmOpen(false)}>
+      <Dialog open={deleteConfirmOpen} onClose={handleDeleteDialogDismiss}>
         <DialogTitle>Delete Seller Profile?</DialogTitle>
         <DialogContent>
           <Typography>

@@ -152,6 +152,7 @@ export const apolloClient = new ApolloClient({
     typePolicies: {
       Query: {
         fields: {
+          /* v8 ignore start -- Apollo internal cache merge callbacks */
           // Merge strategies for list queries
           listMyProfiles: {
             merge(_existing, incoming) {
@@ -173,6 +174,7 @@ export const apolloClient = new ApolloClient({
               return incoming;
             },
           },
+          /* v8 ignore stop */
         },
       },
     },

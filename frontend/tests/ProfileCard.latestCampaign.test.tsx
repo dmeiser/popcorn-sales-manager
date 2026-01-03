@@ -1,6 +1,17 @@
 import { describe, it, expect, vi } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { BrowserRouter } from 'react-router-dom'
+
+// Mock navigate
+const mockNavigate = vi.fn()
+vi.mock('react-router-dom', async () => {
+  const actual = await vi.importActual('react-router-dom')
+  return {
+    ...actual,
+    useNavigate: () => mockNavigate,
+  }
+})
 
 // Mock Apollo useQuery to return campaigns data for this test
 vi.mock('@apollo/client/react', async () => {
@@ -55,5 +66,28 @@ describe('ProfileCard latest campaign', () => {
 
     expect(await screen.findByText(/Alpha Campaign/)).toBeInTheDocument()
     expect(screen.getByText(/\$200.50/)).toBeInTheDocument()
+  })
+
+  it('navigates to latest campaign when View Latest Campaign clicked', async () => {
+    const user = userEvent.setup()
+    mockNavigate.mockClear()
+
+    render(
+      <BrowserRouter>
+        <ProfileCard
+          profileId="profile-123"
+          sellerName="Scout Alpha"
+          isOwner={true}
+          permissions={[]}
+        />
+      </BrowserRouter>
+    )
+
+    const button = await screen.findByText('View Latest Campaign')
+    await user.click(button)
+
+    await waitFor(() =>
+      expect(mockNavigate).toHaveBeenCalledWith('/scouts/profile-123/campaigns/campaign-1')
+    )
   })
 })
