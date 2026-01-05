@@ -35,31 +35,10 @@ import {
 import { CampaignSummaryTiles } from '../components/CampaignSummaryTiles';
 import { LIST_ORDERS_BY_CAMPAIGN, DELETE_ORDER, GET_PROFILE } from '../lib/graphql';
 import { ensureProfileId, ensureCampaignId, ensureOrderId, toUrlId } from '../lib/ids';
+import type { SellerProfile, Order, OrderLineItem } from '../types';
 
-interface LineItem {
-  productId: string;
-  productName: string;
-  quantity: number;
-  pricePerUnit: number;
-  subtotal: number;
-}
-
-interface Order {
-  orderId: string;
-  customerName: string;
-  customerPhone?: string;
-  orderDate: string;
-  paymentMethod: string;
-  lineItems: LineItem[];
-  totalAmount: number;
-  notes?: string;
-}
-
-interface ProfilePermissions {
-  profileId: string;
-  isOwner: boolean;
-  permissions?: string[];
-}
+// Use SellerProfile with only the fields we need for permission checking
+type ProfilePermissions = Pick<SellerProfile, 'profileId' | 'isOwner' | 'permissions'>;
 
 // --- Helper Functions (extracted outside component) ---
 
@@ -99,7 +78,7 @@ const getPaymentMethodColor = (method: string): 'default' | 'primary' | 'seconda
   return colors[method] ?? 'default';
 };
 
-const getTotalItems = (lineItems: LineItem[]): number => {
+const getTotalItems = (lineItems: OrderLineItem[]): number => {
   return lineItems.reduce((sum, item) => sum + item.quantity, 0);
 };
 
@@ -165,7 +144,7 @@ interface OrderRowProps {
 
 const OrderRow: React.FC<OrderRowProps> = ({ order, hasWritePermission, onEdit, onDelete }) => (
   <TableRow key={order.orderId} hover>
-    <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>{formatDate(order.orderDate)}</TableCell>
+    <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>{formatDate(order.orderDate ?? '')}</TableCell>
     <TableCell>
       <Typography variant="body2" fontWeight="medium">
         {order.customerName}

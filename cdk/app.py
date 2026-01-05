@@ -13,7 +13,8 @@ from pathlib import Path
 
 import aws_cdk as cdk
 
-from cdk.cdk_stack import REGION_ABBREVIATIONS, CdkStack
+from cdk.cdk_stack import CdkStack
+from cdk.helpers import REGION_ABBREVIATIONS
 
 # Load environment variables from .env file if it exists
 env_file = Path(__file__).parent / ".env"

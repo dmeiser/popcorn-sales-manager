@@ -66,9 +66,7 @@ def create_profile_functions(
         api=api,
         data_source=datasources["profiles"],
         runtime=appsync.FunctionRuntime.JS_1_0_0,
-        code=appsync.Code.from_asset(
-            str(RESOLVERS_DIR / "verify_profile_write_access_or_owner_fn.js")
-        ),
+        code=appsync.Code.from_asset(str(RESOLVERS_DIR / "verify_profile_write_access_or_owner_fn.js")),
     )
 
     # CheckWritePermissionFn
@@ -214,9 +212,7 @@ def create_profile_delete_functions(
         api=api,
         data_source=datasources["campaigns"],
         runtime=appsync.FunctionRuntime.JS_1_0_0,
-        code=appsync.Code.from_asset(
-            str(RESOLVERS_DIR / "query_profile_campaigns_for_delete_fn.js")
-        ),
+        code=appsync.Code.from_asset(str(RESOLVERS_DIR / "query_profile_campaigns_for_delete_fn.js")),
     )
 
     # DeleteProfileCampaignsFn

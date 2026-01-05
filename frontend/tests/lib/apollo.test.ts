@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { mapErrorCodeToMessage, getAuthContext, handleApolloError } from '../../src/lib/apollo';
 import { fetchAuthSession } from 'aws-amplify/auth';
+import { CombinedGraphQLErrors } from '@apollo/client/errors';
 
 vi.mock('aws-amplify/auth', async () => ({
   fetchAuthSession: vi.fn(),
@@ -67,11 +68,15 @@ describe('lib/apollo', () => {
           path: ['some', 'path'],
           extensions: { errorCode: 'FORBIDDEN' },
         },
-      ] as any;
+      ];
+
+      // Create a CombinedGraphQLErrors object like Apollo v4 does
+      const error = new CombinedGraphQLErrors({
+        errors: graphQLErrors,
+      });
 
       handleApolloError({
-        graphQLErrors,
-        networkError: undefined,
+        error,
         operation: { operationName: 'MyOp' },
       } as any);
 
@@ -87,11 +92,10 @@ describe('lib/apollo', () => {
       const handler = vi.fn();
       window.addEventListener('graphql-error', handler as any);
 
-      const networkError = new Error('Network down');
+      const error = new Error('Network down');
 
       handleApolloError({
-        graphQLErrors: undefined,
-        networkError,
+        error,
         operation: { operationName: 'FetchStuff' },
       } as any);
 

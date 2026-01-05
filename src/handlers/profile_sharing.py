@@ -18,7 +18,6 @@ from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING, Any, Dict, List, cast
 
 import boto3
-from mypy_boto3_dynamodb import DynamoDBServiceResource
 from mypy_boto3_dynamodb.type_defs import BatchGetItemOutputServiceResourceTypeDef
 
 if TYPE_CHECKING:
@@ -27,45 +26,27 @@ if TYPE_CHECKING:
 # Handle both Lambda (absolute) and unit test (relative) imports
 try:  # pragma: no cover
     from utils.auth import is_profile_owner
+    from utils.dynamodb import get_dynamodb_resource, tables
     from utils.errors import AppError, ErrorCode
     from utils.logging import StructuredLogger, get_correlation_id
 except ModuleNotFoundError:  # pragma: no cover
     from ..utils.auth import is_profile_owner
+    from ..utils.dynamodb import get_dynamodb_resource, tables
     from ..utils.errors import AppError, ErrorCode
     from ..utils.logging import StructuredLogger, get_correlation_id
-
-
-def _get_dynamodb() -> DynamoDBServiceResource:
-    """Return a fresh boto3 DynamoDB resource (created lazily so moto mocks work in tests)."""
-    return boto3.resource("dynamodb", endpoint_url=os.getenv("DYNAMODB_ENDPOINT"))
 
 
 # Expose a module-level proxy for test monkeypatching (tests patch ``profile_sharing.dynamodb.batch_get_item``)
 class _DynamoProxy:
     def batch_get_item(self, RequestItems: Dict[str, Any]) -> BatchGetItemOutputServiceResourceTypeDef:
-        return _get_dynamodb().batch_get_item(RequestItems=RequestItems)
+        result: BatchGetItemOutputServiceResourceTypeDef = get_dynamodb_resource().batch_get_item(
+            RequestItems=RequestItems
+        )
+        return result
 
 
 # Default module-level proxy instance (tests may monkeypatch methods on this object)
 dynamodb: _DynamoProxy = _DynamoProxy()
-
-
-def get_invites_table() -> "Table":
-    """Get DynamoDB invites table instance (V2 design - separate table)."""
-    table_name = os.getenv("INVITES_TABLE_NAME", "kernelworx-invites-ue1-dev")
-    return _get_dynamodb().Table(table_name)
-
-
-def get_shares_table() -> "Table":
-    """Get DynamoDB shares table instance."""
-    table_name = os.getenv("SHARES_TABLE_NAME", "kernelworx-shares-ue1-dev")
-    return _get_dynamodb().Table(table_name)
-
-
-def get_profiles_table() -> "Table":
-    """Get DynamoDB profiles table instance."""
-    table_name = os.getenv("PROFILES_TABLE_NAME", "kernelworx-profiles-v2-ue1-dev")
-    return _get_dynamodb().Table(table_name)
 
 
 def generate_invite_code() -> str:
@@ -230,8 +211,7 @@ def list_my_shares(event: Dict[str, Any], context: Any) -> List[Dict[str, Any]]:
 
     try:
         # Step 1: Query shares table GSI to get all shares for this user
-        shares_table = get_shares_table()
-        response = shares_table.query(
+        response = tables.shares.query(
             IndexName="targetAccountId-index",
             KeyConditionExpression="targetAccountId = :targetAccountId",
             ExpressionAttributeValues={":targetAccountId": caller_account_id},
@@ -248,11 +228,10 @@ def list_my_shares(event: Dict[str, Any], context: Any) -> List[Dict[str, Any]]:
         logger.info("Found shares", count=len(shares_by_profile))
 
         # Step 2: BatchGetItem to get full profile data
-        profiles_table = get_profiles_table()
         profile_keys = [
             {"ownerAccountId": s["ownerAccountId"], "profileId": s["profileId"]} for s in shares_by_profile.values()
         ]
-        all_profiles = _batch_get_profiles(profile_keys, profiles_table, logger)
+        all_profiles = _batch_get_profiles(profile_keys, tables.profiles, logger)
 
         logger.info("Retrieved profiles", count=len(all_profiles))
 
@@ -328,7 +307,6 @@ def create_profile_invite(event: Dict[str, Any], context: Any) -> Dict[str, Any]
         db_profile_id = profile_id if profile_id.startswith("PROFILE#") else f"PROFILE#{profile_id}"
 
         # Store invite in DynamoDB (V2 design: invites table with inviteCode as PK)
-        table = get_invites_table()
         invite_item = {
             "inviteCode": invite_code,  # PK
             "profileId": db_profile_id,
@@ -339,7 +317,7 @@ def create_profile_invite(event: Dict[str, Any], context: Any) -> Dict[str, Any]
             "used": False,
         }
 
-        table.put_item(Item=invite_item)
+        tables.invites.put_item(Item=invite_item)
 
         logger.info("Profile invite created", invite_code=invite_code, expires_at=expires_at.isoformat())
 

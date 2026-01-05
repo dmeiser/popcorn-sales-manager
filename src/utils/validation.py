@@ -5,12 +5,88 @@ Validates customer information, phone numbers, addresses, etc.
 """
 
 import re
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from .errors import AppError, ErrorCode
 
 # US phone number pattern: 10 digits with optional formatting
 PHONE_PATTERN = re.compile(r"^(?:\+?1[-.\s]?)?\(?([0-9]{3})\)?[-.\s]?([0-9]{3})[-.\s]?([0-9]{4})$")
+
+
+def validate_unit_number(value: Any, required: bool = False) -> Optional[int]:
+    """
+    Validate and convert unit number to integer.
+
+    Args:
+        value: Value to validate (may be string, int, or None)
+        required: Whether value is required
+
+    Returns:
+        Validated integer or None if not required and not provided
+
+    Raises:
+        AppError: If validation fails
+    """
+    if not value:
+        if required:
+            raise AppError(ErrorCode.INVALID_INPUT, "unitNumber is required when unitType is provided")
+        return None
+
+    try:
+        return int(value)
+    except (ValueError, TypeError):
+        raise AppError(ErrorCode.INVALID_INPUT, "unitNumber must be a valid integer")
+
+
+def validate_unit_fields(
+    unit_type: Optional[str],
+    unit_number: Optional[int],
+    city: Optional[str],
+    state: Optional[str],
+) -> Optional[Tuple[str, int, str, str]]:
+    """
+    Validate that all unit fields are present if any are provided.
+
+    Args:
+        unit_type: Scout unit type (Pack, Troop, Crew, Ship)
+        unit_number: Unit number
+        city: City name
+        state: State abbreviation
+
+    Returns:
+        Tuple of validated fields if all present, None if unitType is absent
+
+    Raises:
+        AppError: If unit_type is provided but other fields are missing
+    """
+    if not unit_type:
+        return None
+
+    validated_number = validate_unit_number(unit_number, required=True)
+    assert validated_number is not None  # For type checker
+
+    if not city:
+        raise AppError(ErrorCode.INVALID_INPUT, "city is required when unitType is provided")
+    if not state:
+        raise AppError(ErrorCode.INVALID_INPUT, "state is required when unitType is provided")
+
+    return (unit_type, validated_number, city, state)
+
+
+def validate_required_fields(data: Dict[str, Any], required_fields: List[str]) -> None:
+    """
+    Validate that all required fields are present and non-empty.
+
+    Args:
+        data: Dictionary to validate
+        required_fields: List of field names that must be present
+
+    Raises:
+        AppError: If any required field is missing or empty
+    """
+    for field in required_fields:
+        if field not in data or data[field] in (None, "", []):
+            raise AppError(ErrorCode.INVALID_INPUT, f"{field} is required")
 
 
 def normalize_phone(phone: str) -> str:

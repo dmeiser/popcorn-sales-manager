@@ -4,53 +4,18 @@ Authorization utilities for checking profile and resource access.
 Implements owner-based and share-based authorization model.
 """
 
-import os
 from typing import TYPE_CHECKING, Any, Dict, Optional
-
-import boto3
-from mypy_boto3_dynamodb import DynamoDBServiceResource
 
 if TYPE_CHECKING:
     from mypy_boto3_dynamodb.service_resource import Table
 
+from .dynamodb import tables
 from .errors import AppError, ErrorCode
+from .ids import ensure_account_id, ensure_profile_id
 from .logging import get_logger
 
 # Initialize logger
 logger = get_logger(__name__)
-
-
-def _get_dynamodb() -> DynamoDBServiceResource:
-    """Return a fresh boto3 DynamoDB resource (lazy for tests)."""
-    return boto3.resource("dynamodb", endpoint_url=os.getenv("DYNAMODB_ENDPOINT"))
-
-
-def get_profiles_table() -> "Table":
-    """Get profiles DynamoDB table instance (multi-table design V2)."""
-    table_name = os.getenv("PROFILES_TABLE_NAME", "kernelworx-profiles-v2-ue1-dev")
-    return _get_dynamodb().Table(table_name)
-
-
-def get_shares_table() -> "Table":
-    """Get shares DynamoDB table instance (new separate table)."""
-    table_name = os.getenv("SHARES_TABLE_NAME", "kernelworx-shares-ue1-dev")
-    return _get_dynamodb().Table(table_name)
-
-
-def get_accounts_table() -> "Table":
-    """Get accounts DynamoDB table instance (multi-table design)."""
-    table_name = os.getenv("ACCOUNTS_TABLE_NAME", "kernelworx-accounts-ue1-dev")
-    return _get_dynamodb().Table(table_name)
-
-
-def _normalize_profile_id(profile_id: str) -> str:
-    """Normalize profileId with PROFILE# prefix for DynamoDB queries."""
-    return profile_id if profile_id.startswith("PROFILE#") else f"PROFILE#{profile_id}"
-
-
-def _normalize_account_id(account_id: str) -> str:
-    """Normalize account ID with ACCOUNT# prefix for DynamoDB queries."""
-    return account_id if account_id.startswith("ACCOUNT#") else f"ACCOUNT#{account_id}"
 
 
 def _is_profile_owner(profiles_table: "Table", caller_account_id: str, db_profile_id: str) -> bool:
@@ -117,20 +82,23 @@ def check_profile_access(caller_account_id: str, profile_id: str, required_permi
         AppError: If profile not found
     """
     required_permission = required_permission.upper()
-    profiles_table = get_profiles_table()
-    db_profile_id = _normalize_profile_id(profile_id)
+    db_profile_id = ensure_profile_id(profile_id)
+    # ensure_profile_id returns Optional[str], but we know profile_id is not None here
+    assert db_profile_id is not None
 
     # Check if caller is owner (faster, strongly consistent)
-    if _is_profile_owner(profiles_table, caller_account_id, db_profile_id):
+    if _is_profile_owner(tables.profiles, caller_account_id, db_profile_id):
         return True
 
     # Verify profile exists
-    if not _profile_exists(profiles_table, db_profile_id):
+    if not _profile_exists(tables.profiles, db_profile_id):
         raise AppError(ErrorCode.NOT_FOUND, f"Profile {profile_id} not found")
 
     # Check share permissions
-    db_caller_id = _normalize_account_id(caller_account_id)
-    return _check_share_permissions(get_shares_table(), db_profile_id, db_caller_id, required_permission)
+    db_caller_id = ensure_account_id(caller_account_id)
+    # ensure_account_id returns Optional[str], but we know caller_account_id is not None here
+    assert db_caller_id is not None
+    return _check_share_permissions(tables.shares, db_profile_id, db_caller_id, required_permission)
 
 
 def require_profile_access(caller_account_id: str, profile_id: str, required_permission: str = "READ") -> None:
@@ -166,14 +134,13 @@ def is_profile_owner(caller_account_id: str, profile_id: str) -> bool:
     Raises:
         AppError: If profile not found
     """
-    table = get_profiles_table()
-
     # Normalize profile_id to PROFILE# prefix for queries
-    db_profile_id = profile_id if profile_id.startswith("PROFILE#") else f"PROFILE#{profile_id}"
+    db_profile_id = ensure_profile_id(profile_id)
+    assert db_profile_id is not None
 
     # Multi-table design V2: Query profileId-index GSI
     # Profile table structure: PK=ownerAccountId, SK=profileId, GSI=profileId-index
-    response = table.query(
+    response = tables.profiles.query(
         IndexName="profileId-index",
         KeyConditionExpression="profileId = :profileId",
         ExpressionAttributeValues={":profileId": db_profile_id},
@@ -200,10 +167,8 @@ def get_account(account_id: str) -> Optional[Dict[str, Any]]:
     Returns:
         Account item or None if not found
     """
-    table = get_accounts_table()
-
     # Multi-table design: accountId is the only key (format: ACCOUNT#uuid)
-    response = table.get_item(Key={"accountId": f"ACCOUNT#{account_id}"})
+    response = tables.accounts.get_item(Key={"accountId": f"ACCOUNT#{account_id}"})
 
     return response.get("Item")
 

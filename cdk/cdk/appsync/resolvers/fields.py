@@ -7,6 +7,7 @@ from constructs import Construct
 
 # Import directory paths from parent api module
 from ..api import MAPPING_TEMPLATES_DIR, RESOLVERS_DIR
+from ..resolver_builder import ResolverBuilder
 
 
 def create_field_resolvers(
@@ -30,109 +31,100 @@ def create_field_resolvers(
         functions: Dictionary of reusable AppSync functions
         profile_delete_functions: Dictionary of profile-related AppSync functions
     """
+    # Initialize the resolver builder
+    builder = ResolverBuilder(api, datasources, lambda_datasources, scope)
+
     # === CAMPAIGN FIELD RESOLVERS ===
 
     # Campaign.catalog (VTL)
-    datasources["catalogs"].create_resolver(
-        "CampaignCatalogResolver",
-        type_name="Campaign",
+    builder.create_vtl_resolver(
         field_name="catalog",
-        request_mapping_template=appsync.MappingTemplate.from_file(
-            str(MAPPING_TEMPLATES_DIR / "campaign_catalog_request.vtl")
-        ),
-        response_mapping_template=appsync.MappingTemplate.from_file(
-            str(MAPPING_TEMPLATES_DIR / "campaign_catalog_response.vtl")
-        ),
+        type_name="Campaign",
+        datasource_name="catalogs",
+        request_template=MAPPING_TEMPLATES_DIR / "campaign_catalog_request.vtl",
+        response_template=MAPPING_TEMPLATES_DIR / "campaign_catalog_response.vtl",
+        id_suffix="CampaignCatalogResolver",
     )
 
     # Campaign.totalOrders (VTL)
-    datasources["orders"].create_resolver(
-        "CampaignTotalOrdersResolver",
-        type_name="Campaign",
+    builder.create_vtl_resolver(
         field_name="totalOrders",
-        request_mapping_template=appsync.MappingTemplate.from_file(
-            str(MAPPING_TEMPLATES_DIR / "campaign_total_orders_request.vtl")
-        ),
-        response_mapping_template=appsync.MappingTemplate.from_file(
-            str(MAPPING_TEMPLATES_DIR / "campaign_total_orders_response.vtl")
-        ),
+        type_name="Campaign",
+        datasource_name="orders",
+        request_template=MAPPING_TEMPLATES_DIR / "campaign_total_orders_request.vtl",
+        response_template=MAPPING_TEMPLATES_DIR / "campaign_total_orders_response.vtl",
+        id_suffix="CampaignTotalOrdersResolver",
     )
 
     # Campaign.totalRevenue (VTL)
-    datasources["orders"].create_resolver(
-        "CampaignTotalRevenueResolver",
-        type_name="Campaign",
+    builder.create_vtl_resolver(
         field_name="totalRevenue",
-        request_mapping_template=appsync.MappingTemplate.from_file(
-            str(MAPPING_TEMPLATES_DIR / "campaign_total_revenue_request.vtl")
-        ),
-        response_mapping_template=appsync.MappingTemplate.from_file(
-            str(MAPPING_TEMPLATES_DIR / "campaign_total_revenue_response.vtl")
-        ),
+        type_name="Campaign",
+        datasource_name="orders",
+        request_template=MAPPING_TEMPLATES_DIR / "campaign_total_revenue_request.vtl",
+        response_template=MAPPING_TEMPLATES_DIR / "campaign_total_revenue_response.vtl",
+        id_suffix="CampaignTotalRevenueResolver",
     )
 
     # === SELLER PROFILE FIELD RESOLVERS ===
 
     # SellerProfile.ownerAccountId (JS)
-    datasources["none"].create_resolver(
-        "SellerProfileOwnerAccountIdResolver",
-        type_name="SellerProfile",
+    builder.create_js_resolver(
         field_name="ownerAccountId",
-        runtime=appsync.FunctionRuntime.JS_1_0_0,
-        code=appsync.Code.from_asset(str(RESOLVERS_DIR / "seller_profile_owner_account_id_resolver.js")),
+        type_name="SellerProfile",
+        datasource_name="none",
+        code_file=RESOLVERS_DIR / "seller_profile_owner_account_id_resolver.js",
+        id_suffix="SellerProfileOwnerAccountIdResolver",
     )
 
     # SellerProfile.profileId (JS)
-    datasources["none"].create_resolver(
-        "SellerProfileIdResolver",
-        type_name="SellerProfile",
+    builder.create_js_resolver(
         field_name="profileId",
-        runtime=appsync.FunctionRuntime.JS_1_0_0,
-        code=appsync.Code.from_asset(str(RESOLVERS_DIR / "seller_profile_id_resolver.js")),
+        type_name="SellerProfile",
+        datasource_name="none",
+        code_file=RESOLVERS_DIR / "seller_profile_id_resolver.js",
+        id_suffix="SellerProfileIdResolver",
     )
 
     # SellerProfile.isOwner (JS)
-    datasources["none"].create_resolver(
-        "SellerProfileIsOwnerResolver",
-        type_name="SellerProfile",
+    builder.create_js_resolver(
         field_name="isOwner",
-        runtime=appsync.FunctionRuntime.JS_1_0_0,
-        code=appsync.Code.from_asset(str(RESOLVERS_DIR / "seller_profile_is_owner_resolver.js")),
+        type_name="SellerProfile",
+        datasource_name="none",
+        code_file=RESOLVERS_DIR / "seller_profile_is_owner_resolver.js",
+        id_suffix="SellerProfileIsOwnerResolver",
     )
 
     # SellerProfile.permissions (JS)
-    datasources["shares"].create_resolver(
-        "SellerProfilePermissionsResolver",
-        type_name="SellerProfile",
+    builder.create_js_resolver(
         field_name="permissions",
-        runtime=appsync.FunctionRuntime.JS_1_0_0,
-        code=appsync.Code.from_asset(str(RESOLVERS_DIR / "seller_profile_permissions_resolver.js")),
+        type_name="SellerProfile",
+        datasource_name="shares",
+        code_file=RESOLVERS_DIR / "seller_profile_permissions_resolver.js",
+        id_suffix="SellerProfilePermissionsResolver",
     )
 
     # === SHARED CAMPAIGN FIELD RESOLVERS ===
 
     # SharedCampaign.catalog (VTL)
-    datasources["catalogs"].create_resolver(
-        "SharedCampaignCatalogResolver",
-        type_name="SharedCampaign",
+    builder.create_vtl_resolver(
         field_name="catalog",
-        request_mapping_template=appsync.MappingTemplate.from_file(
-            str(MAPPING_TEMPLATES_DIR / "shared_campaign_catalog_request.vtl")
-        ),
-        response_mapping_template=appsync.MappingTemplate.from_file(
-            str(MAPPING_TEMPLATES_DIR / "shared_campaign_catalog_response.vtl")
-        ),
+        type_name="SharedCampaign",
+        datasource_name="catalogs",
+        request_template=MAPPING_TEMPLATES_DIR / "shared_campaign_catalog_request.vtl",
+        response_template=MAPPING_TEMPLATES_DIR / "shared_campaign_catalog_response.vtl",
+        id_suffix="SharedCampaignCatalogResolver",
     )
 
     # === SHARE FIELD RESOLVERS ===
 
     # Share.targetAccount (JS)
-    datasources["accounts"].create_resolver(
-        "ShareTargetAccountResolver",
-        type_name="Share",
+    builder.create_js_resolver(
         field_name="targetAccount",
-        runtime=appsync.FunctionRuntime.JS_1_0_0,
-        code=appsync.Code.from_asset(str(RESOLVERS_DIR / "share_target_account_resolver.js")),
+        type_name="Share",
+        datasource_name="accounts",
+        code_file=RESOLVERS_DIR / "share_target_account_resolver.js",
+        id_suffix="ShareTargetAccountResolver",
     )
 
     # === SHARED PROFILE FIELD RESOLVERS ===
@@ -147,30 +139,30 @@ def create_field_resolvers(
         ("updatedAt", "UpdatedAt"),
     ]
     for field_name, construct_suffix in shared_profile_fields:
-        datasources["profiles"].create_resolver(
-            f"SharedProfile{construct_suffix}Resolver",
-            type_name="SharedProfile",
+        builder.create_js_resolver(
             field_name=field_name,
-            runtime=appsync.FunctionRuntime.JS_1_0_0,
-            code=appsync.Code.from_asset(str(RESOLVERS_DIR / "shared_profile_field_resolver.js")),
+            type_name="SharedProfile",
+            datasource_name="profiles",
+            code_file=RESOLVERS_DIR / "shared_profile_field_resolver.js",
+            id_suffix=f"SharedProfile{construct_suffix}Resolver",
         )
 
     # === ACCOUNT & CATALOG FIELD RESOLVERS ===
 
     # Account.accountId (JS) - Strip "ACCOUNT#" prefix
-    datasources["none"].create_resolver(
-        "AccountIdResolver",
-        type_name="Account",
+    builder.create_js_resolver(
         field_name="accountId",
-        runtime=appsync.FunctionRuntime.JS_1_0_0,
-        code=appsync.Code.from_asset(str(RESOLVERS_DIR / "account_id_resolver.js")),
+        type_name="Account",
+        datasource_name="none",
+        code_file=RESOLVERS_DIR / "account_id_resolver.js",
+        id_suffix="AccountIdResolver",
     )
 
     # Catalog.ownerAccountId (JS)
-    datasources["none"].create_resolver(
-        "CatalogOwnerAccountIdResolver",
-        type_name="Catalog",
+    builder.create_js_resolver(
         field_name="ownerAccountId",
-        runtime=appsync.FunctionRuntime.JS_1_0_0,
-        code=appsync.Code.from_asset(str(RESOLVERS_DIR / "catalog_owner_account_id_resolver.js")),
+        type_name="Catalog",
+        datasource_name="none",
+        code_file=RESOLVERS_DIR / "catalog_owner_account_id_resolver.js",
+        id_suffix="CatalogOwnerAccountIdResolver",
     )

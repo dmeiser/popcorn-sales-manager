@@ -22,6 +22,7 @@ interface SharedCampaign {
   state: string;
   createdBy: string;
   createdByName: string;
+  createdByAccountId: string;
   creatorMessage: string;
   description: string | null;
   isActive: boolean;

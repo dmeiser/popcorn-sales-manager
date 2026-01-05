@@ -90,8 +90,6 @@ def create_lambda_datasources(
 
     for fn_key, ds_name in lambda_ds_configs:
         if fn_key in lambda_functions:
-            datasources[fn_key] = api.add_lambda_data_source(
-                ds_name, lambda_function=lambda_functions[fn_key]
-            )
+            datasources[fn_key] = api.add_lambda_data_source(ds_name, lambda_function=lambda_functions[fn_key])
 
     return datasources

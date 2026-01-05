@@ -10,14 +10,16 @@ import pytest
 from moto import mock_aws
 
 
-def test_campaign_operations_validate_unit_fields_requires_unit_number():
-    from src.handlers import campaign_operations
+def test_validation_validate_unit_fields_requires_unit_number():
+    from src.utils.errors import AppError
+    from src.utils.ids import ensure_profile_id
+    from src.utils.validation import validate_unit_fields
 
-    with pytest.raises(ValueError):
-        campaign_operations._validate_unit_fields("Pack", None, "City", "ST")
+    with pytest.raises(AppError):
+        validate_unit_fields("Pack", None, "City", "ST")
 
-    # Ensure PROFILE# prefixing path is exercised
-    assert campaign_operations._normalize_profile_id("abc") == "PROFILE#abc"
+    # Ensure PROFILE# prefixing path is exercised via the centralized utility
+    assert ensure_profile_id("abc") == "PROFILE#abc"
 
 
 def test_campaign_operations_dynamo_value_for_scalar_fallback():
@@ -46,7 +48,9 @@ def test_pre_signup_handle_signup_exception_returns_event():
         pass
 
     with pytest.raises(Exception):
-        pre_signup._handle_signup_exception(InvalidParameterException("InvalidParameterException"), "user@example.com", event)
+        pre_signup._handle_signup_exception(
+            InvalidParameterException("InvalidParameterException"), "user@example.com", event
+        )
 
 
 def test_profile_sharing_deduplicate_and_extract_helpers():
@@ -83,9 +87,7 @@ def test_profile_sharing_log_unprocessed_and_build_result():
             self.warned.append(kwargs)
 
     logger = DummyLogger()
-    profile_sharing._log_unprocessed_keys(
-        {"UnprocessedKeys": {"Profiles": {"Keys": [1, 2, 3]}}}, "Profiles", logger
-    )
+    profile_sharing._log_unprocessed_keys({"UnprocessedKeys": {"Profiles": {"Keys": [1, 2, 3]}}}, "Profiles", logger)
     assert logger.warned == [{"count": 3}]
 
     share = {"profileId": "PROFILE#1", "ownerAccountId": "ACCOUNT#owner", "permissions": ["READ"]}
@@ -96,7 +98,9 @@ def test_profile_sharing_log_unprocessed_and_build_result():
     assert result["permissions"] == ["READ"]
 
     # Missing share returns None
-    assert profile_sharing._build_shared_profile_result({"profileId": "PROFILE#2"}, shares_by_profile, "ACCOUNT#x") is None
+    assert (
+        profile_sharing._build_shared_profile_result({"profileId": "PROFILE#2"}, shares_by_profile, "ACCOUNT#x") is None
+    )
 
     # Unprocessed keys path when table missing
     logger2 = DummyLogger()
@@ -125,21 +129,6 @@ def test_report_generation_get_s3_client_default(monkeypatch):
     report_generation.s3_client = sentinel_client  # type: ignore[assignment]
     assert report_generation._get_s3_client() is sentinel_client
     report_generation.s3_client = None
-
-
-def test_report_generation_get_dynamodb(monkeypatch):
-    from src.handlers import report_generation
-
-    captured: list[tuple[str, str | None]] = []
-
-    def fake_resource(service_name: str, endpoint_url: str | None = None):
-        captured.append((service_name, endpoint_url))
-        return SimpleNamespace()
-
-    monkeypatch.setattr(report_generation.boto3, "resource", fake_resource)
-    resource = report_generation._get_dynamodb()
-    assert captured == [("dynamodb", None)]
-    assert isinstance(resource, SimpleNamespace)
 
 
 def test_validation_price_per_unit_type_error():
@@ -172,7 +161,10 @@ def test_transfer_profile_ownership_success(monkeypatch):
     # Create tables used by handler
     dynamodb.create_table(
         TableName="ProfilesTable",
-        KeySchema=[{"AttributeName": "ownerAccountId", "KeyType": "HASH"}, {"AttributeName": "profileId", "KeyType": "RANGE"}],
+        KeySchema=[
+            {"AttributeName": "ownerAccountId", "KeyType": "HASH"},
+            {"AttributeName": "profileId", "KeyType": "RANGE"},
+        ],
         AttributeDefinitions=[
             {"AttributeName": "ownerAccountId", "AttributeType": "S"},
             {"AttributeName": "profileId", "AttributeType": "S"},
@@ -189,7 +181,10 @@ def test_transfer_profile_ownership_success(monkeypatch):
 
     dynamodb.create_table(
         TableName="SharesTable",
-        KeySchema=[{"AttributeName": "profileId", "KeyType": "HASH"}, {"AttributeName": "targetAccountId", "KeyType": "RANGE"}],
+        KeySchema=[
+            {"AttributeName": "profileId", "KeyType": "HASH"},
+            {"AttributeName": "targetAccountId", "KeyType": "RANGE"},
+        ],
         AttributeDefinitions=[
             {"AttributeName": "profileId", "AttributeType": "S"},
             {"AttributeName": "targetAccountId", "AttributeType": "S"},
@@ -239,7 +234,10 @@ def test_transfer_profile_ownership_error_paths():
     dynamodb = boto3.resource("dynamodb", region_name="us-east-1")
     dynamodb.create_table(
         TableName="ProfilesTable",
-        KeySchema=[{"AttributeName": "ownerAccountId", "KeyType": "HASH"}, {"AttributeName": "profileId", "KeyType": "RANGE"}],
+        KeySchema=[
+            {"AttributeName": "ownerAccountId", "KeyType": "HASH"},
+            {"AttributeName": "profileId", "KeyType": "RANGE"},
+        ],
         AttributeDefinitions=[
             {"AttributeName": "ownerAccountId", "AttributeType": "S"},
             {"AttributeName": "profileId", "AttributeType": "S"},
@@ -256,7 +254,10 @@ def test_transfer_profile_ownership_error_paths():
 
     dynamodb.create_table(
         TableName="SharesTable",
-        KeySchema=[{"AttributeName": "profileId", "KeyType": "HASH"}, {"AttributeName": "targetAccountId", "KeyType": "RANGE"}],
+        KeySchema=[
+            {"AttributeName": "profileId", "KeyType": "HASH"},
+            {"AttributeName": "targetAccountId", "KeyType": "RANGE"},
+        ],
         AttributeDefinitions=[
             {"AttributeName": "profileId", "AttributeType": "S"},
             {"AttributeName": "targetAccountId", "AttributeType": "S"},

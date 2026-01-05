@@ -22,29 +22,8 @@ import {
   Chip,
   CircularProgress,
 } from '@mui/material';
-
-interface SharedCampaign {
-  sharedCampaignCode: string;
-  catalogId: string;
-  catalog?: {
-    catalogId: string;
-    catalogName: string;
-  };
-  campaignName: string;
-  campaignYear: number;
-  startDate?: string;
-  endDate?: string;
-  unitType: string;
-  unitNumber: number;
-  city: string;
-  state: string;
-  createdBy: string;
-  createdByName: string;
-  creatorMessage?: string;
-  description?: string;
-  isActive: boolean;
-  createdAt: string;
-}
+import type { SharedCampaign } from '../types';
+import { useFormState } from '../hooks/useFormState';
 
 interface EditSharedCampaignDialogProps {
   open: boolean;
@@ -174,37 +153,37 @@ const validateMessage = (message: string): string | null =>
     ? `Creator message must be ${MAX_CREATOR_MESSAGE_LENGTH} characters or less`
     : null;
 
-const checkHasChanges = (
-  description: string,
-  creatorMessage: string,
-  isActive: boolean,
-  sharedCampaign: SharedCampaign,
-): boolean =>
-  description !== (sharedCampaign.description || '') ||
-  creatorMessage !== (sharedCampaign.creatorMessage || '') ||
-  isActive !== sharedCampaign.isActive;
+interface SharedCampaignFormValues {
+  description: string;
+  creatorMessage: string;
+  isActive: boolean;
+}
 
 const useEditFormState = (sharedCampaign: SharedCampaign) => {
-  const [description, setDescription] = useState(sharedCampaign.description || '');
-  const [creatorMessage, setCreatorMessage] = useState(sharedCampaign.creatorMessage || '');
-  const [isActive, setIsActive] = useState(sharedCampaign.isActive);
+  const form = useFormState<SharedCampaignFormValues>({
+    initialValues: {
+      description: sharedCampaign.description || '',
+      creatorMessage: sharedCampaign.creatorMessage || '',
+      isActive: sharedCampaign.isActive,
+    },
+  });
 
   useEffect(() => {
-    setDescription(sharedCampaign.description || '');
-    setCreatorMessage(sharedCampaign.creatorMessage || '');
-    setIsActive(sharedCampaign.isActive);
+    form.resetTo({
+      description: sharedCampaign.description || '',
+      creatorMessage: sharedCampaign.creatorMessage || '',
+      isActive: sharedCampaign.isActive,
+    });
   }, [sharedCampaign]);
 
-  const hasChanges = checkHasChanges(description, creatorMessage, isActive, sharedCampaign);
-
   return {
-    description,
-    setDescription,
-    creatorMessage,
-    setCreatorMessage,
-    isActive,
-    setIsActive,
-    hasChanges,
+    description: form.values.description,
+    setDescription: (v: string) => form.setValue('description', v),
+    creatorMessage: form.values.creatorMessage,
+    setCreatorMessage: (v: string) => form.setValue('creatorMessage', v),
+    isActive: form.values.isActive,
+    setIsActive: (v: boolean) => form.setValue('isActive', v),
+    hasChanges: form.isDirty,
   };
 };
 

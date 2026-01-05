@@ -4,28 +4,7 @@
 import React from 'react';
 import { Box, Alert, AlertTitle, Button, CircularProgress, Card, CardContent, Stack, Typography } from '@mui/material';
 import { Campaign as CampaignIcon } from '@mui/icons-material';
-
-interface SharedCampaign {
-  sharedCampaignCode: string;
-  catalogId: string;
-  catalog: {
-    catalogId: string;
-    catalogName: string;
-  };
-  campaignName: string;
-  campaignYear: number;
-  startDate: string | null;
-  endDate: string | null;
-  unitType: string;
-  unitNumber: number;
-  city: string;
-  state: string;
-  createdBy: string;
-  createdByName: string;
-  creatorMessage: string;
-  description: string | null;
-  isActive: boolean;
-}
+import type { SharedCampaign } from '../types/entities';
 
 interface ErrorProps {
   message: string;

@@ -10,6 +10,7 @@ from src.handlers.campaign_operations import (
     _to_dynamo_value,
     create_campaign,
 )
+from src.utils.errors import AppError
 
 
 class TestBuildUnitCampaignKey:
@@ -505,17 +506,17 @@ class TestCreateCampaign:
             "arguments": {"input": {"profileId": "PROFILE#123"}},
             "identity": {"sub": "test-account-123"},
         }
-        with pytest.raises(ValueError, match="campaignName is required"):
+        with pytest.raises(AppError, match="campaign_name is required"):
             create_campaign(event, lambda_context)
 
         # Test missing campaignYear
         event["arguments"]["input"]["campaignName"] = "Fall"
-        with pytest.raises(ValueError, match="campaignYear is required"):
+        with pytest.raises(AppError, match="campaign_year is required"):
             create_campaign(event, lambda_context)
 
         # Test missing catalogId
         event["arguments"]["input"]["campaignYear"] = 2024
-        with pytest.raises(ValueError, match="catalogId is required"):
+        with pytest.raises(AppError, match="catalog_id is required"):
             create_campaign(event, lambda_context)
 
     @patch("src.handlers.campaign_operations.check_profile_access")
@@ -547,17 +548,17 @@ class TestCreateCampaign:
         }
 
         # Test unitType without unitNumber
-        with pytest.raises(ValueError, match="unitNumber is required"):
+        with pytest.raises(AppError, match="unitNumber is required"):
             create_campaign(base_event, lambda_context)
 
         # Test with unitNumber but without city
         base_event["arguments"]["input"]["unitNumber"] = 158
-        with pytest.raises(ValueError, match="city is required"):
+        with pytest.raises(AppError, match="city is required"):
             create_campaign(base_event, lambda_context)
 
         # Test with city but without state
         base_event["arguments"]["input"]["city"] = "Springfield"
-        with pytest.raises(ValueError, match="state is required"):
+        with pytest.raises(AppError, match="state is required"):
             create_campaign(base_event, lambda_context)
 
     @patch("src.handlers.campaign_operations.dynamodb_client")
@@ -594,7 +595,7 @@ class TestCreateCampaign:
         }
 
         # Act & Assert
-        with pytest.raises(ValueError, match="unitNumber must be a valid integer"):
+        with pytest.raises(AppError, match="unitNumber must be a valid integer"):
             create_campaign(event, lambda_context)
 
     @pytest.mark.skip(reason="TODO: Fix mock setup for shared_campaigns_table - mocking not working as expected")
@@ -773,39 +774,43 @@ class TestCreateCampaign:
 class TestGetSharedCampaign:
     """Tests for _get_shared_campaign helper function."""
 
-    @patch("src.handlers.campaign_operations.shared_campaigns_table")
-    def test_get_shared_campaign_success(self, mock_shared_campaigns_table: MagicMock) -> None:
+    def test_get_shared_campaign_success(self) -> None:
         """Test successful shared campaign retrieval."""
         from src.handlers.campaign_operations import _get_shared_campaign
 
-        mock_shared_campaigns_table.get_item.return_value = {
-            "Item": {"sharedCampaignCode": "TEST123", "campaignName": "Fall"}
-        }
+        mock_table = MagicMock()
+        mock_table.get_item.return_value = {"Item": {"sharedCampaignCode": "TEST123", "campaignName": "Fall"}}
 
-        result = _get_shared_campaign("TEST123")
+        with patch("src.handlers.campaign_operations.tables") as mock_tables:
+            mock_tables.shared_campaigns = mock_table
+            result = _get_shared_campaign("TEST123")
 
         assert result is not None
         assert result["sharedCampaignCode"] == "TEST123"
 
-    @patch("src.handlers.campaign_operations.shared_campaigns_table")
-    def test_get_shared_campaign_not_found(self, mock_shared_campaigns_table: MagicMock) -> None:
+    def test_get_shared_campaign_not_found(self) -> None:
         """Test shared campaign not found returns None."""
         from src.handlers.campaign_operations import _get_shared_campaign
 
-        mock_shared_campaigns_table.get_item.return_value = {}
+        mock_table = MagicMock()
+        mock_table.get_item.return_value = {}
 
-        result = _get_shared_campaign("NONEXISTENT")
+        with patch("src.handlers.campaign_operations.tables") as mock_tables:
+            mock_tables.shared_campaigns = mock_table
+            result = _get_shared_campaign("NONEXISTENT")
 
         assert result is None
 
-    @patch("src.handlers.campaign_operations.shared_campaigns_table")
-    def test_get_shared_campaign_error(self, mock_shared_campaigns_table: MagicMock) -> None:
+    def test_get_shared_campaign_error(self) -> None:
         """Test shared campaign error returns None."""
         from src.handlers.campaign_operations import _get_shared_campaign
 
-        mock_shared_campaigns_table.get_item.side_effect = Exception("DynamoDB error")
+        mock_table = MagicMock()
+        mock_table.get_item.side_effect = Exception("DynamoDB error")
 
-        result = _get_shared_campaign("TEST123")
+        with patch("src.handlers.campaign_operations.tables") as mock_tables:
+            mock_tables.shared_campaigns = mock_table
+            result = _get_shared_campaign("TEST123")
 
         assert result is None
 
@@ -813,36 +818,42 @@ class TestGetSharedCampaign:
 class TestGetProfile:
     """Tests for _get_profile helper function."""
 
-    @patch("src.handlers.campaign_operations.profiles_table")
-    def test_get_profile_success(self, mock_profiles_table: MagicMock) -> None:
+    def test_get_profile_success(self) -> None:
         """Test successful profile retrieval."""
         from src.handlers.campaign_operations import _get_profile
 
-        mock_profiles_table.query.return_value = {"Items": [{"profileId": "PROFILE#123", "sellerName": "Test"}]}
+        mock_table = MagicMock()
+        mock_table.query.return_value = {"Items": [{"profileId": "PROFILE#123", "sellerName": "Test"}]}
 
-        result = _get_profile("PROFILE#123")
+        with patch("src.handlers.campaign_operations.tables") as mock_tables:
+            mock_tables.profiles = mock_table
+            result = _get_profile("PROFILE#123")
 
         assert result is not None
         assert result["profileId"] == "PROFILE#123"
 
-    @patch("src.handlers.campaign_operations.profiles_table")
-    def test_get_profile_not_found(self, mock_profiles_table: MagicMock) -> None:
+    def test_get_profile_not_found(self) -> None:
         """Test profile not found returns None."""
         from src.handlers.campaign_operations import _get_profile
 
-        mock_profiles_table.query.return_value = {"Items": []}
+        mock_table = MagicMock()
+        mock_table.query.return_value = {"Items": []}
 
-        result = _get_profile("NONEXISTENT")
+        with patch("src.handlers.campaign_operations.tables") as mock_tables:
+            mock_tables.profiles = mock_table
+            result = _get_profile("NONEXISTENT")
 
         assert result is None
 
-    @patch("src.handlers.campaign_operations.profiles_table")
-    def test_get_profile_error(self, mock_profiles_table: MagicMock) -> None:
+    def test_get_profile_error(self) -> None:
         """Test profile error returns None."""
         from src.handlers.campaign_operations import _get_profile
 
-        mock_profiles_table.query.side_effect = Exception("DynamoDB error")
+        mock_table = MagicMock()
+        mock_table.query.side_effect = Exception("DynamoDB error")
 
-        result = _get_profile("PROFILE#123")
+        with patch("src.handlers.campaign_operations.tables") as mock_tables:
+            mock_tables.profiles = mock_table
+            result = _get_profile("PROFILE#123")
 
         assert result is None

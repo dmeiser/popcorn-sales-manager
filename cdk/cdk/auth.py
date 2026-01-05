@@ -63,9 +63,7 @@ def _create_sms_role(scope: Construct, region_abbrev: str, env_name: str) -> iam
         role_name=sms_role_name,
         inline_policies={
             "UserPoolSmsPolicy": iam.PolicyDocument(
-                statements=[
-                    iam.PolicyStatement(actions=["sns:Publish"], resources=["arn:aws:sns:*:*:*"])
-                ]
+                statements=[iam.PolicyStatement(actions=["sns:Publish"], resources=["arn:aws:sns:*:*:*"])]
             )
         },
     )
@@ -154,7 +152,9 @@ def create_cognito_auth(
         user_pool_client = result["user_pool_client"]
 
     # Handle User Pool Domain for imported pools
-    _handle_imported_pool_domain(scope, existing_user_pool_id, cognito_domain, cognito_certificate, hosted_zone, user_pool, result)
+    _handle_imported_pool_domain(
+        scope, existing_user_pool_id, cognito_domain, cognito_certificate, hosted_zone, user_pool, result
+    )
 
     # Output Cognito Hosted UI URL for easy access
     _output_cognito_urls(scope, result, user_pool_client)
@@ -276,7 +276,10 @@ def _create_new_user_pool(
 
     # Create ADMIN user group
     cognito.CfnUserPoolGroup(
-        scope, "AdminGroup", user_pool_id=user_pool.user_pool_id, group_name="ADMIN",
+        scope,
+        "AdminGroup",
+        user_pool_id=user_pool.user_pool_id,
+        group_name="ADMIN",
         description="Administrator users with elevated privileges",
     )
 
@@ -303,14 +306,14 @@ def _configure_social_providers(
     scope: Construct, user_pool: cognito.UserPool
 ) -> list[cognito.UserPoolClientIdentityProvider]:
     """Configure social identity providers (Google, Facebook, Apple)."""
-    supported_providers: list[cognito.UserPoolClientIdentityProvider] = [
-        cognito.UserPoolClientIdentityProvider.COGNITO
-    ]
+    supported_providers: list[cognito.UserPoolClientIdentityProvider] = [cognito.UserPoolClientIdentityProvider.COGNITO]
 
     # Google OAuth
     if os.environ.get("GOOGLE_CLIENT_ID") and os.environ.get("GOOGLE_CLIENT_SECRET"):
         cognito.UserPoolIdentityProviderGoogle(
-            scope, "GoogleProvider", user_pool=user_pool,
+            scope,
+            "GoogleProvider",
+            user_pool=user_pool,
             client_id=os.environ["GOOGLE_CLIENT_ID"],
             client_secret=os.environ["GOOGLE_CLIENT_SECRET"],
             scopes=["email", "profile", "openid"],
@@ -325,7 +328,9 @@ def _configure_social_providers(
     # Facebook OAuth
     if os.environ.get("FACEBOOK_APP_ID") and os.environ.get("FACEBOOK_APP_SECRET"):
         cognito.UserPoolIdentityProviderFacebook(
-            scope, "FacebookProvider", user_pool=user_pool,
+            scope,
+            "FacebookProvider",
+            user_pool=user_pool,
             client_id=os.environ["FACEBOOK_APP_ID"],
             client_secret=os.environ["FACEBOOK_APP_SECRET"],
             scopes=["email", "public_profile"],
@@ -345,7 +350,9 @@ def _configure_social_providers(
         and os.environ.get("APPLE_PRIVATE_KEY")
     ):
         cognito.UserPoolIdentityProviderApple(
-            scope, "AppleProvider", user_pool=user_pool,
+            scope,
+            "AppleProvider",
+            user_pool=user_pool,
             client_id=os.environ["APPLE_SERVICES_ID"],
             team_id=os.environ["APPLE_TEAM_ID"],
             key_id=os.environ["APPLE_KEY_ID"],
@@ -419,14 +426,19 @@ def _handle_imported_pool_domain(
 
     print(f"Defining User Pool Domain: {cognito_domain}")
     user_pool_domain = cognito.UserPoolDomain(
-        scope, "UserPoolDomain", user_pool=user_pool,
+        scope,
+        "UserPoolDomain",
+        user_pool=user_pool,
         custom_domain=cognito.CustomDomainOptions(domain_name=cognito_domain, certificate=cognito_certificate),
     )
     user_pool_domain.node.default_child.apply_removal_policy(RemovalPolicy.RETAIN)
 
     print(f"Defining Route53 A record for Cognito domain: {cognito_domain}")
     cognito_domain_record = route53.ARecord(
-        scope, "CognitoDomainRecord", zone=hosted_zone, record_name=cognito_domain,
+        scope,
+        "CognitoDomainRecord",
+        zone=hosted_zone,
+        record_name=cognito_domain,
         target=route53.RecordTarget.from_alias(targets.UserPoolDomainTarget(user_pool_domain)),
     )
     cognito_domain_record.apply_removal_policy(RemovalPolicy.RETAIN)
@@ -435,19 +447,21 @@ def _handle_imported_pool_domain(
     result["cognito_domain_record"] = cognito_domain_record
 
 
-def _output_cognito_urls(
-    scope: Construct, result: dict[str, Any], user_pool_client: cognito.UserPoolClient
-) -> None:
+def _output_cognito_urls(scope: Construct, result: dict[str, Any], user_pool_client: cognito.UserPoolClient) -> None:
     """Output Cognito URLs for easy access."""
     if "user_pool_domain" in result:
         region = os.getenv("AWS_REGION") or os.getenv("CDK_DEFAULT_REGION") or "us-east-1"
         CfnOutput(
-            scope, "CognitoHostedUIUrl",
+            scope,
+            "CognitoHostedUIUrl",
             value=f"https://{result['user_pool_domain'].domain_name}.auth.{region}.amazoncognito.com/login?client_id={user_pool_client.user_pool_client_id}&response_type=code&redirect_uri=http://localhost:5173",
             description="Cognito Hosted UI URL for testing",
         )
 
     CfnOutput(
-        scope, "UserPoolClientId", value=user_pool_client.user_pool_client_id,
-        description="Cognito User Pool Client ID", export_name="kernelworx-ue1-dev-UserPoolClientId",
+        scope,
+        "UserPoolClientId",
+        value=user_pool_client.user_pool_client_id,
+        description="Cognito User Pool Client ID",
+        export_name="kernelworx-ue1-dev-UserPoolClientId",
     )

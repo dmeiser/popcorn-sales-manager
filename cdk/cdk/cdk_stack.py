@@ -21,28 +21,7 @@ from aws_cdk import aws_s3 as s3
 from constructs import Construct
 
 from .appsync import setup_appsync
-
-# Region abbreviation mapping for resource naming
-# Pattern: {name}-{region_abbrev}-{env} e.g. kernelworx-ue1-dev
-REGION_ABBREVIATIONS = {
-    "us-east-1": "ue1",
-    "us-east-2": "ue2",
-    "us-west-1": "uw1",
-    "us-west-2": "uw2",
-    "eu-west-1": "ew1",
-    "eu-west-2": "ew2",
-    "eu-west-3": "ew3",
-    "eu-central-1": "ec1",
-    "eu-north-1": "en1",
-    "ap-northeast-1": "ane1",  # Tokyo
-    "ap-northeast-2": "ane2",  # Seoul
-    "ap-northeast-3": "ane3",  # Osaka
-    "ap-southeast-1": "ase1",  # Singapore
-    "ap-southeast-2": "ase2",  # Sydney
-    "ap-south-1": "as1",  # Mumbai
-    "sa-east-1": "se1",  # São Paulo
-    "ca-central-1": "cc1",  # Canada
-}
+from .helpers import get_context_bool, get_domain_names, get_known_user_pool_id, get_region_abbrev
 
 
 class CdkStack(Stack):  # type: ignore[misc]
@@ -58,38 +37,18 @@ class CdkStack(Stack):  # type: ignore[misc]
     - CloudFront distribution for SPA
     """
 
-    def _get_region_abbrev(self) -> str:
-        """Get region abbreviation for resource naming."""
-        region = os.getenv("AWS_REGION") or os.getenv("CDK_DEFAULT_REGION") or "us-east-1"
-        return REGION_ABBREVIATIONS.get(region, region[:3])
-
     def _rn(self, name: str) -> str:
         """Generate resource name with region and environment suffix."""
         return f"{name}-{self.region_abbrev}-{self.env_name}"
 
     def _configure_domains(self, base_domain: str) -> None:
-        """Configure domain names based on environment."""
-        if self.env_name == "prod":
-            self.site_domain = base_domain
-            self.api_domain = f"api.{base_domain}"
-            self.cognito_domain = f"login.{base_domain}"
-        else:
-            self.site_domain = f"{self.env_name}.{base_domain}"
-            self.api_domain = f"api.{self.env_name}.{base_domain}"
-            self.cognito_domain = f"login.{self.env_name}.{base_domain}"
+        """Configure domain names based on environment using helper."""
+        domains = get_domain_names(base_domain, self.env_name)
+        self.site_domain = domains["site_domain"]
+        self.api_domain = domains["api_domain"]
+        self.cognito_domain = domains["cognito_domain"]
 
-    def _get_context_bool(self, key: str, default: bool = True) -> bool:
-        """Get a boolean value from CDK context, handling string values."""
-        value = self.node.try_get_context(key)
-        if value is None:
-            return default
-        if isinstance(value, bool):
-            return value
-        return str(value).lower() != "false"
-
-    def _setup_google_provider(
-        self, supported_providers: list[cognito.UserPoolClientIdentityProvider]
-    ) -> None:
+    def _setup_google_provider(self, supported_providers: list[cognito.UserPoolClientIdentityProvider]) -> None:
         """Configure Google OAuth provider if credentials are available."""
         if os.environ.get("GOOGLE_CLIENT_ID") and os.environ.get("GOOGLE_CLIENT_SECRET"):
             cognito.UserPoolIdentityProviderGoogle(
@@ -107,9 +66,7 @@ class CdkStack(Stack):  # type: ignore[misc]
             )
             supported_providers.append(cognito.UserPoolClientIdentityProvider.GOOGLE)
 
-    def _setup_facebook_provider(
-        self, supported_providers: list[cognito.UserPoolClientIdentityProvider]
-    ) -> None:
+    def _setup_facebook_provider(self, supported_providers: list[cognito.UserPoolClientIdentityProvider]) -> None:
         """Configure Facebook OAuth provider if credentials are available."""
         if os.environ.get("FACEBOOK_APP_ID") and os.environ.get("FACEBOOK_APP_SECRET"):
             cognito.UserPoolIdentityProviderFacebook(
@@ -127,9 +84,7 @@ class CdkStack(Stack):  # type: ignore[misc]
             )
             supported_providers.append(cognito.UserPoolClientIdentityProvider.FACEBOOK)
 
-    def _setup_apple_provider(
-        self, supported_providers: list[cognito.UserPoolClientIdentityProvider]
-    ) -> None:
+    def _setup_apple_provider(self, supported_providers: list[cognito.UserPoolClientIdentityProvider]) -> None:
         """Configure Apple Sign In provider if credentials are available."""
         has_apple_creds = (
             os.environ.get("APPLE_SERVICES_ID")
@@ -167,13 +122,11 @@ class CdkStack(Stack):  # type: ignore[misc]
         self._setup_apple_provider(supported_providers)
         return supported_providers
 
-    def __init__(
-        self, scope: Construct, construct_id: str, env_name: str = "dev", **kwargs: Any
-    ) -> None:
+    def __init__(self, scope: Construct, construct_id: str, env_name: str = "dev", **kwargs: Any) -> None:
         super().__init__(scope, construct_id, **kwargs)
 
         self.env_name = env_name
-        self.region_abbrev = self._get_region_abbrev()
+        self.region_abbrev = get_region_abbrev()
 
         # Apply standard tags to all resources in the stack
         Tags.of(self).add("Application", "kernelworx")
@@ -270,16 +223,12 @@ class CdkStack(Stack):  # type: ignore[misc]
         # GSIs
         self.catalogs_table.add_global_secondary_index(
             index_name="ownerAccountId-index",
-            partition_key=dynamodb.Attribute(
-                name="ownerAccountId", type=dynamodb.AttributeType.STRING
-            ),
+            partition_key=dynamodb.Attribute(name="ownerAccountId", type=dynamodb.AttributeType.STRING),
             projection_type=dynamodb.ProjectionType.ALL,
         )
         self.catalogs_table.add_global_secondary_index(
             index_name="isPublic-createdAt-index",
-            partition_key=dynamodb.Attribute(
-                name="isPublicStr", type=dynamodb.AttributeType.STRING
-            ),
+            partition_key=dynamodb.Attribute(name="isPublicStr", type=dynamodb.AttributeType.STRING),
             sort_key=dynamodb.Attribute(name="createdAt", type=dynamodb.AttributeType.STRING),
             projection_type=dynamodb.ProjectionType.ALL,
         )
@@ -293,9 +242,7 @@ class CdkStack(Stack):  # type: ignore[misc]
             self,
             "ProfilesTableV2",
             table_name=profiles_table_name,
-            partition_key=dynamodb.Attribute(
-                name="ownerAccountId", type=dynamodb.AttributeType.STRING
-            ),
+            partition_key=dynamodb.Attribute(name="ownerAccountId", type=dynamodb.AttributeType.STRING),
             sort_key=dynamodb.Attribute(name="profileId", type=dynamodb.AttributeType.STRING),
             billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
             point_in_time_recovery_specification=dynamodb.PointInTimeRecoverySpecification(
@@ -331,9 +278,7 @@ class CdkStack(Stack):  # type: ignore[misc]
         # GSI for "profiles shared with me" query
         self.shares_table.add_global_secondary_index(
             index_name="targetAccountId-index",
-            partition_key=dynamodb.Attribute(
-                name="targetAccountId", type=dynamodb.AttributeType.STRING
-            ),
+            partition_key=dynamodb.Attribute(name="targetAccountId", type=dynamodb.AttributeType.STRING),
             projection_type=dynamodb.ProjectionType.ALL,
         )
 
@@ -363,11 +308,9 @@ class CdkStack(Stack):  # type: ignore[misc]
         # TTL for invites (automatic expiration)
         cfn_invites_table = self.invites_table.node.default_child
         assert cfn_invites_table is not None
-        cfn_invites_table.time_to_live_specification = (
-            dynamodb.CfnTable.TimeToLiveSpecificationProperty(
-                attribute_name="expiresAt",
-                enabled=True,
-            )
+        cfn_invites_table.time_to_live_specification = dynamodb.CfnTable.TimeToLiveSpecificationProperty(
+            attribute_name="expiresAt",
+            enabled=True,
         )
 
         # Campaigns Table V2
@@ -442,9 +385,7 @@ class CdkStack(Stack):  # type: ignore[misc]
             self,
             "SharedCampaignsTable",
             table_name=shared_campaigns_table_name,
-            partition_key=dynamodb.Attribute(
-                name="sharedCampaignCode", type=dynamodb.AttributeType.STRING
-            ),
+            partition_key=dynamodb.Attribute(name="sharedCampaignCode", type=dynamodb.AttributeType.STRING),
             billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
             point_in_time_recovery_specification=dynamodb.PointInTimeRecoverySpecification(
                 point_in_time_recovery_enabled=True
@@ -463,9 +404,7 @@ class CdkStack(Stack):  # type: ignore[misc]
         # unitCampaignKey format: {unitType}#{unitNumber}#{city}#{state}#{campaignName}#{campaignYear}
         self.shared_campaigns_table.add_global_secondary_index(
             index_name="GSI2",
-            partition_key=dynamodb.Attribute(
-                name="unitCampaignKey", type=dynamodb.AttributeType.STRING
-            ),
+            partition_key=dynamodb.Attribute(name="unitCampaignKey", type=dynamodb.AttributeType.STRING),
             projection_type=dynamodb.ProjectionType.ALL,
         )
 
@@ -508,9 +447,7 @@ class CdkStack(Stack):  # type: ignore[misc]
             role_name=self._rn("kernelworx-lambda-exec"),
             assumed_by=iam.ServicePrincipal("lambda.amazonaws.com"),
             managed_policies=[
-                iam.ManagedPolicy.from_aws_managed_policy_name(
-                    "service-role/AWSLambdaBasicExecutionRole"
-                )
+                iam.ManagedPolicy.from_aws_managed_policy_name("service-role/AWSLambdaBasicExecutionRole")
             ],
         )
 
@@ -805,16 +742,8 @@ class CdkStack(Stack):  # type: ignore[misc]
         # Cognito User Pool - Authentication (Essentials tier)
         # ====================================================================
 
-        # Known User Pool IDs for each environment (prevents creating duplicates)
-        KNOWN_USER_POOL_IDS = {
-            "dev": "us-east-1_sDiuCOarb",
-            # Add prod when ready: "prod": "us-east-1_XXXXX",
-        }
-
         # Get the known pool ID or use context parameter
-        known_pool_id = KNOWN_USER_POOL_IDS.get(env_name) or self.node.try_get_context(
-            "user_pool_id"
-        )
+        known_pool_id = get_known_user_pool_id(env_name) or self.node.try_get_context("user_pool_id")
         existing_user_pool_id = known_pool_id
 
         if existing_user_pool_id:
@@ -979,10 +908,8 @@ class CdkStack(Stack):  # type: ignore[misc]
             # Configure user attribute update settings to require verification for email changes
             cfn_user_pool = self.user_pool.node.default_child
             assert cfn_user_pool is not None
-            cfn_user_pool.user_attribute_update_settings = (
-                cognito.CfnUserPool.UserAttributeUpdateSettingsProperty(
-                    attributes_require_verification_before_update=["email"]
-                )
+            cfn_user_pool.user_attribute_update_settings = cognito.CfnUserPool.UserAttributeUpdateSettingsProperty(
+                attributes_require_verification_before_update=["email"]
             )
 
             # Note: COPPA compliance warning (13+ age requirement) must be displayed
@@ -1041,7 +968,7 @@ class CdkStack(Stack):  # type: ignore[misc]
             # site distribution and DNS first, then creating the Cognito
             # custom domain after DNS has propagated. Control this behaviour
             # with the context key `create_cognito_domain` (default: True).
-            create_cognito_domain = self._get_context_bool("create_cognito_domain", default=True)
+            create_cognito_domain = get_context_bool(self, "create_cognito_domain", default=True)
 
             # Custom domain configuration (login.{env}.kernelworx.app or login.kernelworx.app)
             if create_cognito_domain:
@@ -1065,7 +992,7 @@ class CdkStack(Stack):  # type: ignore[misc]
 
         # Check if we should skip UserPoolDomain creation (during import)
         # Skip domain creation if explicitly disabled via context
-        skip_user_pool_domain = self._get_context_bool("skip_user_pool_domain", default=False)
+        skip_user_pool_domain = get_context_bool(self, "skip_user_pool_domain", default=False)
 
         if existing_user_pool_id and not skip_user_pool_domain:
             print(f"Defining User Pool Domain: {self.cognito_domain}")
@@ -1086,9 +1013,7 @@ class CdkStack(Stack):  # type: ignore[misc]
                 "CognitoDomainRecord",
                 zone=self.hosted_zone,
                 record_name=self.cognito_domain,
-                target=route53.RecordTarget.from_alias(
-                    targets.UserPoolDomainTarget(self.user_pool_domain)
-                ),
+                target=route53.RecordTarget.from_alias(targets.UserPoolDomainTarget(self.user_pool_domain)),
             )
             self.cognito_domain_record.apply_removal_policy(RemovalPolicy.RETAIN)
         elif existing_user_pool_id and skip_user_pool_domain:

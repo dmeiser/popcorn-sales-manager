@@ -20,46 +20,47 @@ import {
   Alert,
 } from '@mui/material';
 import { Add as AddIcon, Delete as DeleteIcon } from '@mui/icons-material';
+import type { ProductInput, Catalog, Product } from '../types';
+import { useFormState } from '../hooks/useFormState';
 
-interface Product {
-  productName: string;
-  description?: string;
-  price: number;
-}
-
-interface Catalog {
+// Local Catalog type for editing (products may not have IDs yet)
+interface CatalogInput {
   catalogId?: string;
   catalogName: string;
   isPublic: boolean;
-  products: Product[];
+  products: ProductInput[];
   isDeleted?: boolean;
 }
 
 interface CatalogEditorDialogProps {
   open: boolean;
   onClose: () => void;
-  onSave: (catalog: Omit<Catalog, 'catalogId'>) => Promise<void>;
+  onSave: (catalog: Omit<CatalogInput, 'catalogId'>) => Promise<void>;
   initialCatalog?: Catalog | null;
 }
 
+interface CatalogFormValues {
+  catalogName: string;
+  isPublic: boolean;
+}
+
 export const CatalogEditorDialog: React.FC<CatalogEditorDialogProps> = ({ open, onClose, onSave, initialCatalog }) => {
-  const [catalogName, setCatalogName] = useState('');
-  const [isPublic, setIsPublic] = useState(false);
-  const [products, setProducts] = useState<Product[]>([]);
+  const form = useFormState<CatalogFormValues>({
+    initialValues: { catalogName: '', isPublic: false },
+  });
+  const [products, setProducts] = useState<ProductInput[]>([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const resetForm = () => {
-    setCatalogName('');
-    setIsPublic(false);
+    form.resetTo({ catalogName: '', isPublic: false });
     setProducts([{ productName: '', description: '', price: 0 }]);
     setError(null);
   };
 
   const initFromCatalog = (catalog: Catalog) => {
-    setCatalogName(catalog.catalogName);
-    setIsPublic(catalog.isPublic);
-    setProducts([...catalog.products]);
+    form.resetTo({ catalogName: catalog.catalogName, isPublic: catalog.isPublic ?? false });
+    setProducts([...(catalog.products ?? [])]);
     setError(null);
   };
 
@@ -105,13 +106,13 @@ export const CatalogEditorDialog: React.FC<CatalogEditorDialogProps> = ({ open, 
   };
 
   const validate = (): string | null => {
-    if (!catalogName.trim()) return 'Catalog name is required';
+    if (!form.values.catalogName.trim()) return 'Catalog name is required';
     return validateProducts();
   };
 
   const buildCatalogPayload = () => ({
-    catalogName: catalogName.trim(),
-    isPublic,
+    catalogName: form.values.catalogName.trim(),
+    isPublic: form.values.isPublic,
     products: products.map((p, index) => ({
       productName: p.productName.trim(),
       description: p.description?.trim() || undefined,
@@ -153,8 +154,8 @@ export const CatalogEditorDialog: React.FC<CatalogEditorDialogProps> = ({ open, 
           {/* Catalog Name */}
           <TextField
             label="Catalog Name"
-            value={catalogName}
-            onChange={(e) => setCatalogName(e.target.value)}
+            value={form.values.catalogName}
+            onChange={(e) => form.setValue('catalogName', e.target.value)}
             fullWidth
             required
             placeholder="e.g., 2025 Popcorn Catalog"
@@ -162,7 +163,9 @@ export const CatalogEditorDialog: React.FC<CatalogEditorDialogProps> = ({ open, 
 
           {/* Public Checkbox */}
           <FormControlLabel
-            control={<Checkbox checked={isPublic} onChange={(e) => setIsPublic(e.target.checked)} />}
+            control={
+              <Checkbox checked={form.values.isPublic} onChange={(e) => form.setValue('isPublic', e.target.checked)} />
+            }
             label="Make this catalog public (visible to all users)"
           />
 

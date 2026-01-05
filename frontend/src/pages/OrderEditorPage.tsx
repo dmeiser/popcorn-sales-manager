@@ -32,20 +32,11 @@ import { Add as AddIcon, Delete as DeleteIcon, ArrowBack as ArrowBackIcon } from
 import { CREATE_ORDER, UPDATE_ORDER, GET_ORDER, GET_CAMPAIGN, GET_PROFILE } from '../lib/graphql';
 import { ensureProfileId, ensureCampaignId, ensureOrderId, toUrlId } from '../lib/ids';
 import { useOrderForm, type OrderFormState, type LineItemInput } from '../hooks/useOrderForm';
+import type { Product, Catalog, OrderAddress } from '../types';
 
 // ============================================================================
-// Types
+// Types (page-specific types not in shared entities)
 // ============================================================================
-
-interface Product {
-  productId: string;
-  productName: string;
-  price: number;
-}
-
-interface Catalog {
-  products: Product[];
-}
 
 interface CampaignData {
   campaignId: string;
@@ -56,13 +47,6 @@ interface ProfileData {
   profileId: string;
   isOwner: boolean;
   permissions?: string[];
-}
-
-interface OrderAddress {
-  street?: string;
-  city?: string;
-  state?: string;
-  zipCode?: string;
 }
 
 interface OrderLineItem {

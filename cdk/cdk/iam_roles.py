@@ -37,11 +37,7 @@ def create_lambda_execution_role(
         "LambdaExecutionRole",
         role_name=rn("kernelworx-lambda-exec"),
         assumed_by=iam.ServicePrincipal("lambda.amazonaws.com"),
-        managed_policies=[
-            iam.ManagedPolicy.from_aws_managed_policy_name(
-                "service-role/AWSLambdaBasicExecutionRole"
-            )
-        ],
+        managed_policies=[iam.ManagedPolicy.from_aws_managed_policy_name("service-role/AWSLambdaBasicExecutionRole")],
     )
 
     # Grant Lambda role access to all tables

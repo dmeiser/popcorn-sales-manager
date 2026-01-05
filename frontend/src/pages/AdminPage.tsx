@@ -25,26 +25,13 @@ import {
 } from '@mui/material';
 import { People as PeopleIcon, Inventory as CatalogIcon, Info as InfoIcon } from '@mui/icons-material';
 import { LIST_MY_PROFILES, LIST_PUBLIC_CATALOGS } from '../lib/graphql';
+import type { SellerProfile, Catalog } from '../types';
 
 // --- Type Definitions ---
 interface TabPanelProps {
   children?: React.ReactNode;
   index: number;
   value: number;
-}
-
-interface Profile {
-  profileId: string;
-  sellerName: string;
-  ownerAccountId: string;
-  isOwner: boolean;
-}
-
-interface Catalog {
-  catalogId: string;
-  catalogName: string;
-  catalogType: string;
-  isPublic: boolean;
 }
 
 // --- Helper Components ---
@@ -75,7 +62,7 @@ const ErrorAlert: React.FC<{ message: string }> = ({ message }) => (
 
 // --- Profile Table Row ---
 // eslint-disable-next-line complexity -- Component displays multiple profile fields with null-safe access
-const ProfileRow: React.FC<{ profile: Profile }> = ({ profile }) => (
+const ProfileRow: React.FC<{ profile: SellerProfile }> = ({ profile }) => (
   <TableRow hover>
     <TableCell>
       <Typography variant="body2" fontFamily="monospace">
@@ -106,7 +93,7 @@ const ProfileRow: React.FC<{ profile: Profile }> = ({ profile }) => (
 interface ProfilesTabContentProps {
   loading: boolean;
   error: Error | undefined;
-  profiles: Profile[];
+  profiles: SellerProfile[];
 }
 
 const ProfilesTabContent: React.FC<ProfilesTabContentProps> = ({ loading, error, profiles }) => {
@@ -248,7 +235,7 @@ export const AdminPage: React.FC = () => {
     data: profilesData,
     loading: profilesLoading,
     error: profilesError,
-  } = useQuery<{ listMyProfiles: Profile[] }>(LIST_MY_PROFILES);
+  } = useQuery<{ listMyProfiles: SellerProfile[] }>(LIST_MY_PROFILES);
 
   // Fetch public catalogs
   const {

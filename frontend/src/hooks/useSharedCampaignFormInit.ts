@@ -2,28 +2,7 @@
  * Custom hook for shared campaign form initialization
  */
 import { useEffect } from 'react';
-
-interface SharedCampaign {
-  sharedCampaignCode: string;
-  catalogId: string;
-  catalog: {
-    catalogId: string;
-    catalogName: string;
-  };
-  campaignName: string;
-  campaignYear: number;
-  startDate: string | null;
-  endDate: string | null;
-  unitType: string;
-  unitNumber: number;
-  city: string;
-  state: string;
-  createdBy: string;
-  createdByName: string;
-  creatorMessage: string;
-  description: string | null;
-  isActive: boolean;
-}
+import type { SharedCampaign } from '../types/entities';
 
 export const useSharedCampaignFormInit = (
   sharedCampaign: SharedCampaign | null | undefined,

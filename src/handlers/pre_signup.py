@@ -34,9 +34,7 @@ def _auto_confirm_event(event: Dict[str, Any]) -> Dict[str, Any]:
     return event
 
 
-def _link_federated_identity(
-    cognito: Any, user_pool_id: str, existing_username: str, username: str
-) -> None:
+def _link_federated_identity(cognito: Any, user_pool_id: str, existing_username: str, username: str) -> None:
     """Link federated identity to existing user."""
     if "_" not in username:
         logger.error(f"Unexpected federated username format: {username}")
@@ -53,8 +51,7 @@ def _link_federated_identity(
     )
     logger.info(f"Successfully linked {provider_name} identity to user {existing_username}")
     raise Exception(
-        f"Account with email already exists. "
-        f"Your {provider_name} account has been linked. Please sign in again."
+        f"Account with email already exists. Your {provider_name} account has been linked. Please sign in again."
     )
 
 
@@ -140,9 +137,7 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     return _process_federated_signup(event, user_pool_id, username, email)
 
 
-def _process_federated_signup(
-    event: Dict[str, Any], user_pool_id: str, username: str, email: str
-) -> Dict[str, Any]:
+def _process_federated_signup(event: Dict[str, Any], user_pool_id: str, username: str, email: str) -> Dict[str, Any]:
     """Process federated sign-up, linking to existing user if found."""
     try:
         cognito = boto3.client("cognito-idp")

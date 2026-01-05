@@ -30,31 +30,10 @@ import {
 import { Download as DownloadIcon, Assessment as ReportIcon } from '@mui/icons-material';
 import * as XLSX from 'xlsx';
 import { GET_UNIT_REPORT, LIST_MY_SHARED_CAMPAIGNS } from '../lib/graphql';
+import type { SharedCampaign, OrderLineItem } from '../types';
 
-interface SharedCampaign {
-  sharedCampaignCode: string;
-  catalogId: string;
-  catalog: {
-    catalogId: string;
-    catalogName: string;
-  };
-  campaignName: string;
-  campaignYear: number;
-  unitType: string;
-  unitNumber: number;
-  city: string;
-  state: string;
-  description?: string;
-  isActive: boolean;
-}
-
-interface LineItem {
-  productId: string;
-  productName: string;
-  quantity: number;
-  pricePerUnit: number;
-  subtotal: number;
-}
+// Type alias for clarity in this module
+type LineItem = OrderLineItem;
 
 interface UnitOrderDetail {
   orderId: string;
@@ -312,7 +291,7 @@ const CampaignSelectorForm: React.FC<{
       {campaigns.map((campaign) => (
         <MenuItem key={campaign.sharedCampaignCode} value={campaign.sharedCampaignCode}>
           {campaign.unitType} {campaign.unitNumber} - {campaign.campaignName} {campaign.campaignYear} (
-          {campaign.catalog.catalogName}){campaign.description ? ` - ${campaign.description}` : ''}
+          {campaign.catalog?.catalogName ?? 'Unknown'}){campaign.description ? ` - ${campaign.description}` : ''}
         </MenuItem>
       ))}
     </TextField>
@@ -346,7 +325,7 @@ const CampaignDetails: React.FC<{ campaign: SharedCampaign }> = ({ campaign }) =
         <strong>Campaign:</strong> {campaign.campaignName} {campaign.campaignYear}
       </Typography>
       <Typography variant="body2">
-        <strong>Catalog:</strong> {campaign.catalog.catalogName}
+        <strong>Catalog:</strong> {campaign.catalog?.catalogName ?? 'Unknown'}
       </Typography>
     </Stack>
   </Paper>

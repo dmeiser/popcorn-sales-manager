@@ -11,6 +11,8 @@ import boto3
 import pytest
 from moto import mock_aws
 
+from tests.unit.table_schemas import create_all_tables
+
 
 @pytest.fixture
 def aws_credentials() -> None:
@@ -35,257 +37,19 @@ def aws_credentials() -> None:
 
 @pytest.fixture
 def dynamodb_table(aws_credentials: None) -> Generator[Any, None, None]:
-    """Create all mock DynamoDB tables for multi-table design."""
+    """Create all mock DynamoDB tables for multi-table design.
+
+    Uses the centralized table_schemas module to create all tables.
+    Returns the profiles table as the primary (most commonly used) table.
+    """
     with mock_aws():
         dynamodb = boto3.resource("dynamodb", region_name="us-east-1")
 
-        # ================================================================
-        # Accounts Table
-        # ================================================================
-        _ = dynamodb.create_table(
-            TableName="kernelworx-accounts-ue1-dev",
-            KeySchema=[
-                {"AttributeName": "accountId", "KeyType": "HASH"},
-            ],
-            AttributeDefinitions=[
-                {"AttributeName": "accountId", "AttributeType": "S"},
-                {"AttributeName": "email", "AttributeType": "S"},
-            ],
-            GlobalSecondaryIndexes=[
-                {
-                    "IndexName": "email-index",
-                    "KeySchema": [
-                        {"AttributeName": "email", "KeyType": "HASH"},
-                    ],
-                    "Projection": {"ProjectionType": "ALL"},
-                },
-            ],
-            BillingMode="PAY_PER_REQUEST",
-        )
-
-        # ================================================================
-        # Catalogs Table
-        # ================================================================
-        _ = dynamodb.create_table(
-            TableName="kernelworx-catalogs-ue1-dev",
-            KeySchema=[
-                {"AttributeName": "catalogId", "KeyType": "HASH"},
-            ],
-            AttributeDefinitions=[
-                {"AttributeName": "catalogId", "AttributeType": "S"},
-                {"AttributeName": "ownerAccountId", "AttributeType": "S"},
-                {"AttributeName": "isPublic", "AttributeType": "S"},
-                {"AttributeName": "createdAt", "AttributeType": "S"},
-            ],
-            GlobalSecondaryIndexes=[
-                {
-                    "IndexName": "ownerAccountId-index",
-                    "KeySchema": [
-                        {"AttributeName": "ownerAccountId", "KeyType": "HASH"},
-                    ],
-                    "Projection": {"ProjectionType": "ALL"},
-                },
-                {
-                    "IndexName": "isPublic-createdAt-index",
-                    "KeySchema": [
-                        {"AttributeName": "isPublic", "KeyType": "HASH"},
-                        {"AttributeName": "createdAt", "KeyType": "RANGE"},
-                    ],
-                    "Projection": {"ProjectionType": "ALL"},
-                },
-            ],
-            BillingMode="PAY_PER_REQUEST",
-        )
-
-        # ================================================================
-        # Profiles Table V2 - NEW SCHEMA
-        # PK: ownerAccountId, SK: profileId, GSI: profileId-index
-        # This enables direct query for listMyProfiles (no GSI needed)
-        # Shares and invites are in separate dedicated tables
-        # ================================================================
-        profiles_table = dynamodb.create_table(
-            TableName="kernelworx-profiles-v2-ue1-dev",
-            KeySchema=[
-                {"AttributeName": "ownerAccountId", "KeyType": "HASH"},
-                {"AttributeName": "profileId", "KeyType": "RANGE"},
-            ],
-            AttributeDefinitions=[
-                {"AttributeName": "ownerAccountId", "AttributeType": "S"},
-                {"AttributeName": "profileId", "AttributeType": "S"},
-            ],
-            GlobalSecondaryIndexes=[
-                {
-                    "IndexName": "profileId-index",
-                    "KeySchema": [
-                        {"AttributeName": "profileId", "KeyType": "HASH"},
-                    ],
-                    "Projection": {"ProjectionType": "ALL"},
-                },
-            ],
-            BillingMode="PAY_PER_REQUEST",
-        )
-
-        # ================================================================
-        # Campaigns Table V2 (PK=profileId, SK=campaignId)
-        # ================================================================
-        _ = dynamodb.create_table(
-            TableName="kernelworx-campaigns-v2-ue1-dev",
-            KeySchema=[
-                {"AttributeName": "profileId", "KeyType": "HASH"},
-                {"AttributeName": "campaignId", "KeyType": "RANGE"},
-            ],
-            AttributeDefinitions=[
-                {"AttributeName": "profileId", "AttributeType": "S"},
-                {"AttributeName": "campaignId", "AttributeType": "S"},
-                {"AttributeName": "catalogId", "AttributeType": "S"},
-            ],
-            GlobalSecondaryIndexes=[
-                {
-                    "IndexName": "campaignId-index",
-                    "KeySchema": [
-                        {"AttributeName": "campaignId", "KeyType": "HASH"},
-                    ],
-                    "Projection": {"ProjectionType": "ALL"},
-                },
-                {
-                    "IndexName": "catalogId-index",
-                    "KeySchema": [
-                        {"AttributeName": "catalogId", "KeyType": "HASH"},
-                    ],
-                    "Projection": {"ProjectionType": "ALL"},
-                },
-            ],
-            BillingMode="PAY_PER_REQUEST",
-        )
-
-        # ================================================================
-        # Orders Table V2: PK=campaignId, SK=orderId)
-        # ================================================================
-        _ = dynamodb.create_table(
-            TableName="kernelworx-orders-v2-ue1-dev",
-            KeySchema=[
-                {"AttributeName": "campaignId", "KeyType": "HASH"},
-                {"AttributeName": "orderId", "KeyType": "RANGE"},
-            ],
-            AttributeDefinitions=[
-                {"AttributeName": "campaignId", "AttributeType": "S"},
-                {"AttributeName": "orderId", "AttributeType": "S"},
-                {"AttributeName": "profileId", "AttributeType": "S"},
-            ],
-            GlobalSecondaryIndexes=[
-                {
-                    "IndexName": "orderId-index",
-                    "KeySchema": [
-                        {"AttributeName": "orderId", "KeyType": "HASH"},
-                    ],
-                    "Projection": {"ProjectionType": "ALL"},
-                },
-                {
-                    "IndexName": "profileId-index",
-                    "KeySchema": [
-                        {"AttributeName": "profileId", "KeyType": "HASH"},
-                    ],
-                    "Projection": {"ProjectionType": "ALL"},
-                },
-            ],
-            BillingMode="PAY_PER_REQUEST",
-        )
-
-        # ================================================================
-        # Shares Table (NEW - dedicated table for profile shares)
-        # ================================================================
-        _ = dynamodb.create_table(
-            TableName="kernelworx-shares-ue1-dev",
-            KeySchema=[
-                {"AttributeName": "profileId", "KeyType": "HASH"},
-                {"AttributeName": "targetAccountId", "KeyType": "RANGE"},
-            ],
-            AttributeDefinitions=[
-                {"AttributeName": "profileId", "AttributeType": "S"},
-                {"AttributeName": "targetAccountId", "AttributeType": "S"},
-            ],
-            GlobalSecondaryIndexes=[
-                {
-                    "IndexName": "targetAccountId-index",
-                    "KeySchema": [
-                        {"AttributeName": "targetAccountId", "KeyType": "HASH"},
-                    ],
-                    "Projection": {"ProjectionType": "ALL"},
-                },
-            ],
-            BillingMode="PAY_PER_REQUEST",
-        )
-
-        # ================================================================
-        # Invites Table (NEW - dedicated table for profile invites)
-        # ================================================================
-        _ = dynamodb.create_table(
-            TableName="kernelworx-invites-ue1-dev",
-            KeySchema=[
-                {"AttributeName": "inviteCode", "KeyType": "HASH"},
-            ],
-            AttributeDefinitions=[
-                {"AttributeName": "inviteCode", "AttributeType": "S"},
-                {"AttributeName": "profileId", "AttributeType": "S"},
-            ],
-            GlobalSecondaryIndexes=[
-                {
-                    "IndexName": "profileId-index",
-                    "KeySchema": [
-                        {"AttributeName": "profileId", "KeyType": "HASH"},
-                    ],
-                    "Projection": {"ProjectionType": "ALL"},
-                },
-            ],
-            BillingMode="PAY_PER_REQUEST",
-        )
-
-        # ================================================================
-        # Campaign shared campaigns Table (NEW - Phase 1)
-        # PK: sharedCampaignCode, SK: METADATA
-        # GSI1: createdBy + createdAt (list by creator)
-        # GSI2: unitCampaignKey + sharedCampaignCode (discover by unit+campaign)
-        # ================================================================
-        _ = dynamodb.create_table(
-            TableName="kernelworx-shared-campaigns-ue1-dev",
-            KeySchema=[
-                {"AttributeName": "sharedCampaignCode", "KeyType": "HASH"},
-                {"AttributeName": "SK", "KeyType": "RANGE"},
-            ],
-            AttributeDefinitions=[
-                {"AttributeName": "sharedCampaignCode", "AttributeType": "S"},
-                {"AttributeName": "SK", "AttributeType": "S"},
-                {"AttributeName": "createdBy", "AttributeType": "S"},
-                {"AttributeName": "createdAt", "AttributeType": "S"},
-                {"AttributeName": "unitCampaignKey", "AttributeType": "S"},
-            ],
-            GlobalSecondaryIndexes=[
-                {
-                    "IndexName": "GSI1",
-                    "KeySchema": [
-                        {"AttributeName": "createdBy", "KeyType": "HASH"},
-                        {"AttributeName": "createdAt", "KeyType": "RANGE"},
-                    ],
-                    "Projection": {"ProjectionType": "ALL"},
-                },
-                {
-                    "IndexName": "GSI2",
-                    "KeySchema": [
-                        {"AttributeName": "unitCampaignKey", "KeyType": "HASH"},
-                        {"AttributeName": "sharedCampaignCode", "KeyType": "RANGE"},
-                    ],
-                    "Projection": {"ProjectionType": "ALL"},
-                },
-            ],
-            BillingMode="PAY_PER_REQUEST",
-        )
-
-        # Add unitCampaignKey-index to Campaigns table for unit-based queries
-        # unitCampaignKey-index: unitCampaignKey (partition key)
-        # (In real deployment, this would be added via CDK update, but in tests we configure it here)
+        # Create all tables using centralized schema definitions
+        tables = create_all_tables(dynamodb)
 
         # Return profiles table as primary (most commonly used)
-        yield profiles_table
+        yield tables["profiles"]
 
 
 @pytest.fixture

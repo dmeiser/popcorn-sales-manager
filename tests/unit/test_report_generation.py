@@ -353,9 +353,9 @@ class TestRequestCampaignReport:
             "arguments": {"input": {"campaignId": sample_campaign_id, "format": "xlsx"}},
         }
 
-        # Mock get_campaigns_table to raise an unexpected exception
+        # Mock _get_campaign to raise an unexpected exception
         with patch(
-            "src.handlers.report_generation.get_campaigns_table",
+            "src.handlers.report_generation._get_campaign",
             side_effect=ValueError("Unexpected error"),
         ):
             result = request_campaign_report(event, lambda_context)

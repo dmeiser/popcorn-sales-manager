@@ -36,6 +36,10 @@ import {
   UPDATE_MY_PREFERENCES,
 } from '../lib/graphql';
 import { ensureProfileId } from '../lib/ids';
+import type { SellerProfile } from '../types';
+
+// Use SellerProfile as the Profile type for this page
+type Profile = Pick<SellerProfile, 'profileId' | 'sellerName' | 'isOwner' | 'permissions'>;
 
 // Default preferences value
 const DEFAULT_PREFERENCES = { showReadOnlyProfiles: true };
@@ -71,7 +75,7 @@ const getLocationState = (state: LocationState | null): LocationState => state |
 // Helper to filter shared profiles based on read-only preference
 const filterSharedProfiles = (profiles: Profile[], showReadOnlyProfiles: boolean): Profile[] =>
   profiles.filter((profile) => {
-    const hasWrite = profile.permissions.includes('WRITE');
+    const hasWrite = (profile.permissions ?? []).includes('WRITE');
     return showReadOnlyProfiles || hasWrite;
   });
 
@@ -127,8 +131,8 @@ const OwnedProfilesSection: React.FC<{ profiles: Profile[] }> = ({ profiles }) =
             <ProfileCard
               profileId={profile.profileId}
               sellerName={profile.sellerName}
-              isOwner={profile.isOwner}
-              permissions={profile.permissions}
+              isOwner={profile.isOwner ?? false}
+              permissions={profile.permissions ?? []}
             />
           </Grid>
         ))}
@@ -153,8 +157,8 @@ const SharedProfilesSection: React.FC<{
             <ProfileCard
               profileId={profile.profileId}
               sellerName={profile.sellerName}
-              isOwner={profile.isOwner}
-              permissions={profile.permissions}
+              isOwner={profile.isOwner ?? false}
+              permissions={profile.permissions ?? []}
             />
           </Grid>
         ))}
@@ -264,10 +268,8 @@ const updatePreferencesWithRollback = async (
 
 // Helper to load shared profiles with error handling
 const loadSharedProfilesWithErrorHandling = async (
-  apolloClient: {
-    query: (options: object) => Promise<{ data?: { listMyShares: Profile[] } }>;
-  },
-  query: object,
+  apolloClient: ReturnType<typeof useApolloClient>,
+  query: Parameters<typeof apolloClient.query>[0]['query'],
   setSharedProfiles: (profiles: Profile[]) => void,
   setSharedProfilesLoaded: (loaded: boolean) => void,
   setSharedProfilesError: (error: Error | null) => void,
@@ -276,7 +278,7 @@ const loadSharedProfilesWithErrorHandling = async (
   setSharedProfilesLoading(true);
   setSharedProfilesError(null);
   try {
-    const result = await apolloClient.query({
+    const result = await apolloClient.query<{ listMyShares: Profile[] }>({
       query,
       fetchPolicy: 'network-only',
     });
@@ -337,13 +339,6 @@ const ConditionalEditDialog: React.FC<{
       onSubmit={onSubmit}
     />
   ) : null;
-
-interface Profile {
-  profileId: string;
-  sellerName: string;
-  isOwner: boolean;
-  permissions: string[];
-}
 
 interface EditingProfile {
   profileId: string;
@@ -418,7 +413,7 @@ export const ScoutsPage: React.FC = () => {
   // Function to load shared profiles - now returns full profile data in a single query
   const loadSharedProfiles = React.useCallback(async () => {
     await loadSharedProfilesWithErrorHandling(
-      apolloClient as any,
+      apolloClient,
       LIST_MY_SHARES,
       setSharedProfiles,
       setSharedProfilesLoaded,

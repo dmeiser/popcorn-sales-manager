@@ -11,9 +11,12 @@ import {
   ApolloLink,
   type DefaultContext,
   type Operation,
+  type ErrorLike,
 } from '@apollo/client';
 import { setContext } from '@apollo/client/link/context';
-import { onError as createErrorLink } from '@apollo/client/link/error';
+import { ErrorLink } from '@apollo/client/link/error';
+import { CombinedGraphQLErrors } from '@apollo/client/errors';
+import type { GraphQLFormattedError } from 'graphql';
 import { fetchAuthSession } from 'aws-amplify/auth';
 
 /**
@@ -50,16 +53,30 @@ export const getAuthContext = async (_operation: Operation, prevContext: AuthHea
   };
 };
 
-const authLink = setContext(getAuthContext as any);
+const authLink = setContext(
+  getAuthContext as (
+    request: unknown,
+    previousContext: Record<string, unknown>,
+  ) => Promise<{ headers: Record<string, string> }>,
+);
+
+/**
+ * GraphQL error with extensions
+ */
+interface GraphQLErrorWithExtensions extends GraphQLFormattedError {
+  extensions?: { errorCode?: string };
+}
 
 /**
  * Error handler used by the ErrorLink (extracted for testability)
  */
-export const handleApolloError = ({ operation, graphQLErrors, networkError }: any) => {
-  if (graphQLErrors?.length) {
-    graphQLErrors.forEach((err: any) => {
-      const { message, locations, path, extensions } = err;
-      const errorCode = extensions?.errorCode as string | undefined;
+export const handleApolloError = ({ operation, error }: ErrorLink.ErrorHandlerOptions) => {
+  // Check if this is a GraphQL error
+  if (CombinedGraphQLErrors.is(error)) {
+    error.errors.forEach((err: GraphQLFormattedError) => {
+      const typedErr = err as GraphQLErrorWithExtensions;
+      const { message, locations, path, extensions } = typedErr;
+      const errorCode = extensions?.errorCode;
 
       console.error(`[GraphQL error]: Message: ${message}, Code: ${errorCode}, Location: ${locations}, Path: ${path}`);
 
@@ -78,9 +95,9 @@ export const handleApolloError = ({ operation, graphQLErrors, networkError }: an
         }),
       );
     });
-  }
-
-  if (networkError) {
+  } else {
+    // Network or other error
+    const networkError = error as ErrorLike;
     console.error(`[Network/Error]: ${networkError.message}`);
 
     // Emit network error event
@@ -99,7 +116,7 @@ export const handleApolloError = ({ operation, graphQLErrors, networkError }: an
 /**
  * Error link - global error handling for GraphQL errors
  */
-const errorLink = createErrorLink(handleApolloError);
+const errorLink = new ErrorLink(handleApolloError);
 
 /**
  * Map GraphQL error codes to user-friendly messages

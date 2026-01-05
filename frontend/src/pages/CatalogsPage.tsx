@@ -43,25 +43,7 @@ import {
   DELETE_CATALOG,
 } from '../lib/graphql';
 import { ensureProfileId } from '../lib/ids';
-
-interface Product {
-  productId: string;
-  productName: string;
-  description?: string;
-  price: number;
-}
-
-interface Catalog {
-  catalogId: string;
-  catalogName: string;
-  catalogType: string;
-  ownerAccountId?: string;
-  isPublic: boolean;
-  products: Product[];
-  createdAt: string;
-  updatedAt: string;
-  isDeleted?: boolean;
-}
+import type { Catalog } from '../types';
 
 // Helper: Format date for display
 const formatDate = (dateString: string): string => {
@@ -166,19 +148,20 @@ interface CatalogRowProps {
   onDelete: (catalogId: string, catalogName: string) => void;
 }
 
+// eslint-disable-next-line complexity
 const CatalogRow: React.FC<CatalogRowProps> = ({ catalog, showActions, inUse, currentAccountId, onEdit, onDelete }) => (
   <TableRow key={catalog.catalogId} hover>
     <TableCell>
       <Stack direction="row" spacing={1} alignItems="center">
-        <CatalogVisibilityIcon isPublic={catalog.isPublic} />
+        <CatalogVisibilityIcon isPublic={catalog.isPublic ?? false} />
         <Typography fontWeight="medium">{catalog.catalogName}</Typography>
       </Stack>
     </TableCell>
     <TableCell>
-      <CatalogTypeChips isPublic={catalog.isPublic} inUse={inUse} />
+      <CatalogTypeChips isPublic={catalog.isPublic ?? false} inUse={inUse} />
     </TableCell>
-    <TableCell>{catalog.products.length} items</TableCell>
-    <TableCell>{formatDate(catalog.createdAt)}</TableCell>
+    <TableCell>{(catalog.products ?? []).length} items</TableCell>
+    <TableCell>{formatDate(catalog.createdAt ?? '')}</TableCell>
     {showActions && (
       <TableCell align="right">
         <CatalogActions catalog={catalog} currentAccountId={currentAccountId} onEdit={onEdit} onDelete={onDelete} />

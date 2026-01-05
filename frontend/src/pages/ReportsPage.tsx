@@ -29,6 +29,7 @@ import {
 import { LIST_ORDERS_BY_CAMPAIGN } from '../lib/graphql';
 import { ensureCampaignId } from '../lib/ids';
 import { downloadAsCSV, downloadAsXLSX } from '../lib/reportExport';
+import type { Order } from '../types';
 
 // Helper to format city/state/zip into a single string
 const formatCityStateZip = (address: Order['customerAddress']): string =>
@@ -216,29 +217,6 @@ const formatPhone = (phone: string | undefined): string => {
   }
   return phone;
 };
-
-interface LineItem {
-  productId: string;
-  productName: string;
-  quantity: number;
-  pricePerUnit: number;
-  subtotal: number;
-}
-
-interface Order {
-  orderId: string;
-  customerName: string;
-  customerPhone?: string;
-  customerAddress?: {
-    street?: string;
-    city?: string;
-    state?: string;
-    zipCode?: string;
-  };
-  paymentMethod: string;
-  lineItems: LineItem[];
-  totalAmount: number;
-}
 
 export const ReportsPage: React.FC = () => {
   const { campaignId: encodedCampaignId } = useParams<{ campaignId: string }>();

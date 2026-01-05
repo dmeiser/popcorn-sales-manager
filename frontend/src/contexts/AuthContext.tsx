@@ -165,7 +165,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     });
 
     const unsubscribe = Hub.listen('auth', ({ payload }) => {
-      handleEvent(payload.event, (payload as any).data);
+      handleEvent(payload.event, (payload as { data?: unknown }).data);
     });
 
     return unsubscribe;

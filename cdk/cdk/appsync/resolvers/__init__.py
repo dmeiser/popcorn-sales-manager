@@ -48,6 +48,8 @@ def create_resolvers(
         profile_delete_functions: Dictionary of profile-related AppSync functions
     """
     # Create all resolver types in order
-    create_mutation_resolvers(scope, api, env_name, datasources, lambda_datasources, functions, profile_delete_functions)
+    create_mutation_resolvers(
+        scope, api, env_name, datasources, lambda_datasources, functions, profile_delete_functions
+    )
     create_query_resolvers(scope, api, env_name, datasources, lambda_datasources, functions, profile_delete_functions)
     create_field_resolvers(scope, api, env_name, datasources, lambda_datasources, functions, profile_delete_functions)

@@ -2,7 +2,7 @@
  * CreateCampaignDialog component - Dialog for creating a new sales campaign
  */
 
-import React, { useCallback, useState } from 'react';
+import React, { useState } from 'react';
 import {
   Dialog,
   DialogTitle,
@@ -19,6 +19,8 @@ import {
   CircularProgress,
 } from '@mui/material';
 import { useCatalogsData } from '../hooks/useCatalogsData';
+import { useFormState } from '../hooks/useFormState';
+import type { Catalog } from '../types';
 
 interface CreateCampaignDialogProps {
   open: boolean;
@@ -30,13 +32,6 @@ interface CreateCampaignDialogProps {
     startDate?: string,
     endDate?: string,
   ) => Promise<void>;
-}
-
-interface Catalog {
-  catalogId: string;
-  catalogName: string;
-  catalogType: string;
-  isDeleted?: boolean;
 }
 
 const CatalogGroup: React.FC<{ title: string; catalogs: Catalog[] }> = ({ title, catalogs }) => (
@@ -300,26 +295,32 @@ const CreateCampaignDialogView: React.FC<{
   </Dialog>
 );
 
+interface CampaignFormValues {
+  campaignName: string;
+  campaignYear: number;
+  catalogId: string;
+  startDate: string;
+  endDate: string;
+}
+
+const getInitialFormValues = (): CampaignFormValues => ({
+  campaignName: '',
+  campaignYear: new Date().getFullYear(),
+  catalogId: '',
+  startDate: '',
+  endDate: '',
+});
+
 export const CreateCampaignDialog: React.FC<CreateCampaignDialogProps> = ({ open, onClose, onSubmit }) => {
-  const [campaignName, setCampaignName] = useState('');
-  const [campaignYear, setCampaignYear] = useState(new Date().getFullYear());
-  const [catalogId, setCatalogId] = useState('');
-  const [startDate, setStartDate] = useState('');
-  const [endDate, setEndDate] = useState('');
+  const { values, setValue, reset } = useFormState<CampaignFormValues>({
+    initialValues: getInitialFormValues(),
+  });
   const [loading, setLoading] = useState(false);
   const { filteredMyCatalogs, filteredPublicCatalogs, catalogsLoading } = useCatalogsData(false);
 
-  const resetForm = useCallback(() => {
-    setCampaignName('');
-    setCampaignYear(new Date().getFullYear());
-    setCatalogId('');
-    setStartDate('');
-    setEndDate('');
-  }, []);
-
   const submitCampaign = async (name: string, start?: string, end?: string) => {
-    await onSubmit(name, campaignYear, catalogId, start, end);
-    resetForm();
+    await onSubmit(name, values.campaignYear, values.catalogId, start, end);
+    reset();
     onClose();
   };
 
@@ -335,20 +336,20 @@ export const CreateCampaignDialog: React.FC<CreateCampaignDialogProps> = ({ open
   };
 
   const handleSubmit = async () => {
-    const trimmedName = campaignName.trim();
-    if (!trimmedName || !catalogId) return;
+    const trimmedName = values.campaignName.trim();
+    if (!trimmedName || !values.catalogId) return;
 
-    await withLoading(() => submitCampaign(trimmedName, startDate || undefined, endDate || undefined));
+    await withLoading(() => submitCampaign(trimmedName, values.startDate || undefined, values.endDate || undefined));
   };
 
   const handleClose = () => {
     if (!loading) {
-      resetForm();
+      reset();
       onClose();
     }
   };
 
-  const isFormValid = Boolean(campaignName.trim() && catalogId);
+  const isFormValid = Boolean(values.campaignName.trim() && values.catalogId);
 
   return (
     <CreateCampaignDialogView
@@ -357,19 +358,19 @@ export const CreateCampaignDialog: React.FC<CreateCampaignDialogProps> = ({ open
       onClose={handleClose}
       onSubmit={handleSubmit}
       isFormValid={isFormValid}
-      campaignName={campaignName}
-      campaignYear={campaignYear}
-      startDate={startDate}
-      endDate={endDate}
-      catalogId={catalogId}
+      campaignName={values.campaignName}
+      campaignYear={values.campaignYear}
+      startDate={values.startDate}
+      endDate={values.endDate}
+      catalogId={values.catalogId}
       catalogsLoading={catalogsLoading}
       filteredMyCatalogs={filteredMyCatalogs}
       filteredPublicCatalogs={filteredPublicCatalogs}
-      setCampaignName={setCampaignName}
-      setCampaignYear={setCampaignYear}
-      setStartDate={setStartDate}
-      setEndDate={setEndDate}
-      setCatalogId={setCatalogId}
+      setCampaignName={(v) => setValue('campaignName', v)}
+      setCampaignYear={(v) => setValue('campaignYear', v)}
+      setStartDate={(v) => setValue('startDate', v)}
+      setEndDate={(v) => setValue('endDate', v)}
+      setCatalogId={(v) => setValue('catalogId', v)}
     />
   );
 };

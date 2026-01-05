@@ -8,6 +8,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Dialog, DialogTitle, DialogContent, DialogActions, Button, TextField, Box } from '@mui/material';
+import { useFormState } from '../hooks/useFormState';
 
 interface EditProfileDialogProps {
   open: boolean;
@@ -17,6 +18,10 @@ interface EditProfileDialogProps {
   onSubmit: (profileId: string, newName: string) => Promise<void>;
 }
 
+interface ProfileFormValues {
+  sellerName: string;
+}
+
 export const EditProfileDialog: React.FC<EditProfileDialogProps> = ({
   open,
   profileId,
@@ -24,23 +29,21 @@ export const EditProfileDialog: React.FC<EditProfileDialogProps> = ({
   onClose,
   onSubmit,
 }) => {
-  const [sellerName, setSellerName] = useState(currentName);
+  const form = useFormState<ProfileFormValues>({
+    initialValues: { sellerName: currentName },
+  });
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    setSellerName(currentName);
+    form.resetTo({ sellerName: currentName });
   }, [currentName, open]);
 
-  const hasChanges = () => {
-    return sellerName !== currentName;
-  };
-
   const handleSubmit = async () => {
-    if (!sellerName.trim() || !hasChanges()) return;
+    if (!form.values.sellerName.trim() || !form.isDirty) return;
 
     setLoading(true);
     try {
-      await onSubmit(profileId, sellerName.trim());
+      await onSubmit(profileId, form.values.sellerName.trim());
       onClose();
     } catch (error) {
       /* v8 ignore next -- Error logging, tested via integration */
@@ -52,7 +55,7 @@ export const EditProfileDialog: React.FC<EditProfileDialogProps> = ({
 
   const handleClose = () => {
     if (!loading) {
-      setSellerName(currentName);
+      form.reset();
       onClose();
     }
   };
@@ -66,10 +69,10 @@ export const EditProfileDialog: React.FC<EditProfileDialogProps> = ({
             autoFocus
             fullWidth
             label="Scout Name"
-            value={sellerName}
-            onChange={(e) => setSellerName(e.target.value)}
+            value={form.values.sellerName}
+            onChange={(e) => form.setValue('sellerName', e.target.value)}
             onKeyPress={(e) => {
-              if (e.key === 'Enter' && sellerName.trim() && hasChanges()) {
+              if (e.key === 'Enter' && form.values.sellerName.trim() && form.isDirty) {
                 handleSubmit();
               }
             }}
@@ -81,7 +84,11 @@ export const EditProfileDialog: React.FC<EditProfileDialogProps> = ({
         <Button onClick={handleClose} disabled={loading}>
           Cancel
         </Button>
-        <Button onClick={handleSubmit} variant="contained" disabled={!sellerName.trim() || !hasChanges() || loading}>
+        <Button
+          onClick={handleSubmit}
+          variant="contained"
+          disabled={!form.values.sellerName.trim() || !form.isDirty || loading}
+        >
           {loading ? 'Saving...' : 'Save Changes'}
         </Button>
       </DialogActions>

@@ -13,28 +13,7 @@ import { useSharedCampaignDiscovery } from './useSharedCampaignDiscovery';
 import { useSharedCampaignDiscoveryTrigger } from './useSharedCampaignDiscoveryTrigger';
 import { useCreateCampaignSubmitHandler } from './useCreateCampaignSubmitHandler';
 import { useNavigate } from 'react-router-dom';
-
-interface SharedCampaign {
-  sharedCampaignCode: string;
-  catalogId: string;
-  catalog: {
-    catalogId: string;
-    catalogName: string;
-  };
-  campaignName: string;
-  campaignYear: number;
-  startDate: string | null;
-  endDate: string | null;
-  unitType: string;
-  unitNumber: number;
-  city: string;
-  state: string;
-  createdBy: string;
-  createdByName: string;
-  creatorMessage: string;
-  description: string | null;
-  isActive: boolean;
-}
+import type { SharedCampaign } from '../types/entities';
 
 export const useCreateCampaignPageSetup = (effectiveSharedCampaignCode: string | undefined) => {
   const navigate = useNavigate();

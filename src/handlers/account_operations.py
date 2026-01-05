@@ -5,49 +5,28 @@ Handles user account management including updating DynamoDB account metadata.
 """
 
 import json
-import os
 from datetime import datetime, timezone
 from typing import Any, Dict
 
-import boto3
-from mypy_boto3_dynamodb import DynamoDBServiceResource
-from mypy_boto3_dynamodb.service_resource import Table
 from botocore.exceptions import ClientError
 
 # Handle both Lambda (absolute) and unit test (relative) imports
 try:  # pragma: no cover
+    from utils.dynamodb import tables
     from utils.errors import AppError, ErrorCode
     from utils.logging import get_logger
+    from utils.validation import validate_unit_number
 except ModuleNotFoundError:  # pragma: no cover
+    from ..utils.dynamodb import tables
     from ..utils.errors import AppError, ErrorCode
     from ..utils.logging import get_logger
+    from ..utils.validation import validate_unit_number
 
 logger = get_logger(__name__)
 
 
-def _get_dynamodb() -> DynamoDBServiceResource:
-    """Return a fresh boto3 DynamoDB resource (lazy for tests)."""
-    return boto3.resource("dynamodb", endpoint_url=os.getenv("DYNAMODB_ENDPOINT"))
-
-
-def get_accounts_table() -> Table:
-    """Get DynamoDB accounts table instance (multi-table design)."""
-    table_name = os.environ.get("ACCOUNTS_TABLE_NAME", "kernelworx-accounts-ue1-dev")
-    return _get_dynamodb().Table(table_name)
-
-
 # Fields that can be updated directly (no transformation needed)
 SIMPLE_UPDATE_FIELDS = ["givenName", "familyName", "city", "state", "unitType"]
-
-
-def _validate_unit_number(value: Any) -> int | None:
-    """Validate and convert unitNumber to int, or return None."""
-    if not value:
-        return None
-    try:
-        return int(value)
-    except (ValueError, TypeError):
-        raise AppError(ErrorCode.INVALID_INPUT, "unitNumber must be a valid integer")
 
 
 def _build_update_expressions(
@@ -67,7 +46,7 @@ def _build_update_expressions(
 
     # Handle unitNumber specially (needs validation/conversion)
     if "unitNumber" in input_data:
-        unit_number = _validate_unit_number(input_data["unitNumber"])
+        unit_number = validate_unit_number(input_data["unitNumber"])
         if unit_number is not None:
             update_expressions.append("#unitNumber = :unitNumber")
             expression_attribute_names["#unitNumber"] = "unitNumber"
@@ -114,10 +93,9 @@ def update_my_account(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         )
 
     account_id_key = f"ACCOUNT#{account_id}"
-    table = get_accounts_table()
 
     try:
-        response = table.update_item(
+        response = tables.accounts.update_item(
             Key={"accountId": account_id_key},
             UpdateExpression="SET " + ", ".join(update_expressions),
             ExpressionAttributeNames=expression_attribute_names,

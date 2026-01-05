@@ -31,18 +31,7 @@ import {
   CREATE_SHARED_CAMPAIGN,
   LIST_MY_SHARED_CAMPAIGNS,
 } from '../lib/graphql';
-
-interface Catalog {
-  catalogId: string;
-  catalogName: string;
-  catalogType: string;
-  isDeleted?: boolean;
-}
-
-interface SharedCampaign {
-  sharedCampaignCode: string;
-  isActive: boolean;
-}
+import type { Catalog, SharedCampaign } from '../types';
 
 const UNIT_TYPES = ['Pack', 'Troop', 'Crew', 'Ship', 'Post'];
 const US_STATES = [

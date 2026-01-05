@@ -8,15 +8,17 @@ have access via a share. The transfer involves:
 4. Deleting the share (since they're now the owner)
 """
 
-import os
 from typing import Any, Dict
 
-import boto3
 from boto3.dynamodb.conditions import Key
 
-dynamodb = boto3.resource("dynamodb")
-profiles_table = dynamodb.Table(os.environ["PROFILES_TABLE_NAME"])
-shares_table = dynamodb.Table(os.environ["SHARES_TABLE_NAME"])
+# Handle both Lambda (absolute) and unit test (relative) imports
+try:  # pragma: no cover
+    from utils.dynamodb import tables
+    from utils.ids import ensure_account_id, ensure_profile_id
+except ModuleNotFoundError:  # pragma: no cover
+    from ..utils.dynamodb import tables
+    from ..utils.ids import ensure_account_id, ensure_profile_id
 
 
 def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
@@ -25,30 +27,28 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     profile_id = event["arguments"]["input"]["profileId"]
     new_owner_account_id = event["arguments"]["input"]["newOwnerAccountId"]
 
-    # Normalize IDs
-    db_profile_id = profile_id if profile_id.startswith("PROFILE#") else f"PROFILE#{profile_id}"
-    db_new_owner_id = (
-        new_owner_account_id if new_owner_account_id.startswith("ACCOUNT#") else f"ACCOUNT#{new_owner_account_id}"
-    )
-    db_caller_id = caller_account_id if caller_account_id.startswith("ACCOUNT#") else f"ACCOUNT#{caller_account_id}"
+    # Normalize IDs using centralized utilities
+    db_profile_id = ensure_profile_id(profile_id) or ""
+    db_new_owner_id = ensure_account_id(new_owner_account_id) or ""
+    db_caller_id = ensure_account_id(caller_account_id) or ""
 
     # 1. Get current profile and verify caller is owner
     # Profiles table uses ownerAccountId (PK) + profileId (SK)
     # We need to query by profileId using GSI or scan
-    profile_response = profiles_table.query(
+    profile_response = tables.profiles.query(
         IndexName="profileId-index", KeyConditionExpression=Key("profileId").eq(db_profile_id)
     )
 
     if not profile_response.get("Items"):
         raise ValueError(f"Profile not found: {profile_id}")
 
-    profile = profile_response["Items"][0]
+    profile: Dict[str, Any] = profile_response["Items"][0]
 
     if profile["ownerAccountId"] != db_caller_id:
         raise PermissionError("Only the profile owner can transfer ownership")
 
     # 2. Verify new owner has existing share
-    share_response = shares_table.get_item(Key={"profileId": db_profile_id, "targetAccountId": db_new_owner_id})
+    share_response = tables.shares.get_item(Key={"profileId": db_profile_id, "targetAccountId": db_new_owner_id})
 
     if "Item" not in share_response:
         raise ValueError("New owner must have existing access to the profile")
@@ -58,14 +58,14 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     old_key = {"ownerAccountId": profile["ownerAccountId"], "profileId": db_profile_id}
 
     # Delete old profile
-    profiles_table.delete_item(Key=old_key)
+    tables.profiles.delete_item(Key=old_key)
 
     # Create new profile with updated owner
     profile["ownerAccountId"] = db_new_owner_id
-    profiles_table.put_item(Item=profile)
+    tables.profiles.put_item(Item=profile)
 
     # 4. Delete the share (new owner doesn't need it anymore)
-    shares_table.delete_item(Key={"profileId": db_profile_id, "targetAccountId": db_new_owner_id})
+    tables.shares.delete_item(Key={"profileId": db_profile_id, "targetAccountId": db_new_owner_id})
 
     # 5. Return updated profile
     return profile

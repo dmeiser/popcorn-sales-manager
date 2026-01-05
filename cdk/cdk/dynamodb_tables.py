@@ -23,9 +23,7 @@ def create_dynamodb_tables(stack: Construct, rn: Callable[[str], str]) -> Dict[s
         table_name=rn("kernelworx-accounts"),
         partition_key=ddb.Attribute(name="accountId", type=ddb.AttributeType.STRING),
         billing_mode=ddb.BillingMode.PAY_PER_REQUEST,
-        point_in_time_recovery_specification=ddb.PointInTimeRecoverySpecification(
-            point_in_time_recovery_enabled=True
-        ),
+        point_in_time_recovery_specification=ddb.PointInTimeRecoverySpecification(point_in_time_recovery_enabled=True),
         removal_policy=RemovalPolicy.RETAIN,
         deletion_protection=True,
     )
@@ -41,9 +39,7 @@ def create_dynamodb_tables(stack: Construct, rn: Callable[[str], str]) -> Dict[s
         table_name=rn("kernelworx-catalogs"),
         partition_key=ddb.Attribute(name="catalogId", type=ddb.AttributeType.STRING),
         billing_mode=ddb.BillingMode.PAY_PER_REQUEST,
-        point_in_time_recovery_specification=ddb.PointInTimeRecoverySpecification(
-            point_in_time_recovery_enabled=True
-        ),
+        point_in_time_recovery_specification=ddb.PointInTimeRecoverySpecification(point_in_time_recovery_enabled=True),
         removal_policy=RemovalPolicy.RETAIN,
         deletion_protection=True,
     )
@@ -66,9 +62,7 @@ def create_dynamodb_tables(stack: Construct, rn: Callable[[str], str]) -> Dict[s
         partition_key=ddb.Attribute(name="ownerAccountId", type=ddb.AttributeType.STRING),
         sort_key=ddb.Attribute(name="profileId", type=ddb.AttributeType.STRING),
         billing_mode=ddb.BillingMode.PAY_PER_REQUEST,
-        point_in_time_recovery_specification=ddb.PointInTimeRecoverySpecification(
-            point_in_time_recovery_enabled=True
-        ),
+        point_in_time_recovery_specification=ddb.PointInTimeRecoverySpecification(point_in_time_recovery_enabled=True),
         removal_policy=RemovalPolicy.RETAIN,
         deletion_protection=True,
     )
@@ -85,9 +79,7 @@ def create_dynamodb_tables(stack: Construct, rn: Callable[[str], str]) -> Dict[s
         partition_key=ddb.Attribute(name="profileId", type=ddb.AttributeType.STRING),
         sort_key=ddb.Attribute(name="targetAccountId", type=ddb.AttributeType.STRING),
         billing_mode=ddb.BillingMode.PAY_PER_REQUEST,
-        point_in_time_recovery_specification=ddb.PointInTimeRecoverySpecification(
-            point_in_time_recovery_enabled=True
-        ),
+        point_in_time_recovery_specification=ddb.PointInTimeRecoverySpecification(point_in_time_recovery_enabled=True),
         removal_policy=RemovalPolicy.RETAIN,
         deletion_protection=True,
     )
@@ -103,9 +95,7 @@ def create_dynamodb_tables(stack: Construct, rn: Callable[[str], str]) -> Dict[s
         table_name=rn("kernelworx-invites"),
         partition_key=ddb.Attribute(name="inviteCode", type=ddb.AttributeType.STRING),
         billing_mode=ddb.BillingMode.PAY_PER_REQUEST,
-        point_in_time_recovery_specification=ddb.PointInTimeRecoverySpecification(
-            point_in_time_recovery_enabled=True
-        ),
+        point_in_time_recovery_specification=ddb.PointInTimeRecoverySpecification(point_in_time_recovery_enabled=True),
         removal_policy=RemovalPolicy.RETAIN,
         deletion_protection=True,
     )
@@ -129,9 +119,7 @@ def create_dynamodb_tables(stack: Construct, rn: Callable[[str], str]) -> Dict[s
         partition_key=ddb.Attribute(name="profileId", type=ddb.AttributeType.STRING),
         sort_key=ddb.Attribute(name="campaignId", type=ddb.AttributeType.STRING),
         billing_mode=ddb.BillingMode.PAY_PER_REQUEST,
-        point_in_time_recovery_specification=ddb.PointInTimeRecoverySpecification(
-            point_in_time_recovery_enabled=True
-        ),
+        point_in_time_recovery_specification=ddb.PointInTimeRecoverySpecification(point_in_time_recovery_enabled=True),
         removal_policy=RemovalPolicy.RETAIN,
         deletion_protection=True,
     )
@@ -158,9 +146,7 @@ def create_dynamodb_tables(stack: Construct, rn: Callable[[str], str]) -> Dict[s
         partition_key=ddb.Attribute(name="campaignId", type=ddb.AttributeType.STRING),
         sort_key=ddb.Attribute(name="orderId", type=ddb.AttributeType.STRING),
         billing_mode=ddb.BillingMode.PAY_PER_REQUEST,
-        point_in_time_recovery_specification=ddb.PointInTimeRecoverySpecification(
-            point_in_time_recovery_enabled=True
-        ),
+        point_in_time_recovery_specification=ddb.PointInTimeRecoverySpecification(point_in_time_recovery_enabled=True),
         removal_policy=RemovalPolicy.RETAIN,
         deletion_protection=True,
     )
@@ -182,9 +168,7 @@ def create_dynamodb_tables(stack: Construct, rn: Callable[[str], str]) -> Dict[s
         table_name=rn("kernelworx-shared-campaigns"),
         partition_key=ddb.Attribute(name="sharedCampaignCode", type=ddb.AttributeType.STRING),
         billing_mode=ddb.BillingMode.PAY_PER_REQUEST,
-        point_in_time_recovery_specification=ddb.PointInTimeRecoverySpecification(
-            point_in_time_recovery_enabled=True
-        ),
+        point_in_time_recovery_specification=ddb.PointInTimeRecoverySpecification(point_in_time_recovery_enabled=True),
         removal_policy=RemovalPolicy.RETAIN,
         deletion_protection=True,
     )

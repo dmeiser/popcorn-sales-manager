@@ -42,29 +42,7 @@ import {
 import QRCode from 'qrcode';
 import { LIST_MY_SHARED_CAMPAIGNS, UPDATE_SHARED_CAMPAIGN, DELETE_SHARED_CAMPAIGN } from '../lib/graphql';
 import { EditSharedCampaignDialog } from '../components/EditSharedCampaignDialog';
-
-interface SharedCampaign {
-  sharedCampaignCode: string;
-  catalogId: string;
-  catalog?: {
-    catalogId: string;
-    catalogName: string;
-  };
-  campaignName: string;
-  campaignYear: number;
-  startDate?: string;
-  endDate?: string;
-  unitType: string;
-  unitNumber: number;
-  city: string;
-  state: string;
-  createdBy: string;
-  createdByName: string;
-  creatorMessage?: string;
-  description?: string;
-  isActive: boolean;
-  createdAt: string;
-}
+import type { SharedCampaign } from '../types';
 
 const MAX_SHARED_CAMPAIGNS = 50;
 const BASE_URL = window.location.origin;

@@ -1,38 +1,20 @@
 """Lambda resolvers for Scout operations."""
 
-import os
 import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict
 
 import boto3
-from mypy_boto3_dynamodb import DynamoDBServiceResource
-from mypy_boto3_dynamodb.service_resource import Table
 
 # Handle both Lambda (absolute) and unit test (relative) imports
-try:
+try:  # pragma: no cover
+    from utils.dynamodb import tables
     from utils.logging import get_logger
-except ModuleNotFoundError:
+except ModuleNotFoundError:  # pragma: no cover
+    from ..utils.dynamodb import tables
     from ..utils.logging import get_logger
 
 logger = get_logger(__name__)
-
-
-def _get_dynamodb() -> DynamoDBServiceResource:
-    return boto3.resource("dynamodb")
-
-
-# Multi-table design V2: profiles table for profile records
-profiles_table_name = os.environ.get("PROFILES_TABLE_NAME", "kernelworx-profiles-v2-ue1-dev")
-
-# Module-level override for tests
-profiles_table: Table | None = None
-
-
-def _get_profiles_table() -> Table:
-    if profiles_table is not None:
-        return profiles_table
-    return _get_dynamodb().Table(profiles_table_name)
 
 
 def create_seller_profile(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
@@ -105,7 +87,7 @@ def create_seller_profile(event: Dict[str, Any], context: Any) -> Dict[str, Any]
                 {
                     # Profile item: PK=ownerAccountId, SK=profileId
                     "Put": {
-                        "TableName": profiles_table_name,
+                        "TableName": tables.profiles.table_name,
                         "Item": {
                             "ownerAccountId": {"S": owner_account_id_stored},  # PK
                             "profileId": {"S": profile_id},  # SK

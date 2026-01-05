@@ -22,24 +22,10 @@ import { CampaignCard } from '../components/CampaignCard';
 import { CreateCampaignDialog } from '../components/CreateCampaignDialog';
 import { GET_PROFILE, LIST_CAMPAIGNS_BY_PROFILE, CREATE_CAMPAIGN } from '../lib/graphql';
 import { ensureProfileId, ensureCatalogId } from '../lib/ids';
+import type { Campaign, SellerProfile } from '../types';
 
-interface Campaign {
-  campaignId: string;
-  campaignName: string;
-  campaignYear: number;
-  startDate: string;
-  endDate?: string;
-  catalogId: string;
-  totalOrders?: number;
-  totalRevenue?: number;
-}
-
-interface Profile {
-  profileId: string;
-  sellerName: string;
-  isOwner: boolean;
-  permissions: string[];
-}
+// Use SellerProfile with only the fields we need
+type Profile = Pick<SellerProfile, 'profileId' | 'sellerName' | 'isOwner' | 'permissions'>;
 
 // --- Helper Functions ---
 
@@ -47,9 +33,10 @@ function getDecodedProfileId(encodedProfileId: string | undefined): string {
   return encodedProfileId ? decodeURIComponent(encodedProfileId) : '';
 }
 
+// eslint-disable-next-line complexity
 function canEditProfile(profile: Profile | undefined): boolean {
   if (!profile) return false;
-  return profile.isOwner || profile.permissions?.includes('WRITE');
+  return (profile.isOwner ?? false) || (profile.permissions?.includes('WRITE') ?? false);
 }
 
 // --- Sub-Components ---

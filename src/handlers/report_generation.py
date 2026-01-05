@@ -11,8 +11,6 @@ from io import BytesIO
 from typing import Any, Dict
 
 import boto3
-from mypy_boto3_dynamodb import DynamoDBServiceResource
-from mypy_boto3_dynamodb.service_resource import Table
 from mypy_boto3_s3.client import S3Client
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill
@@ -20,17 +18,14 @@ from openpyxl.styles import Font, PatternFill
 # Handle both Lambda (absolute) and unit test (relative) imports
 try:  # pragma: no cover
     from utils.auth import check_profile_access
+    from utils.dynamodb import tables
     from utils.errors import AppError, ErrorCode
     from utils.logging import get_logger
 except ModuleNotFoundError:  # pragma: no cover
     from ..utils.auth import check_profile_access
+    from ..utils.dynamodb import tables
     from ..utils.errors import AppError, ErrorCode
     from ..utils.logging import get_logger
-
-
-def _get_dynamodb() -> DynamoDBServiceResource:
-    """Return a fresh boto3 DynamoDB resource (created lazily so tests and moto work)."""
-    return boto3.resource("dynamodb", endpoint_url=os.getenv("DYNAMODB_ENDPOINT"))
 
 
 # Module-level proxy that tests can monkeypatch
@@ -43,18 +38,6 @@ def _get_s3_client() -> S3Client:
     if s3_client is not None:
         return s3_client
     return boto3.client("s3", endpoint_url=os.getenv("S3_ENDPOINT"))
-
-
-def get_campaigns_table() -> Table:
-    """Get DynamoDB campaigns table instance (multi-table design)."""
-    table_name = os.getenv("CAMPAIGNS_TABLE_NAME", "kernelworx-campaigns-v2-ue1-dev")
-    return _get_dynamodb().Table(table_name)
-
-
-def get_orders_table() -> Table:
-    """Get DynamoDB orders table instance (multi-table design)."""
-    table_name = os.getenv("ORDERS_TABLE_NAME", "kernelworx-orders-v2-ue1-dev")
-    return _get_dynamodb().Table(table_name)
 
 
 def request_campaign_report(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
@@ -92,8 +75,7 @@ def request_campaign_report(event: Dict[str, Any], context: Any) -> Dict[str, An
         )
 
         # Get campaign and verify authorization (multi-table design)
-        campaigns_table = get_campaigns_table()
-        campaign = _get_campaign(campaigns_table, campaign_id)
+        campaign = _get_campaign(tables.campaigns, campaign_id)
 
         if not campaign:
             raise AppError(ErrorCode.NOT_FOUND, f"Campaign {campaign_id} not found")
@@ -105,8 +87,7 @@ def request_campaign_report(event: Dict[str, Any], context: Any) -> Dict[str, An
             raise AppError(ErrorCode.FORBIDDEN, "You don't have access to this campaign")
 
         # Get all orders for the campaign (multi-table design)
-        orders_table = get_orders_table()
-        orders = _get_campaign_orders(orders_table, campaign_id)
+        orders = _get_campaign_orders(tables.orders, campaign_id)
 
         # Generate report
         if report_format.lower() == "csv":

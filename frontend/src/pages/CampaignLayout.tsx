@@ -35,23 +35,7 @@ import { ReportsPage } from './ReportsPage';
 import { CampaignSettingsPage } from './CampaignSettingsPage';
 import { GET_CAMPAIGN, GET_PROFILE } from '../lib/graphql';
 import { ensureProfileId, ensureCampaignId, toUrlId } from '../lib/ids';
-
-interface Campaign {
-  campaignId: string;
-  campaignName: string;
-  campaignYear: number;
-  profileId: string;
-  startDate: string;
-  endDate?: string;
-  catalogId: string;
-}
-
-interface Profile {
-  profileId: string;
-  sellerName: string;
-  isOwner: boolean;
-  permissions: string[];
-}
+import type { Campaign, SellerProfile } from '../types';
 
 // --- Helper Functions ---
 
@@ -200,7 +184,7 @@ const CampaignRoutes: React.FC = () => (
 
 // --- Custom Hook ---
 
-function getWritePermission(profile: Profile | undefined): boolean {
+function getWritePermission(profile: SellerProfile | undefined): boolean {
   if (!profile) return false;
   return profile.isOwner || profile.permissions?.includes('WRITE') || false;
 }
@@ -223,7 +207,7 @@ function useCampaignQuery(dbCampaignId: string | null) {
 }
 
 function useProfileQuery(dbProfileId: string | null) {
-  const result = useQuery<{ getProfile: Profile }>(GET_PROFILE, {
+  const result = useQuery<{ getProfile: SellerProfile }>(GET_PROFILE, {
     variables: { profileId: dbProfileId },
     skip: !dbProfileId,
   });
@@ -265,7 +249,7 @@ interface CampaignContentProps {
   profileId: string;
   tabValue: string;
   campaign: Campaign;
-  profile: Profile | undefined;
+  profile: SellerProfile | undefined;
   navHandlers: ReturnType<typeof useNavigationHandlers>;
 }
 

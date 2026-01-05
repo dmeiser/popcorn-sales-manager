@@ -23,8 +23,8 @@ def _reload_module_with_no_utils(module_name: str):
 
 def test_reload_campaign_operations_import_fallback():
     module = _reload_module_with_no_utils("src.handlers.campaign_operations")
-    # basic sanity: functions exist
-    assert hasattr(module, "_get_profiles_table")
+    # basic sanity: functions exist (tables accessor imported)
+    assert hasattr(module, "tables")
 
 
 def test_reload_campaign_reporting_import_fallback():

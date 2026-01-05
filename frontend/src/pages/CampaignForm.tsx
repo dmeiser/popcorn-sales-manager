@@ -25,6 +25,10 @@ import {
   Snackbar,
 } from '@mui/material';
 import { ExpandMore as ExpandMoreIcon, Info as InfoIcon } from '@mui/icons-material';
+import type { Catalog, SharedCampaign, SellerProfile } from '../types';
+
+// Local type aliases for convenience
+type Profile = Pick<SellerProfile, 'profileId' | 'sellerName' | 'isOwner'>;
 
 const UNIT_TYPES = [
   { value: '', label: 'None' },
@@ -130,41 +134,6 @@ interface FormState {
   ) => void;
 }
 
-interface SharedCampaign {
-  sharedCampaignCode: string;
-  catalogId: string;
-  catalog: {
-    catalogId: string;
-    catalogName: string;
-  };
-  campaignName: string;
-  campaignYear: number;
-  startDate: string | null;
-  endDate: string | null;
-  unitType: string;
-  unitNumber: number;
-  city: string;
-  state: string;
-  createdBy: string;
-  createdByName: string;
-  creatorMessage: string;
-  description: string | null;
-  isActive: boolean;
-}
-
-interface Catalog {
-  catalogId: string;
-  catalogName: string;
-  catalogType: string;
-  isDeleted?: boolean;
-}
-
-interface Profile {
-  profileId: string;
-  sellerName: string;
-  isOwner: boolean;
-}
-
 interface CampaignFormProps {
   formState: FormState;
   profiles: Profile[];
@@ -221,7 +190,7 @@ const SharedCampaignFields: React.FC<SharedCampaignFieldsProps> = ({ sharedCampa
     <TextField
       fullWidth
       label="Catalog"
-      value={sharedCampaign.catalog.catalogName}
+      value={sharedCampaign.catalog?.catalogName ?? ''}
       disabled
       helperText="Set by campaign creator"
     />

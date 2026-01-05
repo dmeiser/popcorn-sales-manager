@@ -18,19 +18,15 @@ from src.utils.errors import AppError, ErrorCode
 class TestExceptionHandling:
     """Tests for exception handling in Lambda handlers."""
 
-    @patch("src.handlers.profile_sharing.get_invites_table")
-    @patch("src.utils.auth.get_profiles_table")
     def test_create_invite_database_error(
         self,
-        mock_auth_table: MagicMock,
-        mock_invites_table: MagicMock,
         sample_profile_id: str,
         sample_account_id: str,
         appsync_event: Dict[str, Any],
         lambda_context: Any,
     ) -> None:
         """Test that database errors are handled in create_invite."""
-        # Mock auth table to return valid profile (V2 uses Query on profileId-index)
+        # Mock auth tables to return valid profile
         auth_mock = MagicMock()
         auth_mock.query.return_value = {
             "Items": [
@@ -40,12 +36,10 @@ class TestExceptionHandling:
                 }
             ]
         }
-        mock_auth_table.return_value = auth_mock
 
         # Mock invites table to raise exception on put_item
         invites_mock = MagicMock()
         invites_mock.put_item.side_effect = Exception("Database connection failed")
-        mock_invites_table.return_value = invites_mock
 
         event = {
             **appsync_event,
@@ -55,8 +49,20 @@ class TestExceptionHandling:
             },
         }
 
-        with pytest.raises(AppError) as exc_info:
-            create_profile_invite(event, lambda_context)
+        # Patch both the auth module tables and the profile_sharing module tables
+        with patch("src.utils.auth.tables") as mock_auth_tables:
+            mock_auth_tables.profiles = auth_mock
+            mock_auth_tables.shares = MagicMock()
+            mock_auth_tables.shares.query.return_value = {"Items": []}
+            mock_auth_tables.accounts = MagicMock()
+            mock_auth_tables.accounts.get_item.return_value = {}
+
+            with patch("src.handlers.profile_sharing.tables") as mock_sharing_tables:
+                mock_sharing_tables.invites = invites_mock
+                mock_sharing_tables.profiles = auth_mock  # Reuse the profile mock
+
+                with pytest.raises(AppError) as exc_info:
+                    create_profile_invite(event, lambda_context)
 
         assert exc_info.value.error_code == ErrorCode.INTERNAL_ERROR
 

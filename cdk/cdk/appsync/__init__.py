@@ -111,9 +111,7 @@ def setup_appsync(
     functions = create_appsync_functions(scope, api, env_name, dynamodb_datasources)
 
     # Create profile delete functions
-    profile_delete_functions = create_profile_delete_functions(
-        scope, api, env_name, dynamodb_datasources
-    )
+    profile_delete_functions = create_profile_delete_functions(scope, api, env_name, dynamodb_datasources)
 
     # Create all resolvers
     create_resolvers(

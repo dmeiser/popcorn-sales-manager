@@ -7,6 +7,7 @@ from constructs import Construct
 
 # Import directory paths from parent api module
 from ..api import MAPPING_TEMPLATES_DIR, RESOLVERS_DIR
+from ..resolver_builder import ResolverBuilder
 
 
 def create_query_resolvers(
@@ -30,258 +31,236 @@ def create_query_resolvers(
         functions: Dictionary of reusable AppSync functions
         profile_delete_functions: Dictionary of profile-related AppSync functions
     """
+    # Initialize the resolver builder
+    builder = ResolverBuilder(api, datasources, lambda_datasources, scope)
+
     # === ACCOUNT & PROFILE QUERIES ===
 
     # getMyAccount (VTL)
-    datasources["accounts"].create_resolver(
-        "GetMyAccountResolver",
-        type_name="Query",
+    builder.create_vtl_resolver(
         field_name="getMyAccount",
-        request_mapping_template=appsync.MappingTemplate.from_file(
-            str(MAPPING_TEMPLATES_DIR / "get_my_account_request.vtl")
-        ),
-        response_mapping_template=appsync.MappingTemplate.from_file(
-            str(MAPPING_TEMPLATES_DIR / "get_my_account_response.vtl")
-        ),
+        type_name="Query",
+        datasource_name="accounts",
+        request_template=MAPPING_TEMPLATES_DIR / "get_my_account_request.vtl",
+        response_template=MAPPING_TEMPLATES_DIR / "get_my_account_response.vtl",
+        id_suffix="GetMyAccountResolver",
     )
 
-    # getProfile Pipeline
-    appsync.Resolver(
-        scope,
-        "GetProfileResolver",
-        api=api,
-        type_name="Query",
+    # getProfile Pipeline (VTL with pipeline config)
+    builder.create_vtl_pipeline_resolver(
         field_name="getProfile",
-        request_mapping_template=appsync.MappingTemplate.from_file(
-            str(MAPPING_TEMPLATES_DIR / "get_profile_request.vtl")
-        ),
-        response_mapping_template=appsync.MappingTemplate.from_file(
-            str(MAPPING_TEMPLATES_DIR / "get_profile_response.vtl")
-        ),
-        pipeline_config=[
+        type_name="Query",
+        functions=[
             functions["fetch_profile"],
             functions["check_profile_read_auth"],
         ],
+        request_template=MAPPING_TEMPLATES_DIR / "get_profile_request.vtl",
+        response_template=MAPPING_TEMPLATES_DIR / "get_profile_response.vtl",
+        id_suffix="GetProfileResolver",
     )
 
     # listMyProfiles (JS)
-    api.create_resolver(
-        "ListMyProfilesResolver",
-        type_name="Query",
+    builder.create_js_resolver_on_api(
         field_name="listMyProfiles",
-        data_source=datasources["profiles"],
-        runtime=appsync.FunctionRuntime.JS_1_0_0,
-        code=appsync.Code.from_asset(str(RESOLVERS_DIR / "list_my_profiles_fn.js")),
+        type_name="Query",
+        datasource_name="profiles",
+        code_file=RESOLVERS_DIR / "list_my_profiles_fn.js",
+        id_suffix="ListMyProfilesResolver",
     )
 
     # listMyShares (JS)
-    api.create_resolver(
-        "ListMySharesResolverV2",  # Changed ID to force replacement
-        type_name="Query",
+    builder.create_js_resolver_on_api(
         field_name="listMyShares",
-        data_source=datasources["shares"],
-        runtime=appsync.FunctionRuntime.JS_1_0_0,
-        code=appsync.Code.from_asset(str(RESOLVERS_DIR / "list_my_shares_resolver.js")),
+        type_name="Query",
+        datasource_name="shares",
+        code_file=RESOLVERS_DIR / "list_my_shares_resolver.js",
+        id_suffix="ListMySharesResolverV2",  # Changed ID to force replacement
     )
 
     # === CAMPAIGN QUERIES ===
 
     # getCampaign Pipeline
-    api.create_resolver(
-        "GetCampaignResolver",
-        type_name="Query",
+    builder.create_pipeline_resolver(
         field_name="getCampaign",
-        runtime=appsync.FunctionRuntime.JS_1_0_0,
-        pipeline_config=[
+        type_name="Query",
+        functions=[
             functions["query_campaign"],
             functions["verify_profile_read_access"],
             functions["check_share_read_permissions"],
             functions["return_campaign"],
         ],
-        code=appsync.Code.from_asset(str(RESOLVERS_DIR / "get_campaign_resolver.js")),
+        code_file=RESOLVERS_DIR / "get_campaign_resolver.js",
+        id_suffix="GetCampaignResolver",
     )
 
     # listCampaignsByProfile Pipeline
-    api.create_resolver(
-        "ListCampaignsByProfileResolver",
-        type_name="Query",
+    builder.create_pipeline_resolver(
         field_name="listCampaignsByProfile",
-        runtime=appsync.FunctionRuntime.JS_1_0_0,
-        pipeline_config=[
+        type_name="Query",
+        functions=[
             functions["verify_profile_read_access"],
             functions["check_share_read_permissions"],
             functions["query_campaigns"],
         ],
-        code=appsync.Code.from_asset(str(RESOLVERS_DIR / "list_campaigns_by_profile_resolver.js")),
+        code_file=RESOLVERS_DIR / "list_campaigns_by_profile_resolver.js",
+        id_suffix="ListCampaignsByProfileResolver",
     )
 
     # === ORDER QUERIES ===
 
     # getOrder Pipeline
-    api.create_resolver(
-        "GetOrderResolver",
-        type_name="Query",
+    builder.create_pipeline_resolver(
         field_name="getOrder",
-        runtime=appsync.FunctionRuntime.JS_1_0_0,
-        pipeline_config=[
+        type_name="Query",
+        functions=[
             functions["query_order"],
             functions["verify_profile_read_access"],
             functions["check_share_read_permissions"],
             functions["return_order"],
         ],
-        code=appsync.Code.from_asset(str(RESOLVERS_DIR / "get_order_resolver.js")),
+        code_file=RESOLVERS_DIR / "get_order_resolver.js",
+        id_suffix="GetOrderResolver",
     )
 
     # listOrdersByCampaign Pipeline
-    api.create_resolver(
-        "ListOrdersByCampaignResolver",
-        type_name="Query",
+    builder.create_pipeline_resolver(
         field_name="listOrdersByCampaign",
-        runtime=appsync.FunctionRuntime.JS_1_0_0,
-        pipeline_config=[
+        type_name="Query",
+        functions=[
             functions["lookup_campaign_for_orders"],
             functions["verify_profile_read_access"],
             functions["check_share_read_permissions"],
             functions["query_orders_by_campaign"],
         ],
-        code=appsync.Code.from_asset(str(RESOLVERS_DIR / "list_orders_by_campaign_resolver.js")),
+        code_file=RESOLVERS_DIR / "list_orders_by_campaign_resolver.js",
+        id_suffix="ListOrdersByCampaignResolver",
     )
 
     # listOrdersByProfile Pipeline
-    api.create_resolver(
-        "ListOrdersByProfileResolver",
-        type_name="Query",
+    builder.create_pipeline_resolver(
         field_name="listOrdersByProfile",
-        runtime=appsync.FunctionRuntime.JS_1_0_0,
-        pipeline_config=[
+        type_name="Query",
+        functions=[
             functions["verify_profile_read_access"],
             functions["check_share_read_permissions"],
             functions["query_orders_by_profile"],
         ],
-        code=appsync.Code.from_asset(str(RESOLVERS_DIR / "list_orders_by_profile_resolver.js")),
+        code_file=RESOLVERS_DIR / "list_orders_by_profile_resolver.js",
+        id_suffix="ListOrdersByProfileResolver",
     )
 
     # === SHARE & INVITE QUERIES ===
 
     # listSharesByProfile Pipeline
-    api.create_resolver(
-        "ListSharesByProfileResolver",
-        type_name="Query",
+    builder.create_pipeline_resolver(
         field_name="listSharesByProfile",
-        runtime=appsync.FunctionRuntime.JS_1_0_0,
-        pipeline_config=[
+        type_name="Query",
+        functions=[
             functions["verify_profile_write_or_owner"],
             functions["check_write_permission"],
             functions["query_shares"],
         ],
-        code=appsync.Code.from_asset(str(RESOLVERS_DIR / "list_shares_by_profile_resolver.js")),
+        code_file=RESOLVERS_DIR / "list_shares_by_profile_resolver.js",
+        id_suffix="ListSharesByProfileResolver",
     )
 
-    # listInvitesByProfile Pipeline
-    appsync.Resolver(
-        scope,
-        "ListInvitesByProfilePipelineResolver",
-        api=api,
-        type_name="Query",
+    # listInvitesByProfile Pipeline (VTL-style with appsync.Resolver construct)
+    # NOTE: Uses create_pipeline_resolver_on_scope to maintain backwards compatibility
+    # with existing CloudFormation resource that doesn't have 'Api' prefix
+    builder.create_pipeline_resolver_on_scope(
         field_name="listInvitesByProfile",
-        runtime=appsync.FunctionRuntime.JS_1_0_0,
-        pipeline_config=[
+        type_name="Query",
+        functions=[
             functions["verify_profile_write_or_owner"],
             functions["check_write_permission"],
             functions["query_invites"],
         ],
-        code=appsync.Code.from_asset(str(RESOLVERS_DIR / "list_invites_by_profile_pipeline_resolver.js")),
+        code_file=RESOLVERS_DIR / "list_invites_by_profile_pipeline_resolver.js",
+        id_suffix="ListInvitesByProfilePipelineResolver",
     )
 
     # === CATALOG QUERIES ===
 
     # getCatalog (VTL)
-    datasources["catalogs"].create_resolver(
-        "GetCatalogResolver",
-        type_name="Query",
+    builder.create_vtl_resolver(
         field_name="getCatalog",
-        request_mapping_template=appsync.MappingTemplate.from_file(
-            str(MAPPING_TEMPLATES_DIR / "get_catalog_request.vtl")
-        ),
-        response_mapping_template=appsync.MappingTemplate.from_file(
-            str(MAPPING_TEMPLATES_DIR / "get_catalog_response.vtl")
-        ),
+        type_name="Query",
+        datasource_name="catalogs",
+        request_template=MAPPING_TEMPLATES_DIR / "get_catalog_request.vtl",
+        response_template=MAPPING_TEMPLATES_DIR / "get_catalog_response.vtl",
+        id_suffix="GetCatalogResolver",
     )
 
     # listPublicCatalogs (JS)
-    api.create_resolver(
-        "ListPublicCatalogsResolver",
-        type_name="Query",
+    builder.create_js_resolver_on_api(
         field_name="listPublicCatalogs",
-        data_source=datasources["catalogs"],
-        runtime=appsync.FunctionRuntime.JS_1_0_0,
-        code=appsync.Code.from_asset(str(RESOLVERS_DIR / "list_public_catalogs_resolver.js")),
+        type_name="Query",
+        datasource_name="catalogs",
+        code_file=RESOLVERS_DIR / "list_public_catalogs_resolver.js",
+        id_suffix="ListPublicCatalogsResolver",
     )
 
     # listMyCatalogs (JS)
-    api.create_resolver(
-        "ListMyCatalogsResolver",
-        type_name="Query",
+    builder.create_js_resolver_on_api(
         field_name="listMyCatalogs",
-        data_source=datasources["catalogs"],
-        runtime=appsync.FunctionRuntime.JS_1_0_0,
-        code=appsync.Code.from_asset(str(RESOLVERS_DIR / "list_my_catalogs_resolver.js")),
+        type_name="Query",
+        datasource_name="catalogs",
+        code_file=RESOLVERS_DIR / "list_my_catalogs_resolver.js",
+        id_suffix="ListMyCatalogsResolver",
     )
 
     # === SHARED CAMPAIGN QUERIES ===
 
     # getSharedCampaign (VTL)
-    datasources["shared_campaigns"].create_resolver(
-        "GetSharedCampaignResolver",
-        type_name="Query",
+    builder.create_vtl_resolver(
         field_name="getSharedCampaign",
-        request_mapping_template=appsync.MappingTemplate.from_file(
-            str(MAPPING_TEMPLATES_DIR / "get_shared_campaign_request.vtl")
-        ),
-        response_mapping_template=appsync.MappingTemplate.from_file(
-            str(MAPPING_TEMPLATES_DIR / "get_shared_campaign_response.vtl")
-        ),
+        type_name="Query",
+        datasource_name="shared_campaigns",
+        request_template=MAPPING_TEMPLATES_DIR / "get_shared_campaign_request.vtl",
+        response_template=MAPPING_TEMPLATES_DIR / "get_shared_campaign_response.vtl",
+        id_suffix="GetSharedCampaignResolver",
     )
 
     # listMySharedCampaigns (JS)
-    api.create_resolver(
-        "ListMySharedCampaignsResolver",
-        type_name="Query",
+    builder.create_js_resolver_on_api(
         field_name="listMySharedCampaigns",
-        data_source=datasources["shared_campaigns"],
-        runtime=appsync.FunctionRuntime.JS_1_0_0,
-        code=appsync.Code.from_asset(str(RESOLVERS_DIR / "list_my_shared_campaigns_resolver.js")),
+        type_name="Query",
+        datasource_name="shared_campaigns",
+        code_file=RESOLVERS_DIR / "list_my_shared_campaigns_resolver.js",
+        id_suffix="ListMySharedCampaignsResolver",
     )
 
     # findSharedCampaigns (JS)
-    api.create_resolver(
-        "FindSharedCampaignsResolver",
-        type_name="Query",
+    builder.create_js_resolver_on_api(
         field_name="findSharedCampaigns",
-        data_source=datasources["shared_campaigns"],
-        runtime=appsync.FunctionRuntime.JS_1_0_0,
-        code=appsync.Code.from_asset(str(RESOLVERS_DIR / "find_shared_campaigns_resolver.js")),
+        type_name="Query",
+        datasource_name="shared_campaigns",
+        code_file=RESOLVERS_DIR / "find_shared_campaigns_resolver.js",
+        id_suffix="FindSharedCampaignsResolver",
     )
 
     # === REPORTING QUERIES ===
 
     # getUnitReport (Lambda)
-    lambda_datasources["unit_reporting"].create_resolver(
-        "GetUnitReportResolver",
-        type_name="Query",
+    builder.create_lambda_resolver(
         field_name="getUnitReport",
+        type_name="Query",
+        lambda_datasource_name="unit_reporting",
+        id_suffix="GetUnitReportResolver",
     )
 
     # listUnitCatalogs (Lambda - deprecated)
-    lambda_datasources["list_unit_catalogs"].create_resolver(
-        "ListUnitCatalogsResolver",
-        type_name="Query",
+    builder.create_lambda_resolver(
         field_name="listUnitCatalogs",
+        type_name="Query",
+        lambda_datasource_name="list_unit_catalogs",
+        id_suffix="ListUnitCatalogsResolver",
     )
 
     # listUnitCampaignCatalogs (Lambda)
-    lambda_datasources["list_unit_campaign_catalogs"].create_resolver(
-        "ListUnitCampaignCatalogsResolver",
-        type_name="Query",
+    builder.create_lambda_resolver(
         field_name="listUnitCampaignCatalogs",
+        type_name="Query",
+        lambda_datasource_name="list_unit_campaign_catalogs",
+        id_suffix="ListUnitCampaignCatalogsResolver",
     )

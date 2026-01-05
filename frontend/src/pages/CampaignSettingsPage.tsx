@@ -30,6 +30,7 @@ import {
 import { Delete as DeleteIcon, Warning as WarningIcon } from '@mui/icons-material';
 import { GET_CAMPAIGN, UPDATE_CAMPAIGN, DELETE_CAMPAIGN, LIST_PUBLIC_CATALOGS, LIST_MY_CATALOGS } from '../lib/graphql';
 import { ensureCampaignId, ensureCatalogId, toUrlId } from '../lib/ids';
+import type { Campaign, Catalog } from '../types';
 
 // Helper to extract date part from ISO string
 const extractDatePart = (isoDate: string | undefined): string => isoDate?.split('T')[0] || '';
@@ -166,28 +167,7 @@ const initializeFormFromCampaign = (
   }
 };
 
-interface Campaign {
-  campaignId: string;
-  campaignName: string;
-  campaignYear: number;
-  startDate: string;
-  endDate?: string;
-  catalogId: string;
-  profileId: string;
-  sharedCampaignCode?: string;
-  unitType?: string;
-  unitNumber?: number;
-  city?: string;
-  state?: string;
-}
-
-interface Catalog {
-  catalogId: string;
-  catalogName: string;
-  catalogType: string;
-  isDeleted?: boolean;
-}
-
+// eslint-disable-next-line complexity -- Component already well modularized; complexity 6 is acceptable
 export const CampaignSettingsPage: React.FC = () => {
   const { profileId: encodedProfileId, campaignId: encodedCampaignId } = useParams<{
     profileId: string;
@@ -327,11 +307,11 @@ export const CampaignSettingsPage: React.FC = () => {
           />
           <FormControl fullWidth disabled={updating}>
             <InputLabel>Product Catalog</InputLabel>
-            <Select value={catalogId} onChange={(e) => setCatalogId(e.target.value)} label="Product Catalog">
+            <Select value={catalogId ?? ''} onChange={(e) => setCatalogId(e.target.value)} label="Product Catalog">
               {allCatalogs.map((catalog) => (
                 <MenuItem key={catalog.catalogId} value={catalog.catalogId}>
                   {catalog.catalogName}
-                  {getCatalogTypeSuffix(catalog.catalogType)}
+                  {getCatalogTypeSuffix(catalog.catalogType ?? '')}
                 </MenuItem>
               ))}
             </Select>

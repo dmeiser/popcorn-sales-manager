@@ -1,56 +1,20 @@
 """Lambda resolver for campaign-level reporting using campaign-based queries."""
 
-import os
 from typing import Any, Dict, List, cast
 
-import boto3
 from boto3.dynamodb.conditions import Key
-from mypy_boto3_dynamodb import DynamoDBServiceResource
-from mypy_boto3_dynamodb.service_resource import Table
 
 # Handle both Lambda (absolute) and unit test (relative) imports
 try:  # pragma: no cover
     from utils.auth import check_profile_access
+    from utils.dynamodb import tables
     from utils.logging import get_logger
 except ModuleNotFoundError:  # pragma: no cover
     from ..utils.auth import check_profile_access
+    from ..utils.dynamodb import tables
     from ..utils.logging import get_logger
 
 logger = get_logger(__name__)
-
-
-def _get_dynamodb() -> DynamoDBServiceResource:
-    return boto3.resource("dynamodb")
-
-
-# Multi-table design V2
-profiles_table_name = os.environ.get("PROFILES_TABLE_NAME", "kernelworx-profiles-v2-ue1-dev")
-campaigns_table_name = os.environ.get("CAMPAIGNS_TABLE_NAME", "kernelworx-campaigns-v2-ue1-dev")
-orders_table_name = os.environ.get("ORDERS_TABLE_NAME", "kernelworx-orders-v2-ue1-dev")
-
-
-# Module-level variables for test monkeypatching
-profiles_table: Table | None = None
-campaigns_table: Table | None = None
-orders_table: Table | None = None
-
-
-def _get_profiles_table() -> Table:
-    if profiles_table is not None:
-        return profiles_table
-    return _get_dynamodb().Table(profiles_table_name)
-
-
-def _get_campaigns_table() -> Table:
-    if campaigns_table is not None:
-        return campaigns_table
-    return _get_dynamodb().Table(campaigns_table_name)
-
-
-def _get_orders_table() -> Table:
-    if orders_table is not None:
-        return orders_table
-    return _get_dynamodb().Table(orders_table_name)
 
 
 def _build_unit_campaign_key(
@@ -94,7 +58,7 @@ def _get_accessible_profiles(profile_ids: list[str], caller_account_id: str) -> 
             required_permission="READ",
         )
         if has_access:
-            profile_response = _get_profiles_table().query(
+            profile_response = tables.profiles.query(
                 IndexName="profileId-index",
                 KeyConditionExpression="profileId = :profileId",
                 ExpressionAttributeValues={":profileId": profile_id},
@@ -134,7 +98,7 @@ def _get_seller_data(profile_id: str, profile: Dict[str, Any], campaigns: List[D
 
     for campaign in campaigns:
         campaign_id = campaign["campaignId"]
-        orders_response = _get_orders_table().query(KeyConditionExpression=Key("campaignId").eq(campaign_id))
+        orders_response = tables.orders.query(KeyConditionExpression=Key("campaignId").eq(campaign_id))
         orders = orders_response.get("Items", [])
 
         for order in orders:
@@ -190,7 +154,7 @@ def get_unit_report(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
 
         # Step 1: Query campaigns by unit+campaign key
         unit_campaign_key = _build_unit_campaign_key(unit_type, unit_number, city, state, campaign_name, campaign_year)
-        campaigns_response = _get_campaigns_table().query(
+        campaigns_response = tables.campaigns.query(
             IndexName="unitCampaignKey-index",
             KeyConditionExpression=Key("unitCampaignKey").eq(unit_campaign_key),
             FilterExpression="catalogId = :cid",

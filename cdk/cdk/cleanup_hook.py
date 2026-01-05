@@ -78,9 +78,7 @@ def _init_cleanup_clients(region: str) -> tuple[Any, Any, Any]:
     )
 
 
-def _cleanup_appsync_resources(
-    domain_names: list[str], environment_name: str, dry_run: bool
-) -> list[str]:
+def _cleanup_appsync_resources(domain_names: list[str], environment_name: str, dry_run: bool) -> list[str]:
     """Clean up orphaned AppSync domains and APIs. Returns cleaned API domains."""
     print("\n🧹 Checking AppSync custom domains...")
     api_domains_cleaned: list[str] = []
@@ -104,9 +102,7 @@ def _cleanup_cognito_domains(
             _disconnect_cognito_domain(cognito_client, domain, environment_name, dry_run=dry_run)
 
 
-def _cleanup_cloudfront_resources(
-    site_domain: str | None, environment_name: str, dry_run: bool
-) -> None:
+def _cleanup_cloudfront_resources(site_domain: str | None, environment_name: str, dry_run: bool) -> None:
     """Clean up CloudFront certificate bindings and orphaned distributions."""
     if not site_domain:
         return
@@ -116,9 +112,7 @@ def _cleanup_cloudfront_resources(
     _delete_orphaned_cloudfront_distribution(site_domain, environment_name, dry_run=dry_run)
 
 
-def _build_certificates_to_check(
-    domain_names: list[str], site_domain: str | None
-) -> list[tuple[str, str]]:
+def _build_certificates_to_check(domain_names: list[str], site_domain: str | None) -> list[tuple[str, str]]:
     """Build list of (cert_type, domain) tuples to check for cleanup."""
     certificates: list[tuple[str, str]] = []
     for domain in domain_names:
@@ -151,7 +145,11 @@ def _cleanup_certificates(
             print(f"   🗑️  Found unmanaged {cert_type} certificate for {domain}")
             _delete_acm_certificate(acm_client, cert_arn, dry_run=dry_run)
             deleted_cert_arns.add(cert_arn)
-            msg = f"Would delete orphaned {cert_type} certificate" if dry_run else f"Deleted orphaned {cert_type} certificate"
+            msg = (
+                f"Would delete orphaned {cert_type} certificate"
+                if dry_run
+                else f"Deleted orphaned {cert_type} certificate"
+            )
             print(f"   {'[DRY RUN] ' if dry_run else '✅ '}{msg}")
         else:
             print(f"   ℹ️  {cert_type.title()} certificate exists and is CloudFormation-managed: {domain}")
@@ -285,9 +283,7 @@ def _is_unmanaged_certificate(cert_arn: str, environment_name: str | None = None
         # If tagged as kernelworx application, and environment matches (if provided), treat as managed
         if tag_map.get("Application") == "kernelworx":
             if environment_name is None or tag_map.get("Environment") == environment_name:
-                print(
-                    "   ℹ️  Certificate has kernelworx tags (Application, Environment). Treating as managed"
-                )
+                print("   ℹ️  Certificate has kernelworx tags (Application, Environment). Treating as managed")
                 return False
 
         # If environment_name provided, check CloudFormation stack resources for this cert ARN
@@ -308,8 +304,7 @@ def _is_unmanaged_certificate(cert_arn: str, environment_name: str | None = None
                     for resource in page.get("StackResourceSummaries", []):
                         if (
                             resource.get("PhysicalResourceId") == cert_arn
-                            and resource.get("ResourceType")
-                            == "AWS::CertificateManager::Certificate"
+                            and resource.get("ResourceType") == "AWS::CertificateManager::Certificate"
                         ):
                             print(
                                 f"   ℹ️  Certificate ARN found in CloudFormation stack resources ({stack_name}); treating as managed"
@@ -340,9 +335,7 @@ def _delete_acm_certificate(client: Any, cert_arn: str, dry_run: bool = False) -
         print(f"   ⚠️  Could not delete certificate: {e}")
 
 
-def _disconnect_cognito_domain(
-    client: Any, domain_name: str, environment_name: str, dry_run: bool = False
-) -> None:
+def _disconnect_cognito_domain(client: Any, domain_name: str, environment_name: str, dry_run: bool = False) -> None:
     """Delete a Cognito custom domain so its certificate can be deleted.
 
     Only deletes unmanaged (orphaned) domains. CloudFormation-managed domains are skipped.
@@ -385,9 +378,7 @@ def _disconnect_cognito_domain(
         print(f"      ⚠️  Could not delete Cognito domain: {e}")
 
 
-def _cleanup_orphaned_route53_records(
-    client: Any, domain_names: list[str], dry_run: bool = False
-) -> None:
+def _cleanup_orphaned_route53_records(client: Any, domain_names: list[str], dry_run: bool = False) -> None:
     """Clean up orphaned Route53 validation records for deleted certificates."""
     try:
         # Look up hosted zones for these domains
@@ -584,9 +575,7 @@ def _delete_cloudfront_domain_record(client: Any, domain_name: str, dry_run: boo
 
                     print(f"      🗑️  Found unmanaged {record_type} record: {record_name}")
                     if dry_run:
-                        print(
-                            f"      [DRY RUN] Would delete {record_type} record for {domain_name}"
-                        )
+                        print(f"      [DRY RUN] Would delete {record_type} record for {domain_name}")
                     else:
                         _delete_route53_record(client, zone_id, record)
                         print(f"      ✅ Deleted unmanaged {record_type} record for {domain_name}")
@@ -717,9 +706,7 @@ def delete_appsync_api(api_name: str) -> None:
         print(f"   ⚠️  Could not delete AppSync API {api_name}: {e}")
 
 
-def _delete_orphaned_appsync_domain(
-    domain_name: str, environment_name: str, dry_run: bool = False
-) -> None:
+def _delete_orphaned_appsync_domain(domain_name: str, environment_name: str, dry_run: bool = False) -> None:
     """
     Delete orphaned AppSync custom domain before deployment.
 
@@ -760,9 +747,7 @@ def _delete_orphaned_appsync_domain(
                             resource.get("ResourceType") == "AWS::AppSync::DomainName"
                             and resource.get("PhysicalResourceId") == domain_name
                         ):
-                            print(
-                                f"      ℹ️  AppSync domain {domain_name} is CloudFormation-managed, skipping"
-                            )
+                            print(f"      ℹ️  AppSync domain {domain_name} is CloudFormation-managed, skipping")
                             return
             except cfn_client.exceptions.ClientError:
                 pass  # Stack doesn't exist
@@ -953,14 +938,10 @@ def _disconnect_cloudfront_from_certificate(
             if "cloudfront" in resource_arn.lower():
                 # Extract distribution ID from ARN: arn:aws:cloudfront::account:distribution/ID
                 distribution_id = resource_arn.split("/")[-1]
-                print(
-                    f"      ℹ️  Found CloudFront distribution using certificate: {distribution_id}"
-                )
+                print(f"      ℹ️  Found CloudFront distribution using certificate: {distribution_id}")
 
                 if dry_run:
-                    print(
-                        f"      [DRY RUN] Would disconnect CloudFront {distribution_id} from certificate"
-                    )
+                    print(f"      [DRY RUN] Would disconnect CloudFront {distribution_id} from certificate")
                     continue
 
                 # Get current distribution config
@@ -1034,9 +1015,7 @@ def _check_distribution_uses_bucket(dist: dict[str, Any], s3_origin_patterns: li
     return False, oais
 
 
-def _disable_and_delete_distribution(
-    cloudfront_client: Any, dist_id: str, dry_run: bool
-) -> bool:
+def _disable_and_delete_distribution(cloudfront_client: Any, dist_id: str, dry_run: bool) -> bool:
     """Disable and delete a CloudFront distribution. Returns True if deleted."""
     if dry_run:
         print(f"      [DRY RUN] Would delete CloudFront distribution: {dist_id}")
@@ -1186,19 +1165,13 @@ def generate_import_file(
     resources_to_import: list[dict[str, Any]] = []
 
     # Check DynamoDB tables
-    _check_dynamodb_tables(
-        dynamodb_client, stack_resources, resources_to_import, environment_name, region_abbrev
-    )
+    _check_dynamodb_tables(dynamodb_client, stack_resources, resources_to_import, environment_name, region_abbrev)
 
     # Check S3 buckets
-    _check_s3_buckets(
-        s3_client, stack_resources, resources_to_import, environment_name, region_abbrev
-    )
+    _check_s3_buckets(s3_client, stack_resources, resources_to_import, environment_name, region_abbrev)
 
     # Check Cognito User Pool
-    _check_cognito_user_pool(
-        cognito_client, stack_resources, resources_to_import, environment_name, region_abbrev
-    )
+    _check_cognito_user_pool(cognito_client, stack_resources, resources_to_import, environment_name, region_abbrev)
 
     # Note: CloudFront distribution and ACM Certificates cannot be easily imported
     # due to certificate dependencies and CloudFormation limitations.
@@ -1363,9 +1336,7 @@ def _check_cognito_user_pool(
         except iam_client.exceptions.NoSuchEntityException:
             role_exists = False  # pragma: no cover
         except Exception as e:  # pragma: no cover
-            print(
-                f"   ⚠️  Could not check SMS role {sms_role_name}: {e}", file=sys.stderr
-            )  # pragma: no cover
+            print(f"   ⚠️  Could not check SMS role {sms_role_name}: {e}", file=sys.stderr)  # pragma: no cover
             role_exists = False  # pragma: no cover
 
         # If role exists but not in CloudFormation, add to import list

@@ -18,15 +18,7 @@ import {
 } from '@mui/icons-material';
 import { LIST_CAMPAIGNS_BY_PROFILE } from '../lib/graphql';
 import { ensureProfileId, toUrlId } from '../lib/ids';
-
-interface Campaign {
-  campaignId: string;
-  campaignName: string;
-  campaignYear: number;
-  totalOrders: number;
-  totalRevenue: number;
-  startDate: string;
-}
+import type { Campaign } from '../types';
 
 interface ProfileCardProps {
   profileId: string;

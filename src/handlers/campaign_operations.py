@@ -5,24 +5,24 @@ import uuid
 from typing import Any, Dict, List, Optional
 
 import boto3
-from mypy_boto3_dynamodb import DynamoDBServiceResource
 from mypy_boto3_dynamodb.client import DynamoDBClient
-from mypy_boto3_dynamodb.service_resource import Table
 from mypy_boto3_dynamodb.type_defs import TransactWriteItemsOutputTypeDef
 
 # Handle both Lambda (absolute) and unit test (relative) imports
 try:  # pragma: no cover
     from utils.auth import check_profile_access
+    from utils.dynamodb import tables
+    from utils.ids import ensure_catalog_id, ensure_profile_id
     from utils.logging import get_logger
+    from utils.validation import validate_required_fields, validate_unit_fields
 except ModuleNotFoundError:  # pragma: no cover
     from ..utils.auth import check_profile_access
+    from ..utils.dynamodb import tables
+    from ..utils.ids import ensure_catalog_id, ensure_profile_id
     from ..utils.logging import get_logger
+    from ..utils.validation import validate_required_fields, validate_unit_fields
 
 logger = get_logger(__name__)
-
-
-def _get_dynamodb() -> DynamoDBServiceResource:
-    return boto3.resource("dynamodb")
 
 
 def _get_dynamodb_client() -> DynamoDBClient:
@@ -43,42 +43,11 @@ class _DynamoClientProxy:
 # Default proxy instance (tests may monkeypatch methods on this object)
 dynamodb_client: _DynamoClientProxy = _DynamoClientProxy()
 
-# Multi-table design V2
+# Multi-table design V2 - table names for transact_write_items
 campaigns_table_name = os.environ.get("CAMPAIGNS_TABLE_NAME", "kernelworx-campaigns-v2-ue1-dev")
 shared_campaigns_table_name = os.environ.get("SHARED_CAMPAIGNS_TABLE_NAME", "kernelworx-shared-campaigns-ue1-dev")
-shares_table_name = os.environ.get("SHARES_TABLE_NAME", "kernelworx-shares-v2-ue1-dev")
 profiles_table_name = os.environ.get("PROFILES_TABLE_NAME", "kernelworx-profiles-v2-ue1-dev")
-
-
-# Module-level variables for test monkeypatching
-campaigns_table: Table | None = None
-shared_campaigns_table: Table | None = None
-shares_table: Table | None = None
-profiles_table: Table | None = None
-
-
-def _get_campaigns_table() -> Table:
-    if campaigns_table is not None:
-        return campaigns_table
-    return _get_dynamodb().Table(campaigns_table_name)
-
-
-def _get_shared_campaigns_table() -> Table:
-    if shared_campaigns_table is not None:
-        return shared_campaigns_table
-    return _get_dynamodb().Table(shared_campaigns_table_name)
-
-
-def _get_shares_table() -> Table:
-    if shares_table is not None:
-        return shares_table
-    return _get_dynamodb().Table(shares_table_name)
-
-
-def _get_profiles_table() -> Table:
-    if profiles_table is not None:
-        return profiles_table
-    return _get_dynamodb().Table(profiles_table_name)
+shares_table_name = os.environ.get("SHARES_TABLE_NAME", "kernelworx-shares-v2-ue1-dev")
 
 
 def _build_unit_campaign_key(
@@ -91,8 +60,9 @@ def _build_unit_campaign_key(
 def _get_shared_campaign(shared_campaign_code: str) -> Optional[Dict[str, Any]]:
     """Retrieve a shared campaign by code."""
     try:
-        response = _get_shared_campaigns_table().get_item(Key={"sharedCampaignCode": shared_campaign_code})
-        return response.get("Item")
+        response = tables.shared_campaigns.get_item(Key={"sharedCampaignCode": shared_campaign_code})
+        item: Optional[Dict[str, Any]] = response.get("Item")
+        return item
     except Exception as e:
         logger.error(f"Error fetching shared campaign {shared_campaign_code}: {str(e)}")
         return None
@@ -108,7 +78,7 @@ def _get_profile(profile_id: str) -> Optional[Dict[str, Any]]:
         # Ensure we query the profile GSI with the PROFILE# prefix
         db_profile_id = profile_id if profile_id.startswith("PROFILE#") else f"PROFILE#{profile_id}"
 
-        response = _get_profiles_table().query(
+        response = tables.profiles.query(
             IndexName="profileId-index",
             KeyConditionExpression="profileId = :profileId",
             ExpressionAttributeValues={":profileId": db_profile_id},
@@ -119,47 +89,6 @@ def _get_profile(profile_id: str) -> Optional[Dict[str, Any]]:
     except Exception as e:
         logger.error(f"Error fetching profile {profile_id}: {str(e)}")
         return None
-
-
-def _normalize_profile_id(profile_id: str) -> str:
-    """Ensure profile ID has PROFILE# prefix."""
-    return profile_id if profile_id.startswith("PROFILE#") else f"PROFILE#{profile_id}"
-
-
-def _normalize_catalog_id(catalog_id: Optional[str]) -> Optional[str]:
-    """Ensure catalog ID has CATALOG# prefix if present."""
-    if not catalog_id:
-        return None
-    return catalog_id if str(catalog_id).startswith("CATALOG#") else f"CATALOG#{catalog_id}"
-
-
-def _parse_unit_number(unit_number: Optional[int]) -> int:
-    """Parse and validate unit number. Raises ValueError if invalid."""
-    if not unit_number:
-        raise ValueError("unitNumber is required when unitType is provided")
-    try:
-        return int(unit_number)
-    except (ValueError, TypeError):
-        raise ValueError("unitNumber must be a valid integer")
-
-
-def _validate_unit_fields(
-    unit_type: Optional[str],
-    unit_number: Optional[int],
-    city: Optional[str],
-    state: Optional[str],
-) -> Optional[int]:
-    """Validate unit fields consistency and return normalized unit_number."""
-    if not unit_type:
-        return None
-
-    validated_number = _parse_unit_number(unit_number)
-    if not city:
-        raise ValueError("city is required when unitType is provided")
-    if not state:
-        raise ValueError("state is required when unitType is provided")
-
-    return validated_number
 
 
 def _extract_campaign_values_from_shared(
@@ -193,16 +122,6 @@ def _extract_campaign_values_from_input(inp: Dict[str, Any]) -> Dict[str, Any]:
         "start_date": inp.get("startDate"),
         "end_date": inp.get("endDate"),
     }
-
-
-def _validate_required_campaign_fields(values: Dict[str, Any]) -> None:
-    """Validate required campaign fields are present."""
-    if not values["campaign_name"]:
-        raise ValueError("campaignName is required")
-    if not values["campaign_year"]:
-        raise ValueError("campaignYear is required")
-    if not values["catalog_id"]:
-        raise ValueError("catalogId is required")
 
 
 def _build_campaign_item(
@@ -370,11 +289,12 @@ def _get_verified_profile(caller_account_id: str, profile_id: str) -> Dict[str, 
 
 def _prepare_campaign_values(values: Dict[str, Any]) -> None:
     """Normalize and validate campaign values in place."""
-    values["catalog_id"] = _normalize_catalog_id(values["catalog_id"])
-    _validate_required_campaign_fields(values)
-    values["unit_number"] = _validate_unit_fields(
-        values["unit_type"], values["unit_number"], values["city"], values["state"]
-    )
+    values["catalog_id"] = ensure_catalog_id(values["catalog_id"])
+    # Validate required campaign fields
+    validate_required_fields(values, ["campaign_name", "campaign_year", "catalog_id"])
+    # Validate unit fields and extract unit_number
+    unit_result = validate_unit_fields(values["unit_type"], values["unit_number"], values["city"], values["state"])
+    values["unit_number"] = unit_result[1] if unit_result else None
 
 
 def _maybe_build_share_item(
@@ -408,7 +328,7 @@ def create_campaign(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         _prepare_campaign_values(values)
 
         now = datetime.now(timezone.utc).isoformat()
-        db_profile_id = profile.get("profileId") or _normalize_profile_id(profile_id)
+        db_profile_id = profile.get("profileId") or ensure_profile_id(profile_id)
         campaign_item = _build_campaign_item(
             db_profile_id, f"CAMPAIGN#{uuid.uuid4()}", values, now, shared_campaign_code
         )

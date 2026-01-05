@@ -9,6 +9,7 @@ import { Box, Grid, Paper, Typography, Stack, CircularProgress, Alert } from '@m
 import { ShoppingCart, AttachMoney, People } from '@mui/icons-material';
 import { LIST_ORDERS_BY_CAMPAIGN } from '../lib/graphql';
 import { ensureCampaignId } from '../lib/ids';
+import type { Order } from '../types';
 
 // Helper to safely decode URL component
 const decodeUrlParam = (encoded: string | undefined): string => (encoded ? decodeURIComponent(encoded) : '');
@@ -57,22 +58,6 @@ const formatCurrency = (amount: number): string =>
     style: 'currency',
     currency: 'USD',
   }).format(amount);
-
-interface LineItem {
-  productId: string;
-  productName: string;
-  quantity: number;
-  pricePerUnit: number;
-  subtotal: number;
-}
-
-interface Order {
-  orderId: string;
-  customerName: string;
-  paymentMethod: string;
-  lineItems: LineItem[];
-  totalAmount: number;
-}
 
 export const CampaignSummaryPage: React.FC = () => {
   const { campaignId: encodedCampaignId } = useParams<{ campaignId: string }>();

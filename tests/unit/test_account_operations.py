@@ -139,50 +139,50 @@ class TestUpdateMyAccount:
 
         assert exc_info.value.error_code == ErrorCode.NOT_FOUND
 
-    @patch("src.handlers.account_operations.get_accounts_table")
     def test_database_error_propagates(
         self,
-        mock_get_accounts_table: MagicMock,
         sample_account_id: str,
         appsync_event: Dict[str, Any],
         lambda_context: Any,
     ) -> None:
         """Test that database errors propagate."""
+
         mock_table = MagicMock()
         mock_table.update_item.side_effect = Exception("Database error")
-        mock_get_accounts_table.return_value = mock_table
 
         event = {
             **appsync_event,
             "arguments": {"input": {"givenName": "John"}},
         }
 
-        with pytest.raises(Exception, match="Database error"):
-            update_my_account(event, lambda_context)
+        with patch("src.handlers.account_operations.tables") as mock_tables:
+            mock_tables.accounts = mock_table
+            with pytest.raises(Exception, match="Database error"):
+                update_my_account(event, lambda_context)
 
-    @patch("src.handlers.account_operations.get_accounts_table")
     def test_client_error_not_found(
         self,
-        mock_get_accounts_table: MagicMock,
         sample_account_id: str,
         appsync_event: Dict[str, Any],
         lambda_context: Any,
     ) -> None:
         """Test that ClientError with other code propagates."""
+
         from botocore.exceptions import ClientError
 
         mock_table = MagicMock()
         error_response = {"Error": {"Code": "SomeOtherError", "Message": "Access Denied"}}
         mock_table.update_item.side_effect = ClientError(error_response, "UpdateItem")
-        mock_get_accounts_table.return_value = mock_table
 
         event = {
             **appsync_event,
             "arguments": {"input": {"givenName": "John"}},
         }
 
-        with pytest.raises(ClientError):
-            update_my_account(event, lambda_context)
+        with patch("src.handlers.account_operations.tables") as mock_tables:
+            mock_tables.accounts = mock_table
+            with pytest.raises(ClientError):
+                update_my_account(event, lambda_context)
 
     def test_update_with_unit_type(
         self,

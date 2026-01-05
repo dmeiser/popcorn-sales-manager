@@ -2,7 +2,7 @@
  * CreateSharedCampaignDialog - Dialog for creating a new shared campaign
  */
 
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery } from '@apollo/client/react';
 import {
   Dialog,
@@ -23,12 +23,8 @@ import {
   CircularProgress,
 } from '@mui/material';
 import { LIST_PUBLIC_CATALOGS, LIST_MY_CATALOGS, CREATE_SHARED_CAMPAIGN } from '../lib/graphql';
-
-interface Catalog {
-  catalogId: string;
-  catalogName: string;
-  catalogType: string;
-}
+import { useFormState } from '../hooks/useFormState';
+import type { Catalog } from '../types';
 
 interface CreateSharedCampaignDialogProps {
   open: boolean;
@@ -205,77 +201,47 @@ interface FormSetters {
   setDescription: (v: string) => void;
 }
 
+const getInitialFormValues = (): FormState => ({
+  catalogId: '',
+  campaignName: '',
+  campaignYear: new Date().getFullYear(),
+  startDate: '',
+  endDate: '',
+  unitType: '',
+  unitNumber: '',
+  city: '',
+  state: '',
+  creatorMessage: '',
+  description: '',
+});
+
 const useSharedCampaignForm = (open: boolean) => {
-  const [catalogId, setCatalogId] = useState('');
-  const [campaignName, setCampaignName] = useState('');
-  const [campaignYear, setCampaignYear] = useState(new Date().getFullYear());
-  const [startDate, setStartDate] = useState('');
-  const [endDate, setEndDate] = useState('');
-  const [unitType, setUnitType] = useState('');
-  const [unitNumber, setUnitNumber] = useState('');
-  const [city, setCity] = useState('');
-  const [state, setFormState] = useState('');
-  const [creatorMessage, setCreatorMessage] = useState('');
-  const [description, setDescription] = useState('');
+  const {
+    values: formState,
+    setValue,
+    reset,
+  } = useFormState<FormState>({
+    initialValues: getInitialFormValues(),
+  });
 
-  const resetForm = useCallback(() => {
-    setCatalogId('');
-    setCampaignName('');
-    setCampaignYear(new Date().getFullYear());
-    setStartDate('');
-    setEndDate('');
-    setUnitType('');
-    setUnitNumber('');
-    setCity('');
-    setFormState('');
-    setCreatorMessage('');
-    setDescription('');
-  }, []);
+  useFormReset(open, reset);
 
-  useFormReset(open, resetForm);
-
-  const formState = useMemo<FormState>(
+  const formSetters: FormSetters = useMemo(
     () => ({
-      catalogId,
-      campaignName,
-      campaignYear,
-      startDate,
-      endDate,
-      unitType,
-      unitNumber,
-      city,
-      state,
-      creatorMessage,
-      description,
+      setCatalogId: (v: string) => setValue('catalogId', v),
+      setCampaignName: (v: string) => setValue('campaignName', v),
+      setCampaignYear: (v: number) => setValue('campaignYear', v),
+      setStartDate: (v: string) => setValue('startDate', v),
+      setEndDate: (v: string) => setValue('endDate', v),
+      setUnitType: (v: string) => setValue('unitType', v),
+      setUnitNumber: (v: string) => setValue('unitNumber', v),
+      setCity: (v: string) => setValue('city', v),
+      setState: (v: string) => setValue('state', v),
+      setCreatorMessage: (v: string) => setValue('creatorMessage', v),
+      setDescription: (v: string) => setValue('description', v),
     }),
-    [
-      catalogId,
-      campaignName,
-      campaignYear,
-      startDate,
-      endDate,
-      unitType,
-      unitNumber,
-      city,
-      state,
-      creatorMessage,
-      description,
-    ],
+    [setValue],
   );
-
-  const formSetters: FormSetters = {
-    setCatalogId,
-    setCampaignName,
-    setCampaignYear,
-    setStartDate,
-    setEndDate,
-    setUnitType,
-    setUnitNumber,
-    setCity,
-    setState: setFormState,
-    setCreatorMessage,
-    setDescription,
-  };
 
   const isFormValid = useMemo(() => validateForm(formState), [formState]);
 

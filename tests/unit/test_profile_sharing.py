@@ -654,6 +654,32 @@ class TestListMyShares:
             assert exc_info.value.error_code == ErrorCode.NOT_FOUND
             assert "Profile not found" in exc_info.value.message
 
+    def test_shares_query_exception_wrapped_in_app_error(
+        self,
+        another_account_id: str,
+        appsync_event: Dict[str, Any],
+        lambda_context: Any,
+    ) -> None:
+        """Test that exceptions from shares query are wrapped in AppError (lines 249-251)."""
+        from unittest.mock import MagicMock, patch
+
+        from src.handlers.profile_sharing import list_my_shares
+        from src.utils.errors import AppError, ErrorCode
+
+        event = {**appsync_event, "identity": {"sub": another_account_id}}
+
+        # Mock tables.shares.query to raise a generic exception
+        mock_shares = MagicMock()
+        mock_shares.query.side_effect = Exception("Database connection failed")
+
+        with patch("src.handlers.profile_sharing.tables") as mock_tables:
+            mock_tables.shares = mock_shares
+            with pytest.raises(AppError) as exc_info:
+                list_my_shares(event, lambda_context)
+
+            assert exc_info.value.error_code == ErrorCode.INTERNAL_ERROR
+            assert "Failed to list shared profiles" in exc_info.value.message
+
     def test_skips_profile_with_non_string_profile_id(
         self,
         dynamodb_table: Any,

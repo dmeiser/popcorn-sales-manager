@@ -42,18 +42,14 @@ def lookup_user_pool_by_name(name_prefix: str) -> Optional[dict[str, str]]:
 
 
 @functools.lru_cache(maxsize=128)
-def lookup_user_pool_client(
-    user_pool_id: str, client_name_prefix: str = ""
-) -> Optional[dict[str, str]]:
+def lookup_user_pool_client(user_pool_id: str, client_name_prefix: str = "") -> Optional[dict[str, str]]:
     """Find a Cognito User Pool Client by name prefix. If prefix empty, return first client."""
     client = get_client("cognito-idp")
     try:
         paginator = client.get_paginator("list_user_pool_clients")
         for page in paginator.paginate(UserPoolId=user_pool_id, MaxResults=60):
             for app_client in page.get("UserPoolClients", []):
-                if not client_name_prefix or app_client["ClientName"].startswith(
-                    client_name_prefix
-                ):
+                if not client_name_prefix or app_client["ClientName"].startswith(client_name_prefix):
                     return {
                         "client_id": app_client["ClientId"],
                         "client_name": app_client["ClientName"],
@@ -343,9 +339,7 @@ def lookup_appsync_domain(domain_name: str) -> Optional[dict[str, Optional[str]]
 
 
 @functools.lru_cache(maxsize=128)
-def lookup_route53_record(
-    hosted_zone_id: str, record_name: str, record_type: str = "A"
-) -> Optional[dict[str, Any]]:
+def lookup_route53_record(hosted_zone_id: str, record_name: str, record_type: str = "A") -> Optional[dict[str, Any]]:
     """Check if a Route53 record exists.
 
     Args:
@@ -368,11 +362,7 @@ def lookup_route53_record(
             MaxItems="1",
         )
         records = response.get("ResourceRecordSets", [])
-        if (
-            records
-            and records[0].get("Name") == record_name
-            and records[0].get("Type") == record_type
-        ):
+        if records and records[0].get("Name") == record_name and records[0].get("Type") == record_type:
             record = records[0]
             return {
                 "name": record["Name"],

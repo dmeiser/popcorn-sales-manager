@@ -6,9 +6,11 @@
 # ============================================================================
 
 scalar AWSDateTime
+scalar AWSDate
 scalar AWSEmail
 scalar AWSPhone
 scalar AWSURL
+scalar AWSJSON
 
 # ============================================================================
 # Enums

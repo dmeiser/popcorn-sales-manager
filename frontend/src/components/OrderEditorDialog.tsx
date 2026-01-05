@@ -38,37 +38,8 @@ import {
 import { Add as AddIcon, Delete as DeleteIcon } from '@mui/icons-material';
 import { CREATE_ORDER, UPDATE_ORDER } from '../lib/graphql';
 import { ensureProfileId, ensureCampaignId } from '../lib/ids';
-
-interface LineItem {
-  productId: string;
-  productName: string;
-  quantity: number;
-  pricePerUnit: number;
-  subtotal: number;
-}
-
-interface Order {
-  orderId: string;
-  customerName: string;
-  customerPhone?: string;
-  customerAddress?: {
-    street?: string;
-    city?: string;
-    state?: string;
-    zipCode?: string;
-  };
-  orderDate: string;
-  paymentMethod: string;
-  lineItems: LineItem[];
-  totalAmount: number;
-  notes?: string;
-}
-
-interface Product {
-  productId: string;
-  productName: string;
-  price: number;
-}
+import type { Product, Order } from '../types';
+import { useFormState } from '../hooks/useFormState';
 
 interface OrderEditorDialogProps {
   open: boolean;
@@ -376,59 +347,57 @@ const LineItemsTable: React.FC<LineItemsTableProps> = ({
   </Box>
 );
 
+interface CustomerFormValues {
+  customerName: string;
+  customerPhone: string;
+  street: string;
+  city: string;
+  state: string;
+  zipCode: string;
+}
+
 const useCustomerFormState = () => {
-  const [customerName, setCustomerName] = useState('');
-  const [customerPhone, setCustomerPhone] = useState('');
-  const [street, setStreet] = useState('');
-  const [city, setCity] = useState('');
-  const [state, setState] = useState('');
-  const [zipCode, setZipCode] = useState('');
+  const { values, setValue, reset, resetTo } = useFormState<CustomerFormValues>({
+    initialValues: {
+      customerName: '',
+      customerPhone: '',
+      street: '',
+      city: '',
+      state: '',
+      zipCode: '',
+    },
+  });
 
   const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setCustomerPhone(formatPhoneNumber(e.target.value));
-  };
-
-  const reset = () => {
-    setCustomerName('');
-    setCustomerPhone('');
-    setStreet('');
-    setCity('');
-    setState('');
-    setZipCode('');
-  };
-
-  const setAddressFields = (street: string, city: string, addrState: string, zipCode: string) => {
-    setStreet(street);
-    setCity(city);
-    setState(addrState);
-    setZipCode(zipCode);
-  };
-
-  const setAddressFromOrder = (addr: Order['customerAddress']) => {
-    const a = parseOrderAddress(addr);
-    setAddressFields(a.street, a.city, a.state, a.zipCode);
+    setValue('customerPhone', formatPhoneNumber(e.target.value));
   };
 
   const setFromOrder = (o: Order) => {
-    setCustomerName(o.customerName);
-    setCustomerPhone(o.customerPhone ? e164ToDisplay(o.customerPhone) : '');
-    setAddressFromOrder(o.customerAddress);
+    const a = parseOrderAddress(o.customerAddress);
+    resetTo({
+      customerName: o.customerName,
+      customerPhone: o.customerPhone ? e164ToDisplay(o.customerPhone) : '',
+      street: a.street,
+      city: a.city,
+      state: a.state,
+      zipCode: a.zipCode,
+    });
   };
 
   return {
-    customerName,
-    setCustomerName,
-    customerPhone,
+    customerName: values.customerName,
+    setCustomerName: (v: string) => setValue('customerName', v),
+    customerPhone: values.customerPhone,
     handlePhoneChange,
-    street,
-    setStreet,
-    city,
-    setCity,
-    state,
-    setState,
-    zipCode,
-    setZipCode,
-    hasAddress: street || city || state || zipCode,
+    street: values.street,
+    setStreet: (v: string) => setValue('street', v),
+    city: values.city,
+    setCity: (v: string) => setValue('city', v),
+    state: values.state,
+    setState: (v: string) => setValue('state', v),
+    zipCode: values.zipCode,
+    setZipCode: (v: string) => setValue('zipCode', v),
+    hasAddress: values.street || values.city || values.state || values.zipCode,
     reset,
     setFromOrder,
   };
@@ -484,7 +453,7 @@ const useOrderDetailsState = () => {
   const setFromOrder = (o: Order) => {
     setPaymentMethod(o.paymentMethod);
     setNotes(o.notes || '');
-    setOrderDate(o.orderDate.split('T')[0]);
+    setOrderDate((o.orderDate ?? '').split('T')[0]);
   };
 
   return {

@@ -123,16 +123,8 @@ class TestGetUnitReport:
             ],
         }
 
-    @patch("src.handlers.campaign_reporting.check_profile_access")
-    @patch("src.handlers.campaign_reporting.orders_table")
-    @patch("src.handlers.campaign_reporting.campaigns_table")
-    @patch("src.handlers.campaign_reporting.profiles_table")
     def test_get_unit_report_success(
         self,
-        mock_profiles_table: MagicMock,
-        mock_campaigns_table: MagicMock,
-        mock_orders_table: MagicMock,
-        mock_check_access: MagicMock,
         event: Dict[str, Any],
         sample_profiles: Dict[str, Dict[str, Any]],
         sample_campaigns: list[Dict[str, Any]],
@@ -140,9 +132,12 @@ class TestGetUnitReport:
         lambda_context: Any,
     ) -> None:
         """Test successful unit report generation using unitCampaignKey-index."""
+        mock_profiles_table = MagicMock()
+        mock_campaigns_table = MagicMock()
+        mock_orders_table = MagicMock()
+
         # Arrange - unitCampaignKey-index query returns campaigns directly
         mock_campaigns_table.query.return_value = {"Items": sample_campaigns}
-        mock_check_access.return_value = True
 
         # Mock profile lookups using query on profileId-index
         self._setup_profile_query_mock(mock_profiles_table, sample_profiles)
@@ -153,79 +148,87 @@ class TestGetUnitReport:
             {"Items": sample_orders["CAMPAIGN#campaign2"]},
         ]
 
-        # Act
-        result = get_unit_report(event, lambda_context)
+        with (
+            patch("src.handlers.campaign_reporting.tables") as mock_tables,
+            patch("src.handlers.campaign_reporting.check_profile_access") as mock_check_access,
+        ):
+            mock_tables.profiles = mock_profiles_table
+            mock_tables.campaigns = mock_campaigns_table
+            mock_tables.orders = mock_orders_table
+            mock_check_access.return_value = True
 
-        # Assert
-        assert result["unitType"] == "Pack"
-        assert result["unitNumber"] == 158
-        assert result["campaignName"] == "Fall"
-        assert result["campaignYear"] == 2024
-        assert len(result["sellers"]) == 2
-        assert result["totalSales"] == 300.0
-        assert result["totalOrders"] == 2
+            # Act
+            result = get_unit_report(event, lambda_context)
 
-        # Verify unitCampaignKey-index query was called correctly
-        mock_campaigns_table.query.assert_called_once()
-        call_kwargs = mock_campaigns_table.query.call_args.kwargs
-        assert call_kwargs["IndexName"] == "unitCampaignKey-index"
+            # Assert
+            assert result["unitType"] == "Pack"
+            assert result["unitNumber"] == 158
+            assert result["campaignName"] == "Fall"
+            assert result["campaignYear"] == 2024
+            assert len(result["sellers"]) == 2
+            assert result["totalSales"] == 300.0
+            assert result["totalOrders"] == 2
 
-    @patch("src.handlers.campaign_reporting.campaigns_table")
+            # Verify unitCampaignKey-index query was called correctly
+            mock_campaigns_table.query.assert_called_once()
+            call_kwargs = mock_campaigns_table.query.call_args.kwargs
+            assert call_kwargs["IndexName"] == "unitCampaignKey-index"
+
     def test_get_unit_report_no_campaigns_found(
         self,
-        mock_campaigns_table: MagicMock,
         event: Dict[str, Any],
         lambda_context: Any,
     ) -> None:
         """Test report when no campaigns exist for unit+campaign."""
+        mock_campaigns_table = MagicMock()
+
         # Arrange - unitCampaignKey-index query returns no campaigns
         mock_campaigns_table.query.return_value = {"Items": []}
 
-        # Act
-        result = get_unit_report(event, lambda_context)
+        with patch("src.handlers.campaign_reporting.tables") as mock_tables:
+            mock_tables.campaigns = mock_campaigns_table
 
-        # Assert
-        assert result["unitType"] == "Pack"
-        assert result["unitNumber"] == 158
-        assert result["campaignName"] == "Fall"
-        assert result["campaignYear"] == 2024
-        assert result["sellers"] == []
-        assert result["totalSales"] == 0.0
-        assert result["totalOrders"] == 0
+            # Act
+            result = get_unit_report(event, lambda_context)
 
-    @patch("src.handlers.campaign_reporting.check_profile_access")
-    @patch("src.handlers.campaign_reporting.campaigns_table")
+            # Assert
+            assert result["unitType"] == "Pack"
+            assert result["unitNumber"] == 158
+            assert result["campaignName"] == "Fall"
+            assert result["campaignYear"] == 2024
+            assert result["sellers"] == []
+            assert result["totalSales"] == 0.0
+            assert result["totalOrders"] == 0
+
     def test_get_unit_report_no_access(
         self,
-        mock_campaigns_table: MagicMock,
-        mock_check_access: MagicMock,
         event: Dict[str, Any],
         sample_campaigns: list[Dict[str, Any]],
         lambda_context: Any,
     ) -> None:
         """Test report when caller has no access to any profiles."""
+        mock_campaigns_table = MagicMock()
+
         # Arrange
         mock_campaigns_table.query.return_value = {"Items": sample_campaigns}
-        mock_check_access.return_value = False
 
-        # Act
-        result = get_unit_report(event, lambda_context)
+        with (
+            patch("src.handlers.campaign_reporting.tables") as mock_tables,
+            patch("src.handlers.campaign_reporting.check_profile_access") as mock_check_access,
+        ):
+            mock_tables.campaigns = mock_campaigns_table
+            mock_check_access.return_value = False
 
-        # Assert
-        assert result["sellers"] == []
-        assert result["totalSales"] == 0.0
-        assert result["totalOrders"] == 0
+            # Act
+            result = get_unit_report(event, lambda_context)
 
-    @patch("src.handlers.campaign_reporting.check_profile_access")
-    @patch("src.handlers.campaign_reporting.orders_table")
-    @patch("src.handlers.campaign_reporting.campaigns_table")
-    @patch("src.handlers.campaign_reporting.profiles_table")
+            # Assert
+            assert result["sellers"] == []
+            assert result["totalSales"] == 0.0
+            assert result["totalOrders"] == 0
+
     def test_get_unit_report_partial_access(
         self,
-        mock_profiles_table: MagicMock,
-        mock_campaigns_table: MagicMock,
-        mock_orders_table: MagicMock,
-        mock_check_access: MagicMock,
         event: Dict[str, Any],
         sample_profiles: Dict[str, Dict[str, Any]],
         sample_campaigns: list[Dict[str, Any]],
@@ -233,6 +236,10 @@ class TestGetUnitReport:
         lambda_context: Any,
     ) -> None:
         """Test report when caller only has access to some profiles."""
+        mock_profiles_table = MagicMock()
+        mock_campaigns_table = MagicMock()
+        mock_orders_table = MagicMock()
+
         # Arrange
         mock_campaigns_table.query.return_value = {"Items": sample_campaigns}
 
@@ -240,64 +247,67 @@ class TestGetUnitReport:
         def check_access_side_effect(*args: Any, **kwargs: Any) -> bool:
             return kwargs["profile_id"] == "PROFILE#profile1"
 
-        mock_check_access.side_effect = check_access_side_effect
-
         # Mock profile lookups using query on profileId-index
         self._setup_profile_query_mock(mock_profiles_table, sample_profiles)
 
         mock_orders_table.query.return_value = {"Items": sample_orders["CAMPAIGN#campaign1"]}
 
-        # Act
-        result = get_unit_report(event, lambda_context)
+        with (
+            patch("src.handlers.campaign_reporting.tables") as mock_tables,
+            patch("src.handlers.campaign_reporting.check_profile_access") as mock_check_access,
+        ):
+            mock_tables.profiles = mock_profiles_table
+            mock_tables.campaigns = mock_campaigns_table
+            mock_tables.orders = mock_orders_table
+            mock_check_access.side_effect = check_access_side_effect
 
-        # Assert
-        assert len(result["sellers"]) == 1
-        assert result["sellers"][0]["sellerName"] == "Scout 1"
-        assert result["totalSales"] == 100.0
-        assert result["totalOrders"] == 1
+            # Act
+            result = get_unit_report(event, lambda_context)
 
-    @patch("src.handlers.campaign_reporting.check_profile_access")
-    @patch("src.handlers.campaign_reporting.orders_table")
-    @patch("src.handlers.campaign_reporting.campaigns_table")
-    @patch("src.handlers.campaign_reporting.profiles_table")
+            # Assert
+            assert len(result["sellers"]) == 1
+            assert result["sellers"][0]["sellerName"] == "Scout 1"
+            assert result["totalSales"] == 100.0
+            assert result["totalOrders"] == 1
+
     def test_get_unit_report_no_orders(
         self,
-        mock_profiles_table: MagicMock,
-        mock_campaigns_table: MagicMock,
-        mock_orders_table: MagicMock,
-        mock_check_access: MagicMock,
         event: Dict[str, Any],
         sample_profiles: Dict[str, Dict[str, Any]],
         sample_campaigns: list[Dict[str, Any]],
         lambda_context: Any,
     ) -> None:
         """Test report when campaigns exist but have no orders."""
+        mock_profiles_table = MagicMock()
+        mock_campaigns_table = MagicMock()
+        mock_orders_table = MagicMock()
+
         # Arrange
         mock_campaigns_table.query.return_value = {"Items": sample_campaigns}
-        mock_check_access.return_value = True
 
         # Mock profile lookups using query on profileId-index
         self._setup_profile_query_mock(mock_profiles_table, sample_profiles)
         mock_orders_table.query.return_value = {"Items": []}
 
-        # Act
-        result = get_unit_report(event, lambda_context)
+        with (
+            patch("src.handlers.campaign_reporting.tables") as mock_tables,
+            patch("src.handlers.campaign_reporting.check_profile_access") as mock_check_access,
+        ):
+            mock_tables.profiles = mock_profiles_table
+            mock_tables.campaigns = mock_campaigns_table
+            mock_tables.orders = mock_orders_table
+            mock_check_access.return_value = True
 
-        # Assert - no sellers because they have no orders/sales
-        assert result["sellers"] == []
-        assert result["totalSales"] == 0.0
-        assert result["totalOrders"] == 0
+            # Act
+            result = get_unit_report(event, lambda_context)
 
-    @patch("src.handlers.campaign_reporting.check_profile_access")
-    @patch("src.handlers.campaign_reporting.orders_table")
-    @patch("src.handlers.campaign_reporting.campaigns_table")
-    @patch("src.handlers.campaign_reporting.profiles_table")
+            # Assert - no sellers because they have no orders/sales
+            assert result["sellers"] == []
+            assert result["totalSales"] == 0.0
+            assert result["totalOrders"] == 0
+
     def test_get_unit_report_seller_sorting(
         self,
-        mock_profiles_table: MagicMock,
-        mock_campaigns_table: MagicMock,
-        mock_orders_table: MagicMock,
-        mock_check_access: MagicMock,
         event: Dict[str, Any],
         sample_profiles: Dict[str, Dict[str, Any]],
         sample_campaigns: list[Dict[str, Any]],
@@ -305,9 +315,12 @@ class TestGetUnitReport:
         lambda_context: Any,
     ) -> None:
         """Test that sellers are sorted by total sales descending."""
+        mock_profiles_table = MagicMock()
+        mock_campaigns_table = MagicMock()
+        mock_orders_table = MagicMock()
+
         # Arrange
         mock_campaigns_table.query.return_value = {"Items": sample_campaigns}
-        mock_check_access.return_value = True
 
         def get_item_side_effect(Key: Dict[str, str]) -> Dict[str, Any]:
             profile_id = Key["profileId"]
@@ -322,37 +335,49 @@ class TestGetUnitReport:
             {"Items": sample_orders["CAMPAIGN#campaign2"]},
         ]
 
-        # Act
-        result = get_unit_report(event, lambda_context)
+        with (
+            patch("src.handlers.campaign_reporting.tables") as mock_tables,
+            patch("src.handlers.campaign_reporting.check_profile_access") as mock_check_access,
+        ):
+            mock_tables.profiles = mock_profiles_table
+            mock_tables.campaigns = mock_campaigns_table
+            mock_tables.orders = mock_orders_table
+            mock_check_access.return_value = True
 
-        # Assert - Sellers sorted by totalSales descending
-        assert result["sellers"][0]["totalSales"] == 200.0  # Scout 2
-        assert result["sellers"][1]["totalSales"] == 100.0  # Scout 1
+            # Act
+            result = get_unit_report(event, lambda_context)
 
-    @patch("src.handlers.campaign_reporting.campaigns_table")
+            # Assert - Sellers sorted by totalSales descending
+            assert result["sellers"][0]["totalSales"] == 200.0  # Scout 2
+            assert result["sellers"][1]["totalSales"] == 100.0  # Scout 1
+
     def test_get_unit_report_error_handling(
         self,
-        mock_campaigns_table: MagicMock,
         event: Dict[str, Any],
         lambda_context: Any,
     ) -> None:
         """Test error handling when DynamoDB fails."""
+        mock_campaigns_table = MagicMock()
+
         # Arrange
         mock_campaigns_table.query.side_effect = Exception("DynamoDB error")
 
-        # Act & Assert
-        with pytest.raises(Exception) as exc_info:
-            get_unit_report(event, lambda_context)
+        with patch("src.handlers.campaign_reporting.tables") as mock_tables:
+            mock_tables.campaigns = mock_campaigns_table
 
-        assert "DynamoDB error" in str(exc_info.value)
+            # Act & Assert
+            with pytest.raises(Exception) as exc_info:
+                get_unit_report(event, lambda_context)
 
-    @patch("src.handlers.campaign_reporting.campaigns_table")
+            assert "DynamoDB error" in str(exc_info.value)
+
     def test_get_unit_report_different_campaign_year(
         self,
-        mock_campaigns_table: MagicMock,
         lambda_context: Any,
     ) -> None:
         """Test report filters by campaign year correctly via unitCampaignKey."""
+        mock_campaigns_table = MagicMock()
+
         # Arrange - Different campaign
         event = {
             "arguments": {
@@ -370,30 +395,29 @@ class TestGetUnitReport:
         # unitCampaignKey-index query returns no campaigns for Spring 2023
         mock_campaigns_table.query.return_value = {"Items": []}
 
-        # Act
-        result = get_unit_report(event, lambda_context)
+        with patch("src.handlers.campaign_reporting.tables") as mock_tables:
+            mock_tables.campaigns = mock_campaigns_table
 
-        # Assert
-        assert result["campaignName"] == "Spring"
-        assert result["campaignYear"] == 2023
-        assert result["sellers"] == []
-        assert result["totalSales"] == 0.0
+            # Act
+            result = get_unit_report(event, lambda_context)
 
-    @patch("src.handlers.campaign_reporting.check_profile_access")
-    @patch("src.handlers.campaign_reporting.orders_table")
-    @patch("src.handlers.campaign_reporting.campaigns_table")
-    @patch("src.handlers.campaign_reporting.profiles_table")
+            # Assert
+            assert result["campaignName"] == "Spring"
+            assert result["campaignYear"] == 2023
+            assert result["sellers"] == []
+            assert result["totalSales"] == 0.0
+
     def test_get_unit_report_multiple_campaigns_same_profile(
         self,
-        mock_profiles_table: MagicMock,
-        mock_campaigns_table: MagicMock,
-        mock_orders_table: MagicMock,
-        mock_check_access: MagicMock,
         event: Dict[str, Any],
         sample_profiles: Dict[str, Dict[str, Any]],
         lambda_context: Any,
     ) -> None:
         """Test report with one profile having multiple campaigns (covers branch 109->111)."""
+        mock_profiles_table = MagicMock()
+        mock_campaigns_table = MagicMock()
+        mock_orders_table = MagicMock()
+
         # Arrange - Same profile has TWO campaigns for the same unit+campaign
         multi_campaigns = [
             {
@@ -414,7 +438,6 @@ class TestGetUnitReport:
             },
         ]
         mock_campaigns_table.query.return_value = {"Items": multi_campaigns}
-        mock_check_access.return_value = True
 
         # Mock profile lookups using query on profileId-index
         self._setup_profile_query_mock(mock_profiles_table, sample_profiles)
@@ -433,31 +456,36 @@ class TestGetUnitReport:
             ]
         }
 
-        # Act
-        result = get_unit_report(event, lambda_context)
+        with (
+            patch("src.handlers.campaign_reporting.tables") as mock_tables,
+            patch("src.handlers.campaign_reporting.check_profile_access") as mock_check_access,
+        ):
+            mock_tables.profiles = mock_profiles_table
+            mock_tables.campaigns = mock_campaigns_table
+            mock_tables.orders = mock_orders_table
+            mock_check_access.return_value = True
 
-        # Assert - Profile appears once even with 2 campaigns
-        assert len(result["sellers"]) == 1
-        assert result["sellers"][0]["sellerName"] == "Scout 1"
-        # Orders from both campaigns are queried (same mock response for both)
-        assert result["totalOrders"] == 2
-        assert result["totalSales"] == 100.0  # 50.00 * 2 campaigns
+            # Act
+            result = get_unit_report(event, lambda_context)
 
-    @patch("src.handlers.campaign_reporting.check_profile_access")
-    @patch("src.handlers.campaign_reporting.orders_table")
-    @patch("src.handlers.campaign_reporting.campaigns_table")
-    @patch("src.handlers.campaign_reporting.profiles_table")
+            # Assert - Profile appears once even with 2 campaigns
+            assert len(result["sellers"]) == 1
+            assert result["sellers"][0]["sellerName"] == "Scout 1"
+            # Orders from both campaigns are queried (same mock response for both)
+            assert result["totalOrders"] == 2
+            assert result["totalSales"] == 100.0  # 50.00 * 2 campaigns
+
     def test_get_unit_report_multiple_orders_per_seller(
         self,
-        mock_profiles_table: MagicMock,
-        mock_campaigns_table: MagicMock,
-        mock_orders_table: MagicMock,
-        mock_check_access: MagicMock,
         event: Dict[str, Any],
         sample_profiles: Dict[str, Dict[str, Any]],
         lambda_context: Any,
     ) -> None:
         """Test report with seller having multiple orders."""
+        mock_profiles_table = MagicMock()
+        mock_campaigns_table = MagicMock()
+        mock_orders_table = MagicMock()
+
         # Arrange - Only one profile/campaign
         single_campaign = [
             {
@@ -470,7 +498,6 @@ class TestGetUnitReport:
             }
         ]
         mock_campaigns_table.query.return_value = {"Items": single_campaign}
-        mock_check_access.return_value = True
 
         def get_item_side_effect(Key: Dict[str, str]) -> Dict[str, Any]:
             profile_id = Key["profileId"]
@@ -518,34 +545,39 @@ class TestGetUnitReport:
             ]
         }
 
-        # Act
-        result = get_unit_report(event, lambda_context)
+        with (
+            patch("src.handlers.campaign_reporting.tables") as mock_tables,
+            patch("src.handlers.campaign_reporting.check_profile_access") as mock_check_access,
+        ):
+            mock_tables.profiles = mock_profiles_table
+            mock_tables.campaigns = mock_campaigns_table
+            mock_tables.orders = mock_orders_table
+            mock_check_access.return_value = True
 
-        # Assert
-        assert len(result["sellers"]) == 1
-        seller = result["sellers"][0]
-        assert seller["orderCount"] == 2
-        assert seller["totalSales"] == 250.0
-        assert len(seller["orders"]) == 2
-        assert result["totalSales"] == 250.0
-        assert result["totalOrders"] == 2
+            # Act
+            result = get_unit_report(event, lambda_context)
 
-    @patch("src.handlers.campaign_reporting.check_profile_access")
-    @patch("src.handlers.campaign_reporting.orders_table")
-    @patch("src.handlers.campaign_reporting.campaigns_table")
-    @patch("src.handlers.campaign_reporting.profiles_table")
+            # Assert
+            assert len(result["sellers"]) == 1
+            seller = result["sellers"][0]
+            assert seller["orderCount"] == 2
+            assert seller["totalSales"] == 250.0
+            assert len(seller["orders"]) == 2
+            assert result["totalSales"] == 250.0
+            assert result["totalOrders"] == 2
+
     def test_get_unit_report_without_city_state(
         self,
-        mock_profiles_table: MagicMock,
-        mock_campaigns_table: MagicMock,
-        mock_orders_table: MagicMock,
-        mock_check_access: MagicMock,
         sample_profiles: Dict[str, Dict[str, Any]],
         sample_campaigns: list[Dict[str, Any]],
         sample_orders: Dict[str, list[Dict[str, Any]]],
         lambda_context: Any,
     ) -> None:
         """Test report works with empty city/state (backward compatibility)."""
+        mock_profiles_table = MagicMock()
+        mock_campaigns_table = MagicMock()
+        mock_orders_table = MagicMock()
+
         # Arrange - event without city/state
         event = {
             "arguments": {
@@ -559,7 +591,6 @@ class TestGetUnitReport:
         }
 
         mock_campaigns_table.query.return_value = {"Items": sample_campaigns}
-        mock_check_access.return_value = True
 
         def get_item_side_effect(Key: Dict[str, str]) -> Dict[str, Any]:
             profile_id = Key["profileId"]
@@ -574,37 +605,50 @@ class TestGetUnitReport:
             {"Items": sample_orders["CAMPAIGN#campaign2"]},
         ]
 
-        # Act
-        result = get_unit_report(event, lambda_context)
+        with (
+            patch("src.handlers.campaign_reporting.tables") as mock_tables,
+            patch("src.handlers.campaign_reporting.check_profile_access") as mock_check_access,
+        ):
+            mock_tables.profiles = mock_profiles_table
+            mock_tables.campaigns = mock_campaigns_table
+            mock_tables.orders = mock_orders_table
+            mock_check_access.return_value = True
 
-        # Assert - should still work, will use empty strings for city/state
-        assert result["unitType"] == "Pack"
-        assert result["unitNumber"] == 158
+            # Act
+            result = get_unit_report(event, lambda_context)
 
-    @patch("src.handlers.campaign_reporting.check_profile_access")
-    @patch("src.handlers.campaign_reporting.campaigns_table")
-    @patch("src.handlers.campaign_reporting.profiles_table")
+            # Assert - should still work, will use empty strings for city/state
+            assert result["unitType"] == "Pack"
+            assert result["unitNumber"] == 158
+
     def test_get_unit_report_profile_not_found(
         self,
-        mock_profiles_table: MagicMock,
-        mock_campaigns_table: MagicMock,
-        mock_check_access: MagicMock,
         event: Dict[str, Any],
         sample_campaigns: list[Dict[str, Any]],
         lambda_context: Any,
     ) -> None:
         """Test report handles missing profile gracefully."""
+        mock_profiles_table = MagicMock()
+        mock_campaigns_table = MagicMock()
+
         # Arrange
         mock_campaigns_table.query.return_value = {"Items": sample_campaigns}
-        mock_check_access.return_value = True
 
         # Profile query returns empty
         mock_profiles_table.query.return_value = {"Items": []}
 
-        # Act
-        result = get_unit_report(event, lambda_context)
+        with (
+            patch("src.handlers.campaign_reporting.tables") as mock_tables,
+            patch("src.handlers.campaign_reporting.check_profile_access") as mock_check_access,
+        ):
+            mock_tables.profiles = mock_profiles_table
+            mock_tables.campaigns = mock_campaigns_table
+            mock_check_access.return_value = True
 
-        # Assert - no accessible profiles since they couldn't be fetched
-        assert result["sellers"] == []
-        assert result["totalSales"] == 0.0
-        assert result["totalOrders"] == 0
+            # Act
+            result = get_unit_report(event, lambda_context)
+
+            # Assert - no accessible profiles since they couldn't be fetched
+            assert result["sellers"] == []
+            assert result["totalSales"] == 0.0
+            assert result["totalOrders"] == 0

@@ -51,6 +51,7 @@ import {
   TRANSFER_PROFILE_OWNERSHIP,
 } from '../lib/graphql';
 import { ensureProfileId } from '../lib/ids';
+import type { SellerProfile, Share, ProfileInvite } from '../types';
 
 // Helper to get display email for a share
 const getShareDisplayEmail = (share: Share): string =>
@@ -72,7 +73,7 @@ const decodeUrlParam = (encoded: string | undefined): string => (encoded ? decod
 const shouldSkipQuery = (id: string): boolean => !id;
 
 // Helper to get profile from query data
-const getProfile = (data: { getProfile: Profile } | undefined): Profile | undefined => data?.getProfile;
+const getProfile = (data: { getProfile: SellerProfile } | undefined): SellerProfile | undefined => data?.getProfile;
 
 // Helper to get invites from query data
 const getInvites = (data: { listInvitesByProfile: ProfileInvite[] } | undefined): ProfileInvite[] =>
@@ -332,7 +333,7 @@ const togglePermission = (
 };
 
 // Helper to initialize profile name from profile data
-const initializeProfileName = (profile: Profile | undefined, setProfileName: (v: string) => void): void => {
+const initializeProfileName = (profile: SellerProfile | undefined, setProfileName: (v: string) => void): void => {
   if (profile) {
     setProfileName(profile.sellerName);
   }
@@ -363,13 +364,13 @@ const ShareRow: React.FC<{
       <TableCell>
         <Chip label={share.permissions.join(', ')} size="small" variant="outlined" />
       </TableCell>
-      <TableCell>{formatDate(share.createdAt)}</TableCell>
+      <TableCell>{formatDate(share.createdAt ?? '')}</TableCell>
       <TableCell align="right">
         <Stack direction="row" spacing={1} justifyContent="flex-end">
           <Button
             size="small"
             variant="outlined"
-            onClick={() => onTransferOwnership(share.targetAccountId, share.targetAccount?.email)}
+            onClick={() => onTransferOwnership(share.targetAccountId, share.targetAccount?.email ?? '')}
             title="Transfer ownership to this user"
           >
             Transfer Ownership
@@ -377,7 +378,7 @@ const ShareRow: React.FC<{
           <IconButton
             size="small"
             color="error"
-            onClick={() => onRevokeShare(share.targetAccountId, share.targetAccount?.email)}
+            onClick={() => onRevokeShare(share.targetAccountId, share.targetAccount?.email ?? '')}
             title="Revoke access"
           >
             <DeleteIcon fontSize="small" />
@@ -427,38 +428,6 @@ const SharesSection: React.FC<{
     </Paper>
   ) : null;
 
-interface Profile {
-  profileId: string;
-  accountId: string;
-  sellerName: string;
-  email?: string;
-  phone?: string;
-  createdAt: string;
-}
-
-interface ProfileInvite {
-  inviteCode: string;
-  profileId: string;
-  permissions: string[];
-  expiresAt: string;
-  createdAt: string;
-  createdByAccountId: string;
-}
-
-interface Share {
-  shareId: string;
-  profileId: string;
-  targetAccountId: string;
-  targetAccount?: {
-    email: string;
-    givenName?: string;
-    familyName?: string;
-  };
-  permissions: string[];
-  createdAt: string;
-  createdByAccountId: string;
-}
-
 export const ScoutManagementPage: React.FC = () => {
   const { profileId: encodedProfileId } = useParams<{
     profileId: string;
@@ -491,7 +460,7 @@ export const ScoutManagementPage: React.FC = () => {
     loading,
     refetch,
   } = useQuery<{
-    getProfile: Profile;
+    getProfile: SellerProfile;
   }>(GET_PROFILE, {
     variables: { profileId: dbProfileId! },
     skip: shouldSkipQuery(dbProfileId!),

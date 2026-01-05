@@ -13,22 +13,7 @@ import { Box, Grid, Paper, Typography, Stack, CircularProgress, Alert } from '@m
 import { ShoppingCart, AttachMoney, People, Inventory2 } from '@mui/icons-material';
 import { LIST_ORDERS_BY_CAMPAIGN } from '../lib/graphql';
 import { ensureCampaignId } from '../lib/ids';
-
-interface LineItem {
-  productId: string;
-  productName: string;
-  quantity: number;
-  pricePerUnit: number;
-  subtotal: number;
-}
-
-interface Order {
-  orderId: string;
-  customerName: string;
-  paymentMethod: string;
-  lineItems: LineItem[];
-  totalAmount: number;
-}
+import type { Order } from '../types';
 
 interface CampaignSummaryTilesProps {
   campaignId: string;

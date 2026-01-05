@@ -5,10 +5,13 @@ This module provides:
 - Region abbreviation mapping for resource naming
 - Resource naming function (rn)
 - Environment configuration utilities
+- Context boolean parsing
 """
 
 import os
 from typing import Callable, Optional
+
+from constructs import Construct
 
 # Region abbreviation mapping for resource naming
 # Pattern: {name}-{region_abbrev}-{env} e.g. kernelworx-ue1-dev
@@ -36,6 +39,32 @@ REGION_ABBREVIATIONS: dict[str, str] = {
 def get_region() -> str:
     """Get the AWS region from environment variables or default to us-east-1."""
     return os.getenv("AWS_REGION") or os.getenv("CDK_DEFAULT_REGION") or "us-east-1"
+
+
+def get_context_bool(construct: Construct, key: str, default: bool = True) -> bool:
+    """Get a boolean value from CDK context, handling string values.
+
+    CDK context values can come from:
+    - cdk.json
+    - Command line via --context key=value
+    - Environment variables
+
+    String values like "false" are properly handled.
+
+    Args:
+        construct: CDK construct with node access
+        key: Context key to look up
+        default: Default value if key is not found
+
+    Returns:
+        Boolean value from context or default
+    """
+    value = construct.node.try_get_context(key)
+    if value is None:
+        return default
+    if isinstance(value, bool):
+        return value
+    return str(value).lower() != "false"
 
 
 def get_region_abbrev(region: Optional[str] = None) -> str:

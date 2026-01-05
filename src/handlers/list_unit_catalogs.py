@@ -1,58 +1,20 @@
 """Lambda resolver for listing catalogs used in a unit."""
 
-import os
 from typing import Any, Dict, List, Set
 
-import boto3
 from boto3.dynamodb.conditions import Key
-from mypy_boto3_dynamodb import DynamoDBServiceResource
-from mypy_boto3_dynamodb.service_resource import Table
 
 # Handle both Lambda (absolute) and unit test (relative) imports
 try:  # pragma: no cover
     from utils.auth import check_profile_access
+    from utils.dynamodb import tables
     from utils.logging import get_logger
 except ModuleNotFoundError:  # pragma: no cover
     from ..utils.auth import check_profile_access
+    from ..utils.dynamodb import tables
     from ..utils.logging import get_logger
 
 logger = get_logger(__name__)
-
-
-def _get_dynamodb() -> DynamoDBServiceResource:
-    """Return a fresh DynamoDB resource (lazy for tests)."""
-    return boto3.resource("dynamodb")
-
-
-# Multi-table design V2
-profiles_table_name = os.environ.get("PROFILES_TABLE_NAME", "kernelworx-profiles-v2-ue1-dev")
-campaigns_table_name = os.environ.get("CAMPAIGNS_TABLE_NAME", "kernelworx-campaigns-v2-ue1-dev")
-catalogs_table_name = os.environ.get("CATALOGS_TABLE_NAME", "kernelworx-catalogs-ue1-dev")
-
-
-# Module-level variables intended to be monkeypatched in unit tests
-profiles_table: Table | None = None
-campaigns_table: Table | None = None
-catalogs_table: Table | None = None
-
-
-def _get_profiles_table() -> Table:
-    # If a test has monkeypatched the module-level `profiles_table`, use it
-    if profiles_table is not None:
-        return profiles_table
-    return _get_dynamodb().Table(profiles_table_name)
-
-
-def _get_campaigns_table() -> Table:
-    if campaigns_table is not None:
-        return campaigns_table
-    return _get_dynamodb().Table(campaigns_table_name)
-
-
-def _get_catalogs_table() -> Table:
-    if catalogs_table is not None:
-        return catalogs_table
-    return _get_dynamodb().Table(catalogs_table_name)
 
 
 def _filter_accessible_profiles(profiles: List[Dict[str, Any]], caller_account_id: str) -> List[Dict[str, Any]]:
@@ -70,7 +32,7 @@ def _collect_catalog_ids(profiles: List[Dict[str, Any]], campaign_name: str, cam
     catalog_ids: Set[str] = set()
     for profile in profiles:
         profile_id = profile["profileId"]
-        campaigns_response = _get_campaigns_table().query(
+        campaigns_response = tables.campaigns.query(
             KeyConditionExpression=Key("profileId").eq(profile_id),
             FilterExpression="campaignName = :name AND campaignYear = :year",
             ExpressionAttributeValues={":name": campaign_name, ":year": campaign_year},
@@ -87,7 +49,7 @@ def _fetch_catalogs(catalog_ids: Set[str]) -> List[Dict[str, Any]]:
     catalogs: List[Dict[str, Any]] = []
     for catalog_id in catalog_ids:
         try:
-            catalog_response = _get_catalogs_table().get_item(Key={"catalogId": catalog_id})
+            catalog_response = tables.catalogs.get_item(Key={"catalogId": catalog_id})
             if "Item" in catalog_response:
                 catalogs.append(catalog_response["Item"])
         except Exception as e:
@@ -121,7 +83,7 @@ def list_unit_catalogs(event: Dict[str, Any], context: Any) -> List[Dict[str, An
         logger.info(f"Listing catalogs for {unit_type} {unit_number}, campaign {campaign_name} {campaign_year}")
 
         # Step 1: Find all profiles in this unit
-        profiles_response = _get_profiles_table().scan(
+        profiles_response = tables.profiles.scan(
             FilterExpression="unitType = :ut AND unitNumber = :un",
             ExpressionAttributeValues={":ut": unit_type, ":un": unit_number},
         )
@@ -206,7 +168,7 @@ def list_unit_campaign_catalogs(event: Dict[str, Any], context: Any) -> List[Dic
 
         # Step 1: Query unitCampaignKey-index
         unit_campaign_key = _build_unit_campaign_key(unit_type, unit_number, city, state, campaign_name, campaign_year)
-        campaigns_response = _get_campaigns_table().query(
+        campaigns_response = tables.campaigns.query(
             IndexName="unitCampaignKey-index",
             KeyConditionExpression=Key("unitCampaignKey").eq(unit_campaign_key),
         )

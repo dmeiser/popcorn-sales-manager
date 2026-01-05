@@ -14,7 +14,7 @@ from pathlib import Path
 # Add cdk module to path
 sys.path.insert(0, str(Path(__file__).parent))
 
-from cdk.cdk_stack import REGION_ABBREVIATIONS
+from cdk.helpers import REGION_ABBREVIATIONS
 from cdk.cleanup_hook import generate_import_file
 
 
