@@ -169,6 +169,33 @@ def get_payment_methods(account_id: str) -> List[Dict[str, Any]]:
         raise AppError(ErrorCode.INTERNAL_ERROR, "Failed to retrieve payment methods")
 
 
+def validate_payment_method_exists(account_id: str, payment_method_name: str) -> None:
+    """
+    Validate that a payment method exists for an account.
+
+    Checks both global methods (Cash, Check) and custom payment methods.
+
+    Args:
+        account_id: Account ID to check
+        payment_method_name: Name of payment method to validate
+
+    Raises:
+        AppError: If payment method does not exist for this account
+    """
+    # Check if it's a global method (always valid)
+    if payment_method_name.lower() in {"cash", "check"}:
+        return
+
+    # Check custom payment methods
+    custom_methods = get_payment_methods(account_id)
+    method_names = {method["name"].lower() for method in custom_methods}
+
+    if payment_method_name.lower() not in method_names:
+        raise AppError(
+            ErrorCode.INVALID_INPUT, f"Payment method '{payment_method_name}' does not exist for this account"
+        )
+
+
 def create_payment_method(account_id: str, name: str) -> Dict[str, Any]:
     """
     Create a new custom payment method.

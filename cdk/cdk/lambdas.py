@@ -315,6 +315,20 @@ def create_lambda_functions(
         environment=lambda_env,
     )
 
+    validate_payment_method_fn = lambda_.Function(
+        scope,
+        "ValidatePaymentMethodFn",
+        function_name=rn("kernelworx-validate-payment-method"),
+        runtime=lambda_.Runtime.PYTHON_3_13,
+        handler="handlers.validate_payment_method.lambda_handler",
+        code=lambda_code,
+        layers=[shared_layer],
+        timeout=Duration.seconds(10),
+        memory_size=256,
+        role=lambda_execution_role,
+        environment=lambda_env,
+    )
+
     return {
         "shared_layer": shared_layer,
         "list_my_shares_fn": list_my_shares_fn,
@@ -331,4 +345,5 @@ def create_lambda_functions(
         "confirm_qr_upload_fn": confirm_qr_upload_fn,
         "generate_presigned_urls_fn": generate_presigned_urls_fn,
         "delete_qr_code_fn": delete_qr_code_fn,
+        "validate_payment_method_fn": validate_payment_method_fn,
     }

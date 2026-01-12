@@ -1,0 +1,398 @@
+/**
+ * PaymentMethodsPage - Manage custom payment methods with optional QR codes
+ *
+ * Features:
+ * - List all payment methods (alphabetically sorted)
+ * - Create new custom payment methods
+ * - Edit/rename payment methods
+ * - Upload/delete QR codes for payment methods
+ * - Delete payment methods
+ *
+ * Authorization: Owner only can create/update/delete. Cash and Check are global and read-only.
+ */
+
+import React, { useState } from 'react';
+import { useQuery, useMutation } from '@apollo/client/react';
+import { Box, Typography, Paper, Stack, Button, CircularProgress, Alert, IconButton } from '@mui/material';
+import { Add as AddIcon, ArrowBack as BackIcon } from '@mui/icons-material';
+import { useNavigate } from 'react-router-dom';
+import {
+  GET_MY_PAYMENT_METHODS,
+  CREATE_PAYMENT_METHOD,
+  UPDATE_PAYMENT_METHOD,
+  DELETE_PAYMENT_METHOD,
+  REQUEST_PAYMENT_METHOD_QR_UPLOAD,
+  CONFIRM_PAYMENT_METHOD_QR_UPLOAD,
+  DELETE_PAYMENT_METHOD_QR_CODE,
+} from '../lib/graphql';
+import { PaymentMethodCard } from '../components/PaymentMethodCard';
+import { CreatePaymentMethodDialog } from '../components/CreatePaymentMethodDialog';
+import { EditPaymentMethodDialog } from '../components/EditPaymentMethodDialog';
+import { DeletePaymentMethodDialog } from '../components/DeletePaymentMethodDialog';
+import { QRUploadDialog } from '../components/QRUploadDialog';
+
+interface PaymentMethod {
+  name: string;
+  qrCodeUrl: string | null;
+}
+
+interface S3UploadInfo {
+  uploadUrl: string;
+  fields: string;
+  s3Key: string;
+}
+
+interface RequestQRUploadData {
+  requestPaymentMethodQRCodeUpload: S3UploadInfo;
+}
+
+// Reserved payment method names (case-insensitive)
+const RESERVED_NAMES = ['cash', 'check'];
+
+const isReservedMethod = (name: string): boolean => {
+  return RESERVED_NAMES.includes(name.toLowerCase());
+};
+
+// Loading state component
+const LoadingState: React.FC = () => (
+  <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
+    <CircularProgress />
+  </Box>
+);
+
+// Error state component
+const ErrorState: React.FC<{ message: string }> = ({ message }) => (
+  <Box>
+    <Alert severity="error">Failed to load payment methods: {message}</Alert>
+  </Box>
+);
+
+// Message alerts component
+interface MessageAlertsProps {
+  successMessage: string | null;
+  error: string | null;
+  onDismissSuccess: () => void;
+  onDismissError: () => void;
+}
+
+const MessageAlerts: React.FC<MessageAlertsProps> = ({ successMessage, error, onDismissSuccess, onDismissError }) => (
+  <>
+    {successMessage && (
+      <Alert severity="success" sx={{ mb: 2 }} onClose={onDismissSuccess}>
+        {successMessage}
+      </Alert>
+    )}
+    {error && (
+      <Alert severity="error" sx={{ mb: 2 }} onClose={onDismissError}>
+        {error}
+      </Alert>
+    )}
+  </>
+);
+
+// Empty state component
+const EmptyState: React.FC = () => (
+  <Paper sx={{ p: 3, textAlign: 'center' }}>
+    <Typography color="text.secondary">
+      No payment methods yet. Cash and Check are always available. Add custom payment methods above.
+    </Typography>
+  </Paper>
+);
+
+// eslint-disable-next-line complexity -- Complex page component managing multiple dialogs and state
+export const PaymentMethodsPage: React.FC = () => {
+  const navigate = useNavigate();
+
+  // Dialog states
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [qrUploadDialogOpen, setQrUploadDialogOpen] = useState(false);
+  const [selectedMethod, setSelectedMethod] = useState<PaymentMethod | null>(null);
+
+  // Error/success states
+  const [error, setError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
+  // Helper to show success message with auto-dismiss
+  const showSuccess = (message: string) => {
+    setSuccessMessage(message);
+    setTimeout(() => setSuccessMessage(null), 3000);
+  };
+
+  // Query payment methods
+  const {
+    data,
+    loading,
+    error: queryError,
+    refetch,
+  } = useQuery<{ myPaymentMethods: PaymentMethod[] }>(GET_MY_PAYMENT_METHODS);
+
+  // Mutation error handler
+  const handleMutationError = (err: Error) => setError(err.message);
+
+  // Mutations
+  const [createPaymentMethod, { loading: creating }] = useMutation(CREATE_PAYMENT_METHOD, {
+    onCompleted: () => {
+      showSuccess('Payment method created successfully');
+      setCreateDialogOpen(false);
+      refetch();
+    },
+    onError: handleMutationError,
+  });
+
+  const [updatePaymentMethod, { loading: updating }] = useMutation(UPDATE_PAYMENT_METHOD, {
+    onCompleted: () => {
+      showSuccess('Payment method updated successfully');
+      setEditDialogOpen(false);
+      setSelectedMethod(null);
+      refetch();
+    },
+    onError: handleMutationError,
+  });
+
+  const [deletePaymentMethod, { loading: deleting }] = useMutation(DELETE_PAYMENT_METHOD, {
+    onCompleted: () => {
+      showSuccess('Payment method deleted successfully');
+      setDeleteDialogOpen(false);
+      setSelectedMethod(null);
+      refetch();
+    },
+    onError: handleMutationError,
+  });
+
+  const [requestQRUpload] = useMutation<RequestQRUploadData>(REQUEST_PAYMENT_METHOD_QR_UPLOAD);
+  const [confirmQRUpload] = useMutation(CONFIRM_PAYMENT_METHOD_QR_UPLOAD);
+  const [deleteQRCode, { loading: deletingQR }] = useMutation(DELETE_PAYMENT_METHOD_QR_CODE, {
+    onCompleted: () => {
+      showSuccess('QR code deleted successfully');
+      refetch();
+    },
+    onError: handleMutationError,
+  });
+
+  // Handlers
+  const handleCreate = async (name: string) => {
+    setError(null);
+    await createPaymentMethod({ variables: { name } });
+  };
+
+  const handleEdit = (method: PaymentMethod) => {
+    setSelectedMethod(method);
+    setEditDialogOpen(true);
+    setError(null);
+  };
+
+  const handleUpdate = async (oldName: string, newName: string) => {
+    setError(null);
+    await updatePaymentMethod({
+      variables: { currentName: oldName, newName },
+    });
+  };
+
+  const handleDeleteClick = (method: PaymentMethod) => {
+    setSelectedMethod(method);
+    setDeleteDialogOpen(true);
+    setError(null);
+  };
+
+  const handleDelete = async () => {
+    if (!selectedMethod) return;
+    setError(null);
+    await deletePaymentMethod({ variables: { name: selectedMethod.name } });
+  };
+
+  const handleQRUploadClick = (method: PaymentMethod) => {
+    setSelectedMethod(method);
+    setQrUploadDialogOpen(true);
+    setError(null);
+  };
+
+  // Helper to parse S3 fields and upload file
+  const uploadToS3 = async (uploadUrl: string, fields: string, file: File): Promise<void> => {
+    const parsedFields = typeof fields === 'string' ? JSON.parse(fields) : fields;
+    const formData = new FormData();
+    Object.entries(parsedFields).forEach(([key, value]) => {
+      formData.append(key, value as string);
+    });
+    formData.append('file', file);
+
+    const uploadResponse = await fetch(uploadUrl, { method: 'POST', body: formData });
+    if (!uploadResponse.ok) {
+      throw new Error('Failed to upload file to S3');
+    }
+  };
+
+  const handleQRUpload = async (file: File): Promise<void> => {
+    if (!selectedMethod) return;
+    setError(null);
+
+    try {
+      // Request pre-signed upload URL
+      const { data: uploadData } = await requestQRUpload({
+        variables: { paymentMethodName: selectedMethod.name },
+      });
+
+      if (!uploadData) {
+        throw new Error('Failed to get upload URL');
+      }
+
+      const { uploadUrl, fields, s3Key } = uploadData.requestPaymentMethodQRCodeUpload;
+
+      // Upload to S3
+      await uploadToS3(uploadUrl, fields, file);
+
+      // Confirm upload
+      await confirmQRUpload({
+        variables: {
+          paymentMethodName: selectedMethod.name,
+          s3Key,
+        },
+      });
+
+      showSuccess('QR code uploaded successfully');
+      setQrUploadDialogOpen(false);
+      setSelectedMethod(null);
+      refetch();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to upload QR code';
+      setError(message);
+    }
+  };
+
+  const handleDeleteQRCode = async (method: PaymentMethod) => {
+    setError(null);
+    await deleteQRCode({ variables: { paymentMethodName: method.name } });
+  };
+
+  // Dialog close handlers
+  const closeCreateDialog = () => setCreateDialogOpen(false);
+  const closeEditDialog = () => {
+    setEditDialogOpen(false);
+    setSelectedMethod(null);
+  };
+  const closeDeleteDialog = () => {
+    setDeleteDialogOpen(false);
+    setSelectedMethod(null);
+  };
+  const closeQrUploadDialog = () => {
+    setQrUploadDialogOpen(false);
+    setSelectedMethod(null);
+  };
+
+  // Sort payment methods alphabetically - returns empty array if no data
+  const sortedMethods = data?.myPaymentMethods ?? [];
+  const paymentMethods = [...sortedMethods].sort((a, b) =>
+    a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }),
+  );
+
+  // Get list of existing names for validation
+  const existingNames = paymentMethods.map((m) => m.name);
+  const selectedName = selectedMethod?.name ?? '';
+  const isAnyMutationLoading = deleting || deletingQR;
+
+  if (loading) {
+    return <LoadingState />;
+  }
+
+  if (queryError) {
+    return <ErrorState message={queryError.message} />;
+  }
+
+  return (
+    <Box>
+      {/* Header */}
+      <Box display="flex" alignItems="center" mb={3}>
+        <IconButton onClick={() => navigate('/settings')} sx={{ mr: 1 }} aria-label="Back to settings">
+          <BackIcon />
+        </IconButton>
+        <Typography variant="h4" component="h1">
+          Payment Methods
+        </Typography>
+      </Box>
+
+      {/* Success/Error Messages */}
+      <MessageAlerts
+        successMessage={successMessage}
+        error={error}
+        onDismissSuccess={() => setSuccessMessage(null)}
+        onDismissError={() => setError(null)}
+      />
+
+      {/* Info Box */}
+      <Paper sx={{ p: 2, mb: 3, bgcolor: 'info.light' }}>
+        <Typography variant="body2" color="info.contrastText">
+          Cash and Check are always available as payment options. You can create custom payment methods below and
+          optionally add a QR code for each (e.g., Venmo, PayPal).
+        </Typography>
+      </Paper>
+
+      {/* Create Button */}
+      <Box mb={3}>
+        <Button
+          variant="contained"
+          startIcon={<AddIcon />}
+          onClick={() => {
+            setError(null);
+            setCreateDialogOpen(true);
+          }}
+        >
+          Add Payment Method
+        </Button>
+      </Box>
+
+      {/* Payment Methods List */}
+      <Stack spacing={2}>
+        {paymentMethods.map((method) => (
+          <PaymentMethodCard
+            key={method.name}
+            method={method}
+            isReserved={isReservedMethod(method.name)}
+            onEdit={() => handleEdit(method)}
+            onDelete={() => handleDeleteClick(method)}
+            onUploadQR={() => handleQRUploadClick(method)}
+            onDeleteQR={() => handleDeleteQRCode(method)}
+            isDeleting={isAnyMutationLoading}
+          />
+        ))}
+
+        {paymentMethods.length === 0 && <EmptyState />}
+      </Stack>
+
+      {/* Dialogs */}
+      <CreatePaymentMethodDialog
+        open={createDialogOpen}
+        onClose={closeCreateDialog}
+        onCreate={handleCreate}
+        existingNames={existingNames}
+        reservedNames={RESERVED_NAMES}
+        isLoading={creating}
+      />
+
+      <EditPaymentMethodDialog
+        open={editDialogOpen}
+        onClose={closeEditDialog}
+        onUpdate={handleUpdate}
+        currentName={selectedName}
+        existingNames={existingNames}
+        reservedNames={RESERVED_NAMES}
+        isLoading={updating}
+      />
+
+      <DeletePaymentMethodDialog
+        open={deleteDialogOpen}
+        onClose={closeDeleteDialog}
+        onDelete={handleDelete}
+        methodName={selectedName}
+        isLoading={deleting}
+      />
+
+      <QRUploadDialog
+        open={qrUploadDialogOpen}
+        onClose={closeQrUploadDialog}
+        onUpload={handleQRUpload}
+        methodName={selectedName}
+      />
+    </Box>
+  );
+};

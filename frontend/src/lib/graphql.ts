@@ -640,3 +640,81 @@ export const DELETE_SHARED_CAMPAIGN = gql`
     deleteSharedCampaign(sharedCampaignCode: $sharedCampaignCode)
   }
 `;
+
+// ============================================================================
+// Payment Methods
+// ============================================================================
+
+export const PAYMENT_METHOD_FRAGMENT = gql`
+  fragment PaymentMethodFields on PaymentMethod {
+    name
+    qrCodeUrl
+  }
+`;
+
+export const GET_MY_PAYMENT_METHODS = gql`
+  ${PAYMENT_METHOD_FRAGMENT}
+  query GetMyPaymentMethods {
+    myPaymentMethods {
+      ...PaymentMethodFields
+    }
+  }
+`;
+
+export const GET_PAYMENT_METHODS_FOR_PROFILE = gql`
+  ${PAYMENT_METHOD_FRAGMENT}
+  query GetPaymentMethodsForProfile($profileId: ID!) {
+    paymentMethodsForProfile(profileId: $profileId) {
+      ...PaymentMethodFields
+    }
+  }
+`;
+
+export const CREATE_PAYMENT_METHOD = gql`
+  ${PAYMENT_METHOD_FRAGMENT}
+  mutation CreatePaymentMethod($name: String!) {
+    createPaymentMethod(name: $name) {
+      ...PaymentMethodFields
+    }
+  }
+`;
+
+export const UPDATE_PAYMENT_METHOD = gql`
+  ${PAYMENT_METHOD_FRAGMENT}
+  mutation UpdatePaymentMethod($currentName: String!, $newName: String!) {
+    updatePaymentMethod(currentName: $currentName, newName: $newName) {
+      ...PaymentMethodFields
+    }
+  }
+`;
+
+export const DELETE_PAYMENT_METHOD = gql`
+  mutation DeletePaymentMethod($name: String!) {
+    deletePaymentMethod(name: $name)
+  }
+`;
+
+export const REQUEST_PAYMENT_METHOD_QR_UPLOAD = gql`
+  mutation RequestPaymentMethodQRUpload($paymentMethodName: String!) {
+    requestPaymentMethodQRCodeUpload(paymentMethodName: $paymentMethodName) {
+      uploadUrl
+      fields
+      s3Key
+    }
+  }
+`;
+
+export const CONFIRM_PAYMENT_METHOD_QR_UPLOAD = gql`
+  ${PAYMENT_METHOD_FRAGMENT}
+  mutation ConfirmPaymentMethodQRUpload($paymentMethodName: String!, $s3Key: String!) {
+    confirmPaymentMethodQRCodeUpload(paymentMethodName: $paymentMethodName, s3Key: $s3Key) {
+      ...PaymentMethodFields
+    }
+  }
+`;
+
+export const DELETE_PAYMENT_METHOD_QR_CODE = gql`
+  mutation DeletePaymentMethodQRCode($paymentMethodName: String!) {
+    deletePaymentMethodQRCode(paymentMethodName: $paymentMethodName)
+  }
+`;

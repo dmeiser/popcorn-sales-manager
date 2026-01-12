@@ -802,6 +802,21 @@ class CdkStack(Stack):  # type: ignore[misc]
             environment=lambda_env,
         )
 
+        # Validate Payment Method Lambda - Validates payment method exists during order creation
+        self.validate_payment_method_fn = lambda_.Function(
+            self,
+            "ValidatePaymentMethodFn",
+            function_name=self._rn("kernelworx-validate-payment-method"),
+            runtime=lambda_.Runtime.PYTHON_3_13,
+            handler="handlers.validate_payment_method.lambda_handler",
+            code=lambda_code,
+            layers=[self.shared_layer],
+            timeout=Duration.seconds(10),
+            memory_size=256,
+            role=self.lambda_execution_role,
+            environment=lambda_env,
+        )
+
         # ====================================================================
         # Cognito User Pool - Authentication (Essentials tier)
         # ====================================================================
@@ -1138,6 +1153,7 @@ class CdkStack(Stack):  # type: ignore[misc]
                 "confirm_qr_upload_fn": self.confirm_qr_upload_fn,
                 "generate_presigned_urls_fn": self.generate_presigned_urls_fn,
                 "delete_qr_code_fn": self.delete_qr_code_fn,
+                "validate_payment_method_fn": self.validate_payment_method_fn,
             },
         )
         self.api = appsync_resources.api

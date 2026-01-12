@@ -2,7 +2,7 @@
  * OrderEditorPage - Page for creating or editing an order
  */
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation } from '@apollo/client/react';
 import {
@@ -27,12 +27,34 @@ import {
   CircularProgress,
   Breadcrumbs,
   Link,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
 } from '@mui/material';
-import { Add as AddIcon, Delete as DeleteIcon, ArrowBack as ArrowBackIcon } from '@mui/icons-material';
-import { CREATE_ORDER, UPDATE_ORDER, GET_ORDER, GET_CAMPAIGN, GET_PROFILE } from '../lib/graphql';
+import {
+  Add as AddIcon,
+  Delete as DeleteIcon,
+  ArrowBack as ArrowBackIcon,
+  QrCode as QrCodeIcon,
+} from '@mui/icons-material';
+import {
+  CREATE_ORDER,
+  UPDATE_ORDER,
+  GET_ORDER,
+  GET_CAMPAIGN,
+  GET_PROFILE,
+  GET_PAYMENT_METHODS_FOR_PROFILE,
+} from '../lib/graphql';
 import { ensureProfileId, ensureCampaignId, ensureOrderId, toUrlId } from '../lib/ids';
 import { useOrderForm, type OrderFormState, type LineItemInput } from '../hooks/useOrderForm';
 import type { Product, Catalog, OrderAddress } from '../types';
+
+// Payment method interface for dynamic payment methods
+interface PaymentMethodOption {
+  name: string;
+  qrCodeUrl: string | null;
+}
 
 // ============================================================================
 // Types (page-specific types not in shared entities)
@@ -123,6 +145,31 @@ function validateOrderForm(customerName: string, lineItems: LineItemInput[]): Va
   }
 
   return { isValid: true, validLineItems };
+}
+
+/**
+ * Gets the default payment method name.
+ * Prefers "Cash" if available, otherwise uses the first method.
+ */
+function getDefaultPaymentMethodName(paymentMethods: PaymentMethodOption[]): string {
+  const cashMethod = paymentMethods.find((m) => m.name === 'Cash');
+  if (cashMethod) return 'Cash';
+  return paymentMethods[0]?.name ?? '';
+}
+
+/**
+ * Sets the default payment method when payment methods load.
+ * Only sets default if no existing payment method is selected.
+ */
+function setDefaultPaymentMethod(
+  paymentMethods: PaymentMethodOption[],
+  orderData: OrderData | undefined,
+  formState: OrderFormState,
+): void {
+  const shouldSetDefault = paymentMethods.length > 0 && !orderData && !formState.paymentMethod;
+  if (!shouldSetDefault) return;
+
+  formState.setPaymentMethod(getDefaultPaymentMethodName(paymentMethods));
 }
 
 // ============================================================================
@@ -423,12 +470,121 @@ const LineItemsTable: React.FC<LineItemsTableProps> = ({
   );
 };
 
+// ============================================================================
+// QR Preview Modal
+// ============================================================================
+
+interface QRPreviewModalProps {
+  open: boolean;
+  onClose: () => void;
+  qrCodeUrl: string | null;
+  methodName: string;
+}
+
+const QRPreviewModal: React.FC<QRPreviewModalProps> = ({ open, onClose, qrCodeUrl, methodName }) => (
+  <Dialog open={open} onClose={onClose} maxWidth="xs" fullWidth>
+    <DialogTitle>Payment QR Code - {methodName}</DialogTitle>
+    <DialogContent>
+      {qrCodeUrl ? (
+        <Box display="flex" justifyContent="center" p={2}>
+          <Box
+            component="img"
+            src={qrCodeUrl}
+            alt={`QR code for ${methodName}`}
+            sx={{ maxWidth: '100%', maxHeight: 300 }}
+          />
+        </Box>
+      ) : (
+        <Typography color="text.secondary" align="center">
+          No QR code available for this payment method.
+        </Typography>
+      )}
+    </DialogContent>
+    <DialogActions>
+      <Button onClick={onClose}>Close</Button>
+    </DialogActions>
+  </Dialog>
+);
+
+// ============================================================================
+// Payment Notes Form
+// ============================================================================
+
+function renderPaymentMethodOptions(
+  paymentMethods: PaymentMethodOption[],
+  paymentMethodsLoading: boolean,
+): React.ReactNode[] {
+  if (paymentMethodsLoading) {
+    return [
+      <MenuItem key="loading" value="" disabled>
+        Loading...
+      </MenuItem>,
+    ];
+  }
+  if (paymentMethods.length === 0) {
+    return [
+      <MenuItem key="empty" value="" disabled>
+        No payment methods available
+      </MenuItem>,
+    ];
+  }
+  return paymentMethods.map((method) => (
+    <MenuItem key={method.name} value={method.name}>
+      {method.name}
+    </MenuItem>
+  ));
+}
+
+// QR button with modal for payment method form
+interface QRButtonWithModalProps {
+  selectedMethod: PaymentMethodOption | null;
+  canViewQR: boolean;
+}
+
+function useShowQRButton(selectedMethod: PaymentMethodOption | null, canViewQR: boolean): boolean {
+  const hasQRCode = selectedMethod?.qrCodeUrl != null;
+  return canViewQR && hasQRCode;
+}
+
+function getQRModalData(selectedMethod: PaymentMethodOption | null): { qrCodeUrl: string | null; methodName: string } {
+  return {
+    qrCodeUrl: selectedMethod?.qrCodeUrl ?? null,
+    methodName: selectedMethod?.name ?? '',
+  };
+}
+
+const QRButtonWithModal: React.FC<QRButtonWithModalProps> = ({ selectedMethod, canViewQR }) => {
+  const [qrModalOpen, setQrModalOpen] = useState(false);
+  const showQRButton = useShowQRButton(selectedMethod, canViewQR);
+
+  if (!showQRButton) return null;
+
+  const { qrCodeUrl, methodName } = getQRModalData(selectedMethod);
+
+  return (
+    <>
+      <IconButton onClick={() => setQrModalOpen(true)} color="primary" aria-label="View QR code" sx={{ mt: 1 }}>
+        <QrCodeIcon />
+      </IconButton>
+      <QRPreviewModal
+        open={qrModalOpen}
+        onClose={() => setQrModalOpen(false)}
+        qrCodeUrl={qrCodeUrl}
+        methodName={methodName}
+      />
+    </>
+  );
+};
+
 interface PaymentNotesFormProps {
   paymentMethod: string;
   setPaymentMethod: (value: string) => void;
   notes: string;
   setNotes: (value: string) => void;
   loading: boolean;
+  paymentMethods: PaymentMethodOption[];
+  paymentMethodsLoading: boolean;
+  canViewQR: boolean;
 }
 
 const PaymentNotesForm: React.FC<PaymentNotesFormProps> = ({
@@ -437,33 +593,41 @@ const PaymentNotesForm: React.FC<PaymentNotesFormProps> = ({
   notes,
   setNotes,
   loading,
-}) => (
-  <Paper sx={{ p: 3, mb: 3 }}>
-    <Typography variant="h6" gutterBottom>
-      Payment & Notes
-    </Typography>
-    <Stack spacing={2}>
-      <FormControl fullWidth disabled={loading}>
-        <InputLabel>Payment Method</InputLabel>
-        <Select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)} label="Payment Method">
-          <MenuItem value="CASH">Cash</MenuItem>
-          <MenuItem value="CHECK">Check</MenuItem>
-          <MenuItem value="CREDIT_CARD">Credit Card</MenuItem>
-          <MenuItem value="OTHER">Other</MenuItem>
-        </Select>
-      </FormControl>
-      <TextField
-        fullWidth
-        label="Notes"
-        value={notes}
-        onChange={(e) => setNotes(e.target.value)}
-        multiline
-        rows={3}
-        disabled={loading}
-      />
-    </Stack>
-  </Paper>
-);
+  paymentMethods,
+  paymentMethodsLoading,
+  canViewQR,
+}) => {
+  const selectedMethod = paymentMethods.find((m) => m.name === paymentMethod) ?? null;
+  const isFormDisabled = loading || paymentMethodsLoading;
+
+  return (
+    <Paper sx={{ p: 3, mb: 3 }}>
+      <Typography variant="h6" gutterBottom>
+        Payment & Notes
+      </Typography>
+      <Stack spacing={2}>
+        <Stack direction="row" spacing={1} alignItems="flex-start">
+          <FormControl fullWidth disabled={isFormDisabled}>
+            <InputLabel>Payment Method</InputLabel>
+            <Select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)} label="Payment Method">
+              {renderPaymentMethodOptions(paymentMethods, paymentMethodsLoading)}
+            </Select>
+          </FormControl>
+          <QRButtonWithModal selectedMethod={selectedMethod} canViewQR={canViewQR} />
+        </Stack>
+        <TextField
+          fullWidth
+          label="Notes"
+          value={notes}
+          onChange={(e) => setNotes(e.target.value)}
+          multiline
+          rows={3}
+          disabled={loading}
+        />
+      </Stack>
+    </Paper>
+  );
+};
 
 interface OrderHeaderProps {
   isEditing: boolean;
@@ -499,18 +663,27 @@ interface OrderActionsProps {
   isEditing: boolean;
   loading: boolean;
   customerName: string;
+  hasValidPaymentMethod: boolean;
   onCancel: () => void;
   onSubmit: () => void;
 }
 
-const OrderActions: React.FC<OrderActionsProps> = ({ isEditing, loading, customerName, onCancel, onSubmit }) => {
+const OrderActions: React.FC<OrderActionsProps> = ({
+  isEditing,
+  loading,
+  customerName,
+  hasValidPaymentMethod,
+  onCancel,
+  onSubmit,
+}) => {
   const submitLabel = getSubmitLabel(isEditing, loading);
+  const isDisabled = loading || !customerName.trim() || !hasValidPaymentMethod;
   return (
     <Stack direction="row" spacing={2} justifyContent="flex-end">
       <Button onClick={onCancel} disabled={loading}>
         Cancel
       </Button>
-      <Button variant="contained" onClick={onSubmit} disabled={loading || !customerName.trim()}>
+      <Button variant="contained" onClick={onSubmit} disabled={isDisabled}>
         {submitLabel}
       </Button>
     </Stack>
@@ -619,6 +792,9 @@ async function executeOrderMutation(
 interface UseOrderDataResult {
   products: Product[];
   hasWritePermission: boolean;
+  isOwnerOrWrite: boolean;
+  paymentMethods: PaymentMethodOption[];
+  paymentMethodsLoading: boolean;
   orderLoading: boolean;
   orderData: OrderData | undefined;
 }
@@ -628,6 +804,14 @@ function extractProducts(campaignData: { getCampaign: CampaignData } | undefined
 }
 
 function checkWritePermission(profileData: { getProfile: ProfileData } | undefined): boolean {
+  const profile = profileData?.getProfile;
+  if (!profile) {
+    return false;
+  }
+  return profile.isOwner || hasWriteInPermissions(profile.permissions);
+}
+
+function checkIsOwnerOrWrite(profileData: { getProfile: ProfileData } | undefined): boolean {
   const profile = profileData?.getProfile;
   if (!profile) {
     return false;
@@ -657,9 +841,19 @@ function useOrderData(urlParams: ParsedOrderParams): UseOrderDataResult {
     skip: !urlParams.dbOrderId,
   });
 
+  const { data: paymentMethodsData, loading: paymentMethodsLoading } = useQuery<{
+    paymentMethodsForProfile: PaymentMethodOption[];
+  }>(GET_PAYMENT_METHODS_FOR_PROFILE, {
+    variables: { profileId: urlParams.dbProfileId },
+    skip: !urlParams.dbProfileId,
+  });
+
   return {
     products: extractProducts(campaignData),
     hasWritePermission: checkWritePermission(profileData),
+    isOwnerOrWrite: checkIsOwnerOrWrite(profileData),
+    paymentMethods: paymentMethodsData?.paymentMethodsForProfile ?? [],
+    paymentMethodsLoading,
     orderLoading,
     orderData: orderData?.getOrder,
   };
@@ -708,7 +902,15 @@ export const OrderEditorPage: React.FC = () => {
   const navigate = useNavigate();
   const urlParams = parseOrderParams(params);
   const formState = useOrderForm();
-  const { products, hasWritePermission, orderLoading, orderData } = useOrderData(urlParams);
+  const {
+    products,
+    hasWritePermission,
+    isOwnerOrWrite,
+    paymentMethods,
+    paymentMethodsLoading,
+    orderLoading,
+    orderData,
+  } = useOrderData(urlParams);
 
   const [createOrder] = useMutation(CREATE_ORDER);
   const [updateOrder] = useMutation(UPDATE_ORDER);
@@ -720,9 +922,20 @@ export const OrderEditorPage: React.FC = () => {
     formState.loadFromOrder(orderData);
   }, [orderData, formState]);
 
+  // Set default payment method to "Cash" when payment methods load
+  useEffect(() => {
+    setDefaultPaymentMethod(paymentMethods, orderData, formState);
+  }, [paymentMethods, orderData, formState]);
+
   const handleCancel = () => navigate(urlParams.ordersUrl);
 
   const handleSubmit = () => {
+    // Validate payment method exists before submitting
+    const methodExists = paymentMethods.some((m) => m.name === formState.paymentMethod);
+    if (!methodExists) {
+      formState.setError('Please select a valid payment method');
+      return;
+    }
     void submitOrder({
       formState,
       urlParams,
@@ -745,6 +958,9 @@ export const OrderEditorPage: React.FC = () => {
       urlParams={urlParams}
       formState={formState}
       products={products}
+      paymentMethods={paymentMethods}
+      paymentMethodsLoading={paymentMethodsLoading}
+      isOwnerOrWrite={isOwnerOrWrite}
       navigate={navigate}
       handleCancel={handleCancel}
       handleSubmit={handleSubmit}
@@ -760,6 +976,9 @@ interface OrderEditorContentProps {
   urlParams: ParsedOrderParams;
   formState: OrderFormState;
   products: Product[];
+  paymentMethods: PaymentMethodOption[];
+  paymentMethodsLoading: boolean;
+  isOwnerOrWrite: boolean;
   navigate: (path: string) => void;
   handleCancel: () => void;
   handleSubmit: () => void;
@@ -769,47 +988,58 @@ const OrderEditorContent: React.FC<OrderEditorContentProps> = ({
   urlParams,
   formState,
   products,
+  paymentMethods,
+  paymentMethodsLoading,
+  isOwnerOrWrite,
   navigate,
   handleCancel,
   handleSubmit,
-}) => (
-  <Box>
-    <OrderBreadcrumbs
-      profileId={urlParams.profileId}
-      onNavigate={navigate}
-      onCancel={handleCancel}
-      isEditing={urlParams.isEditing}
-    />
+}) => {
+  const hasValidPaymentMethod = paymentMethods.some((m) => m.name === formState.paymentMethod);
 
-    <OrderHeader isEditing={urlParams.isEditing} onCancel={handleCancel} />
+  return (
+    <Box>
+      <OrderBreadcrumbs
+        profileId={urlParams.profileId}
+        onNavigate={navigate}
+        onCancel={handleCancel}
+        isEditing={urlParams.isEditing}
+      />
 
-    <OrderErrorAlert error={formState.error} onClose={() => formState.setError(null)} />
+      <OrderHeader isEditing={urlParams.isEditing} onCancel={handleCancel} />
 
-    <CustomerInfoForm formState={formState} loading={formState.loading} />
+      <OrderErrorAlert error={formState.error} onClose={() => formState.setError(null)} />
 
-    <LineItemsTable
-      lineItems={formState.lineItems}
-      products={products}
-      loading={formState.loading}
-      onAddItem={formState.addLineItem}
-      onRemoveItem={formState.removeLineItem}
-      onItemChange={formState.updateLineItem}
-    />
+      <CustomerInfoForm formState={formState} loading={formState.loading} />
 
-    <PaymentNotesForm
-      paymentMethod={formState.paymentMethod}
-      setPaymentMethod={formState.setPaymentMethod}
-      notes={formState.notes}
-      setNotes={formState.setNotes}
-      loading={formState.loading}
-    />
+      <LineItemsTable
+        lineItems={formState.lineItems}
+        products={products}
+        loading={formState.loading}
+        onAddItem={formState.addLineItem}
+        onRemoveItem={formState.removeLineItem}
+        onItemChange={formState.updateLineItem}
+      />
 
-    <OrderActions
-      isEditing={urlParams.isEditing}
-      loading={formState.loading}
-      customerName={formState.customerName}
-      onCancel={handleCancel}
-      onSubmit={handleSubmit}
-    />
-  </Box>
-);
+      <PaymentNotesForm
+        paymentMethod={formState.paymentMethod}
+        setPaymentMethod={formState.setPaymentMethod}
+        notes={formState.notes}
+        setNotes={formState.setNotes}
+        loading={formState.loading}
+        paymentMethods={paymentMethods}
+        paymentMethodsLoading={paymentMethodsLoading}
+        canViewQR={isOwnerOrWrite}
+      />
+
+      <OrderActions
+        isEditing={urlParams.isEditing}
+        loading={formState.loading}
+        customerName={formState.customerName}
+        hasValidPaymentMethod={hasValidPaymentMethod}
+        onCancel={handleCancel}
+        onSubmit={handleSubmit}
+      />
+    </Box>
+  );
+};

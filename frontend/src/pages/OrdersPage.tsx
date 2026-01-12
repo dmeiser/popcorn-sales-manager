@@ -71,7 +71,9 @@ const formatPhoneNumber = (phone: string): string => {
 const getPaymentMethodColor = (method: string): 'default' | 'primary' | 'secondary' | 'success' | 'warning' => {
   const colors: Record<string, 'default' | 'primary' | 'secondary' | 'success' | 'warning'> = {
     CASH: 'success',
+    Cash: 'success',
     CHECK: 'primary',
+    Check: 'primary',
     CREDIT_CARD: 'secondary',
     OTHER: 'default',
   };

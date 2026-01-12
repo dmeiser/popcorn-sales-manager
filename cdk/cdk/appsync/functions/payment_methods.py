@@ -114,6 +114,18 @@ def create_payment_methods_functions(
 
     # === MUTATION FUNCTIONS ===
 
+    # ValidatePaymentMethodAppSyncFn - Lambda step to validate payment method exists for account
+    if "validate_payment_method_fn" in lambda_datasources:
+        functions["validate_payment_method"] = appsync.AppsyncFunction(
+            scope,
+            "ValidatePaymentMethodAppSyncFn",
+            name=f"ValidatePaymentMethodFn_{env_name}",
+            api=api,
+            data_source=lambda_datasources["validate_payment_method_fn"],
+            runtime=appsync.FunctionRuntime.JS_1_0_0,
+            code=appsync.Code.from_asset(str(RESOLVERS_DIR / "lambda_passthrough_resolver.js")),
+        )
+
     # ValidateCreatePaymentMethodFn - Validate new payment method
     functions["validate_create_payment_method"] = appsync.AppsyncFunction(
         scope,

@@ -55,6 +55,14 @@ export const SettingsPage: React.FC = () => {
           >
             Manage My Scouts
           </Button>
+          <Button
+            variant="outlined"
+            onClick={() => navigate('/payment-methods')}
+            fullWidth
+            sx={{ justifyContent: 'flex-start' }}
+          >
+            Payment Methods
+          </Button>
           {account?.isAdmin && (
             <Button
               variant="outlined"

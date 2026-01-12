@@ -173,21 +173,31 @@ def create_mutation_resolvers(
     )
 
     # createOrder Pipeline
+    # Conditionally include validate_payment_method if Lambda is available
+    create_order_functions = [
+        functions["verify_profile_write_access"],
+        functions["check_share_permissions"],
+    ]
+    
+    # Add payment method validation if Lambda is available
+    if "validate_payment_method" in functions:
+        create_order_functions.append(functions["validate_payment_method"])
+    
+    create_order_functions.extend([
+        functions["get_campaign_for_order"],
+        functions["ensure_catalog_for_order"],
+        functions["get_catalog_try_raw"],
+        functions["get_catalog_try_prefixed"],
+        functions["ensure_catalog_final"],
+        functions["get_catalog"],
+        functions["create_order"],
+        # NOTE: log_create_order_state removed to stay within 10-function AppSync limit
+    ])
+    
     builder.create_pipeline_resolver(
         field_name="createOrder",
         type_name="Mutation",
-        functions=[
-            functions["verify_profile_write_access"],
-            functions["check_share_permissions"],
-            functions["get_campaign_for_order"],
-            functions["ensure_catalog_for_order"],
-            functions["get_catalog_try_raw"],
-            functions["get_catalog_try_prefixed"],
-            functions["ensure_catalog_final"],
-            functions["get_catalog"],
-            functions["create_order"],
-            functions["log_create_order_state"],  # Dev-only logging: captures prev.result after create
-        ],
+        functions=create_order_functions,
         code_file=RESOLVERS_DIR / "create_order_pipeline_resolver.js",
         id_suffix="CreateOrderPipelineResolver",
     )
