@@ -125,7 +125,7 @@ export type GqlCreateOrderInput = {
   lineItems: Array<GqlLineItemInput>;
   notes?: InputMaybe<Scalars['String']['input']>;
   orderDate: Scalars['AWSDateTime']['input'];
-  paymentMethod: GqlPaymentMethod;
+  paymentMethod: Scalars['String']['input'];
   profileId: Scalars['ID']['input'];
 };
 
@@ -169,20 +169,25 @@ export type GqlLineItemInput = {
 
 export type GqlMutation = {
   __typename?: 'Mutation';
+  confirmPaymentMethodQRCodeUpload: GqlPaymentMethod;
   createCampaign: GqlCampaign;
   createCatalog: GqlCatalog;
   createOrder: GqlOrder;
+  createPaymentMethod: GqlPaymentMethod;
   createProfileInvite: GqlProfileInvite;
   createSellerProfile: GqlSellerProfile;
   createSharedCampaign: GqlSharedCampaign;
   deleteCampaign: Scalars['Boolean']['output'];
   deleteCatalog: Scalars['Boolean']['output'];
   deleteOrder: Scalars['Boolean']['output'];
+  deletePaymentMethod: Scalars['Boolean']['output'];
+  deletePaymentMethodQRCode: Scalars['Boolean']['output'];
   deleteProfileInvite: Scalars['Boolean']['output'];
   deleteSellerProfile: Scalars['Boolean']['output'];
   deleteSharedCampaign: Scalars['Boolean']['output'];
   redeemProfileInvite: GqlShare;
   requestCampaignReport: GqlCampaignReport;
+  requestPaymentMethodQRCodeUpload: GqlS3UploadInfo;
   revokeShare: Scalars['Boolean']['output'];
   shareProfileDirect: GqlShare;
   transferProfileOwnership: GqlSellerProfile;
@@ -191,8 +196,14 @@ export type GqlMutation = {
   updateMyAccount: GqlAccount;
   updateMyPreferences: GqlAccount;
   updateOrder: GqlOrder;
+  updatePaymentMethod: GqlPaymentMethod;
   updateSellerProfile: GqlSellerProfile;
   updateSharedCampaign: GqlSharedCampaign;
+};
+
+export type GqlMutation_ConfirmPaymentMethodQrCodeUploadArgs = {
+  paymentMethodName: Scalars['String']['input'];
+  s3Key: Scalars['String']['input'];
 };
 
 export type GqlMutation_CreateCampaignArgs = {
@@ -205,6 +216,10 @@ export type GqlMutation_CreateCatalogArgs = {
 
 export type GqlMutation_CreateOrderArgs = {
   input: GqlCreateOrderInput;
+};
+
+export type GqlMutation_CreatePaymentMethodArgs = {
+  name: Scalars['String']['input'];
 };
 
 export type GqlMutation_CreateProfileInviteArgs = {
@@ -231,6 +246,14 @@ export type GqlMutation_DeleteOrderArgs = {
   orderId: Scalars['ID']['input'];
 };
 
+export type GqlMutation_DeletePaymentMethodArgs = {
+  name: Scalars['String']['input'];
+};
+
+export type GqlMutation_DeletePaymentMethodQrCodeArgs = {
+  paymentMethodName: Scalars['String']['input'];
+};
+
 export type GqlMutation_DeleteProfileInviteArgs = {
   inviteCode: Scalars['ID']['input'];
   profileId: Scalars['ID']['input'];
@@ -250,6 +273,10 @@ export type GqlMutation_RedeemProfileInviteArgs = {
 
 export type GqlMutation_RequestCampaignReportArgs = {
   input: GqlRequestCampaignReportInput;
+};
+
+export type GqlMutation_RequestPaymentMethodQrCodeUploadArgs = {
+  paymentMethodName: Scalars['String']['input'];
 };
 
 export type GqlMutation_RevokeShareArgs = {
@@ -285,6 +312,11 @@ export type GqlMutation_UpdateOrderArgs = {
   input: GqlUpdateOrderInput;
 };
 
+export type GqlMutation_UpdatePaymentMethodArgs = {
+  currentName: Scalars['String']['input'];
+  newName: Scalars['String']['input'];
+};
+
 export type GqlMutation_UpdateSellerProfileArgs = {
   input: GqlUpdateSellerProfileInput;
 };
@@ -304,13 +336,17 @@ export type GqlOrder = {
   notes?: Maybe<Scalars['String']['output']>;
   orderDate: Scalars['AWSDateTime']['output'];
   orderId: Scalars['ID']['output'];
-  paymentMethod: GqlPaymentMethod;
+  paymentMethod: Scalars['String']['output'];
   profileId: Scalars['ID']['output'];
   totalAmount: Scalars['Float']['output'];
   updatedAt: Scalars['AWSDateTime']['output'];
 };
 
-export type GqlPaymentMethod = 'CASH' | 'CHECK' | 'CREDIT_CARD' | 'OTHER';
+export type GqlPaymentMethod = {
+  __typename?: 'PaymentMethod';
+  name: Scalars['String']['output'];
+  qrCodeUrl?: Maybe<Scalars['String']['output']>;
+};
 
 export type GqlPermissionType = 'READ' | 'WRITE';
 
@@ -362,6 +398,8 @@ export type GqlQuery = {
   listSharesByProfile: Array<GqlShare>;
   listUnitCampaignCatalogs: Array<GqlCatalog>;
   listUnitCatalogs: Array<GqlCatalog>;
+  myPaymentMethods: Array<GqlPaymentMethod>;
+  paymentMethodsForProfile: Array<GqlPaymentMethod>;
 };
 
 export type GqlQuery_FindSharedCampaignsArgs = {
@@ -439,6 +477,10 @@ export type GqlQuery_ListUnitCatalogsArgs = {
   unitType: Scalars['String']['input'];
 };
 
+export type GqlQuery_PaymentMethodsForProfileArgs = {
+  profileId: Scalars['ID']['input'];
+};
+
 export type GqlRedeemProfileInviteInput = {
   inviteCode: Scalars['ID']['input'];
 };
@@ -451,6 +493,13 @@ export type GqlRequestCampaignReportInput = {
 export type GqlRevokeShareInput = {
   profileId: Scalars['ID']['input'];
   targetAccountId: Scalars['ID']['input'];
+};
+
+export type GqlS3UploadInfo = {
+  __typename?: 'S3UploadInfo';
+  fields: Scalars['AWSJSON']['output'];
+  s3Key: Scalars['String']['output'];
+  uploadUrl: Scalars['String']['output'];
 };
 
 export type GqlSellerProfile = {
@@ -581,7 +630,7 @@ export type GqlUpdateOrderInput = {
   notes?: InputMaybe<Scalars['String']['input']>;
   orderDate?: InputMaybe<Scalars['AWSDateTime']['input']>;
   orderId: Scalars['ID']['input'];
-  paymentMethod?: InputMaybe<GqlPaymentMethod>;
+  paymentMethod?: InputMaybe<Scalars['String']['input']>;
 };
 
 export type GqlUpdateSellerProfileInput = {
@@ -635,7 +684,7 @@ export type GqlOrderFieldsFragment = {
   customerName: string;
   customerPhone?: string | null | undefined;
   orderDate: string;
-  paymentMethod: GqlPaymentMethod;
+  paymentMethod: string;
   totalAmount: number;
   notes?: string | null | undefined;
   createdAt: string;
@@ -875,7 +924,7 @@ export type GqlListOrdersByCampaignQuery = {
     customerName: string;
     customerPhone?: string | null | undefined;
     orderDate: string;
-    paymentMethod: GqlPaymentMethod;
+    paymentMethod: string;
     totalAmount: number;
     notes?: string | null | undefined;
     createdAt: string;
@@ -916,7 +965,7 @@ export type GqlGetOrderQuery = {
         customerName: string;
         customerPhone?: string | null | undefined;
         orderDate: string;
-        paymentMethod: GqlPaymentMethod;
+        paymentMethod: string;
         totalAmount: number;
         notes?: string | null | undefined;
         createdAt: string;
@@ -1181,7 +1230,7 @@ export type GqlCreateOrderMutation = {
     customerName: string;
     customerPhone?: string | null | undefined;
     orderDate: string;
-    paymentMethod: GqlPaymentMethod;
+    paymentMethod: string;
     totalAmount: number;
     notes?: string | null | undefined;
     createdAt: string;
@@ -1221,7 +1270,7 @@ export type GqlUpdateOrderMutation = {
     customerName: string;
     customerPhone?: string | null | undefined;
     orderDate: string;
-    paymentMethod: GqlPaymentMethod;
+    paymentMethod: string;
     totalAmount: number;
     notes?: string | null | undefined;
     createdAt: string;
@@ -1692,3 +1741,88 @@ export type GqlDeleteSharedCampaignMutationVariables = Exact<{
 }>;
 
 export type GqlDeleteSharedCampaignMutation = { __typename?: 'Mutation'; deleteSharedCampaign: boolean };
+
+export type GqlPaymentMethodFieldsFragment = {
+  __typename?: 'PaymentMethod';
+  name: string;
+  qrCodeUrl?: string | null | undefined;
+};
+
+export type GqlGetMyPaymentMethodsQueryVariables = Exact<{ [key: string]: never }>;
+
+export type GqlGetMyPaymentMethodsQuery = {
+  __typename?: 'Query';
+  myPaymentMethods: Array<{ __typename?: 'PaymentMethod'; name: string; qrCodeUrl?: string | null | undefined }>;
+};
+
+export type GqlGetPaymentMethodsForProfileQueryVariables = Exact<{
+  profileId: Scalars['ID']['input'];
+}>;
+
+export type GqlGetPaymentMethodsForProfileQuery = {
+  __typename?: 'Query';
+  paymentMethodsForProfile: Array<{
+    __typename?: 'PaymentMethod';
+    name: string;
+    qrCodeUrl?: string | null | undefined;
+  }>;
+};
+
+export type GqlCreatePaymentMethodMutationVariables = Exact<{
+  name: Scalars['String']['input'];
+}>;
+
+export type GqlCreatePaymentMethodMutation = {
+  __typename?: 'Mutation';
+  createPaymentMethod: { __typename?: 'PaymentMethod'; name: string; qrCodeUrl?: string | null | undefined };
+};
+
+export type GqlUpdatePaymentMethodMutationVariables = Exact<{
+  currentName: Scalars['String']['input'];
+  newName: Scalars['String']['input'];
+}>;
+
+export type GqlUpdatePaymentMethodMutation = {
+  __typename?: 'Mutation';
+  updatePaymentMethod: { __typename?: 'PaymentMethod'; name: string; qrCodeUrl?: string | null | undefined };
+};
+
+export type GqlDeletePaymentMethodMutationVariables = Exact<{
+  name: Scalars['String']['input'];
+}>;
+
+export type GqlDeletePaymentMethodMutation = { __typename?: 'Mutation'; deletePaymentMethod: boolean };
+
+export type GqlRequestPaymentMethodQrUploadMutationVariables = Exact<{
+  paymentMethodName: Scalars['String']['input'];
+}>;
+
+export type GqlRequestPaymentMethodQrUploadMutation = {
+  __typename?: 'Mutation';
+  requestPaymentMethodQRCodeUpload: {
+    __typename?: 'S3UploadInfo';
+    uploadUrl: string;
+    fields: Record<string, unknown>;
+    s3Key: string;
+  };
+};
+
+export type GqlConfirmPaymentMethodQrUploadMutationVariables = Exact<{
+  paymentMethodName: Scalars['String']['input'];
+  s3Key: Scalars['String']['input'];
+}>;
+
+export type GqlConfirmPaymentMethodQrUploadMutation = {
+  __typename?: 'Mutation';
+  confirmPaymentMethodQRCodeUpload: {
+    __typename?: 'PaymentMethod';
+    name: string;
+    qrCodeUrl?: string | null | undefined;
+  };
+};
+
+export type GqlDeletePaymentMethodQrCodeMutationVariables = Exact<{
+  paymentMethodName: Scalars['String']['input'];
+}>;
+
+export type GqlDeletePaymentMethodQrCodeMutation = { __typename?: 'Mutation'; deletePaymentMethodQRCode: boolean };

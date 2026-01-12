@@ -35,7 +35,7 @@ def create_s3_buckets(stack: Construct, rn: Callable[[str], str]) -> dict[str, s
         removal_policy=RemovalPolicy.RETAIN,
     )
 
-    # Exports bucket (for generated reports)
+    # Exports bucket (for generated reports and QR codes)
     exports_bucket_name = rn("kernelworx-exports")
     exports_bucket = s3.Bucket(
         stack,
@@ -45,6 +45,14 @@ def create_s3_buckets(stack: Construct, rn: Callable[[str], str]) -> dict[str, s
         encryption=s3.BucketEncryption.S3_MANAGED,
         block_public_access=s3.BlockPublicAccess.BLOCK_ALL,
         removal_policy=RemovalPolicy.RETAIN,
+        cors=[
+            s3.CorsRule(
+                allowed_methods=[s3.HttpMethods.POST, s3.HttpMethods.PUT, s3.HttpMethods.GET],
+                allowed_origins=["*"],  # Will be restricted to dev.kernelworx.app and kernelworx.app in production
+                allowed_headers=["*"],
+                max_age=3000,
+            )
+        ],
     )
 
     return {

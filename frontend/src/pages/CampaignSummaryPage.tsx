@@ -9,7 +9,8 @@ import { Box, Grid, Paper, Typography, Stack, CircularProgress, Alert } from '@m
 import { ShoppingCart, AttachMoney, People } from '@mui/icons-material';
 import { LIST_ORDERS_BY_CAMPAIGN, GET_PAYMENT_METHODS_FOR_PROFILE } from '../lib/graphql';
 import { ensureCampaignId, ensureProfileId } from '../lib/ids';
-import type { Order, PaymentMethod } from '../types';
+import type { Order } from '../types';
+import type { GqlPaymentMethod } from '../types/graphql-generated';
 
 // Helper to safely decode URL component
 const decodeUrlParam = (encoded: string | undefined): string => (encoded ? decodeURIComponent(encoded) : '');
@@ -18,7 +19,7 @@ const decodeUrlParam = (encoded: string | undefined): string => (encoded ? decod
 const getOrders = (data: { listOrdersByCampaign: Order[] } | undefined): Order[] => data?.listOrdersByCampaign || [];
 
 // Helper to get active payment method names (lowercase for comparison)
-const getActiveMethodNames = (methods: PaymentMethod[]): Set<string> =>
+const getActiveMethodNames = (methods: GqlPaymentMethod[]): Set<string> =>
   new Set(methods.map((m) => m.name.toLowerCase()));
 
 // Helper to calculate payment totals (dollar amounts) from orders
@@ -151,7 +152,7 @@ const TopProductItem: React.FC<TopProductItemProps> = ({ productName, stats }) =
 
 // --- Custom Hook ---
 
-function useCampaignSummaryData(dbCampaignId: string, dbProfileId: string) {
+function useCampaignSummaryData(dbCampaignId: string | null, dbProfileId: string | null) {
   const {
     data: ordersData,
     loading: ordersLoading,
@@ -162,7 +163,7 @@ function useCampaignSummaryData(dbCampaignId: string, dbProfileId: string) {
   });
 
   const { data: paymentMethodsData, loading: paymentMethodsLoading } = useQuery<{
-    paymentMethodsForProfile: PaymentMethod[];
+    paymentMethodsForProfile: GqlPaymentMethod[];
   }>(GET_PAYMENT_METHODS_FOR_PROFILE, {
     variables: { profileId: dbProfileId },
     skip: !dbProfileId,
