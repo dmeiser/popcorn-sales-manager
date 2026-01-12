@@ -482,6 +482,14 @@ class CdkStack(Stack):  # type: ignore[misc]
         # Grant Lambda role access to exports bucket
         self.exports_bucket.grant_read_write(self.lambda_execution_role)
 
+        # Grant Lambda role permission to create CloudFront invalidations
+        self.lambda_execution_role.add_to_policy(
+            iam.PolicyStatement(
+                actions=["cloudfront:CreateInvalidation"],
+                resources=["*"],  # CloudFront invalidation requires wildcard resource
+            )
+        )
+
         # AppSync service role (for direct DynamoDB resolvers)
         self.appsync_service_role = iam.Role(
             self,
@@ -527,6 +535,7 @@ class CdkStack(Stack):  # type: ignore[misc]
             "CLOUDFRONT_DOMAIN": self.site_domain,  # e.g., dev.kernelworx.app
             "POWERTOOLS_SERVICE_NAME": "kernelworx",
             "LOG_LEVEL": "INFO",
+            "LAMBDA_VERSION": "2026-01-12",  # Force Lambda update
             # New multi-table design table names
             "ACCOUNTS_TABLE_NAME": self.accounts_table.table_name,
             "CATALOGS_TABLE_NAME": self.catalogs_table.table_name,
@@ -1204,6 +1213,16 @@ class CdkStack(Stack):  # type: ignore[misc]
                     cache_policy=cloudfront.CachePolicy.CACHING_DISABLED,  # Don't cache uploads
                     compress=False,  # Don't compress binary files
                 ),
+                "/payment-qr-codes/*": cloudfront.BehaviorOptions(
+                    origin=origins.S3BucketOrigin.with_origin_access_identity(
+                        self.exports_bucket,
+                        origin_access_identity=self.origin_access_identity,
+                    ),
+                    viewer_protocol_policy=cloudfront.ViewerProtocolPolicy.HTTPS_ONLY,
+                    allowed_methods=cloudfront.AllowedMethods.ALLOW_GET_HEAD,  # Read-only
+                    cache_policy=cloudfront.CachePolicy.CACHING_OPTIMIZED,  # Cache with default TTL
+                    compress=True,  # Compress images for faster delivery
+                ),
             },
             default_root_object="index.html",
             error_responses=[
@@ -1224,6 +1243,11 @@ class CdkStack(Stack):  # type: ignore[misc]
             enabled=True,
         )
         self.distribution.apply_removal_policy(RemovalPolicy.RETAIN)
+
+        # Add CloudFront distribution ID to payment methods Lambda functions
+        # (needed for cache invalidation when QR codes are updated/deleted)
+        for fn in [self.confirm_qr_upload_fn, self.delete_qr_code_fn]:
+            fn.add_environment("CLOUDFRONT_DISTRIBUTION_ID", self.distribution.distribution_id)
 
         # Route53 record for CloudFront distribution
         self.site_domain_record = route53.ARecord(

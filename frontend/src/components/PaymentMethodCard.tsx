@@ -22,6 +22,7 @@ import {
   DialogActions,
   Button,
   Chip,
+  CircularProgress,
 } from '@mui/material';
 import {
   Edit as EditIcon,
@@ -44,6 +45,7 @@ interface PaymentMethodCardProps {
   onUploadQR: () => void;
   onDeleteQR: () => void;
   isDeleting?: boolean;
+  isUploadingQR?: boolean;
 }
 
 /* eslint-disable complexity -- Card component with many conditional UI elements */
@@ -55,6 +57,7 @@ export const PaymentMethodCard: React.FC<PaymentMethodCardProps> = ({
   onUploadQR,
   onDeleteQR,
   isDeleting = false,
+  isUploadingQR = false,
 }) => {
   const [qrPreviewOpen, setQrPreviewOpen] = useState(false);
 
@@ -89,14 +92,19 @@ export const PaymentMethodCard: React.FC<PaymentMethodCardProps> = ({
             {!isReserved && (
               <Box display="flex" gap={0.5}>
                 {!hasQrCode && (
-                  <Tooltip title="Upload QR code">
-                    <IconButton size="small" onClick={onUploadQR} aria-label={`Upload QR code for ${method.name}`}>
-                      <UploadIcon />
+                  <Tooltip title={isUploadingQR ? 'Uploading...' : 'Upload QR code'}>
+                    <IconButton
+                      size="small"
+                      onClick={onUploadQR}
+                      disabled={isUploadingQR}
+                      aria-label={`Upload QR code for ${method.name}`}
+                    >
+                      {isUploadingQR ? <CircularProgress size={20} /> : <UploadIcon />}
                     </IconButton>
                   </Tooltip>
                 )}
                 {hasQrCode && (
-                  <Tooltip title="Delete QR code">
+                  <Tooltip title={isDeleting ? 'Deleting...' : 'Delete QR code'}>
                     <IconButton
                       size="small"
                       color="warning"
@@ -104,7 +112,7 @@ export const PaymentMethodCard: React.FC<PaymentMethodCardProps> = ({
                       disabled={isDeleting}
                       aria-label={`Delete QR code for ${method.name}`}
                     >
-                      <DeleteQRIcon />
+                      {isDeleting ? <CircularProgress size={20} /> : <DeleteQRIcon />}
                     </IconButton>
                   </Tooltip>
                 )}

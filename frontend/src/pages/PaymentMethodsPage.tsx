@@ -161,9 +161,11 @@ export const PaymentMethodsPage: React.FC = () => {
     onError: handleMutationError,
   });
 
+  // QR code upload/delete states
+  const [uploadingQR, setUploadingQR] = useState(false);
   const [requestQRUpload] = useMutation<RequestQRUploadData>(REQUEST_PAYMENT_METHOD_QR_UPLOAD);
   const [confirmQRUpload] = useMutation(CONFIRM_PAYMENT_METHOD_QR_UPLOAD);
-  const [deleteQRCode, { loading: deletingQR }] = useMutation(DELETE_PAYMENT_METHOD_QR_CODE, {
+  const [deleteQRCode] = useMutation(DELETE_PAYMENT_METHOD_QR_CODE, {
     onCompleted: () => {
       showSuccess('QR code deleted successfully');
       refetch();
@@ -226,6 +228,7 @@ export const PaymentMethodsPage: React.FC = () => {
   const handleQRUpload = async (file: File): Promise<void> => {
     if (!selectedMethod) return;
     setError(null);
+    setUploadingQR(true);
 
     try {
       // Request pre-signed upload URL
@@ -257,12 +260,20 @@ export const PaymentMethodsPage: React.FC = () => {
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to upload QR code';
       setError(message);
+      throw err; // Re-throw to let dialog handle error state
+    } finally {
+      setUploadingQR(false);
     }
   };
 
   const handleDeleteQRCode = async (method: PaymentMethod) => {
     setError(null);
-    await deleteQRCode({ variables: { paymentMethodName: method.name } });
+    setDeletingQRMethod(method.name);
+    try {
+      await deleteQRCode({ variables: { paymentMethodName: method.name } });
+    } finally {
+      setDeletingQRMethod(null);
+    }
   };
 
   // Dialog close handlers
@@ -286,10 +297,13 @@ export const PaymentMethodsPage: React.FC = () => {
     a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }),
   );
 
+  // Track which method is having its QR deleted
+  const [deletingQRMethod, setDeletingQRMethod] = useState<string | null>(null);
+
   // Get list of existing names for validation
   const existingNames = paymentMethods.map((m) => m.name);
   const selectedName = selectedMethod?.name ?? '';
-  const isAnyMutationLoading = deleting || deletingQR;
+  const isAnyMutationLoading = deleting;
 
   if (loading) {
     return <LoadingState />;
@@ -352,7 +366,8 @@ export const PaymentMethodsPage: React.FC = () => {
             onDelete={() => handleDeleteClick(method)}
             onUploadQR={() => handleQRUploadClick(method)}
             onDeleteQR={() => handleDeleteQRCode(method)}
-            isDeleting={isAnyMutationLoading}
+            isDeleting={isAnyMutationLoading || deletingQRMethod === method.name}
+            isUploadingQR={uploadingQR && selectedMethod?.name === method.name}
           />
         ))}
 
@@ -392,6 +407,7 @@ export const PaymentMethodsPage: React.FC = () => {
         onClose={closeQrUploadDialog}
         onUpload={handleQRUpload}
         methodName={selectedName}
+        isLoading={uploadingQR}
       />
     </Box>
   );

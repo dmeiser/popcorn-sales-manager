@@ -21,6 +21,7 @@ try:  # pragma: no cover
         delete_qr_from_s3,
         generate_presigned_get_url,
         get_payment_methods,
+        get_qr_code_s3_key,
         is_reserved_name,
         slugify,
         update_payment_method,
@@ -33,10 +34,43 @@ except ModuleNotFoundError:  # pragma: no cover
         delete_qr_from_s3,
         generate_presigned_get_url,
         get_payment_methods,
+        get_qr_code_s3_key,
         is_reserved_name,
         slugify,
         update_payment_method,
     )
+
+
+def _invalidate_cloudfront_cache(s3_key: str) -> None:
+    """
+    Invalidate CloudFront cache for a specific S3 key.
+
+    Args:
+        s3_key: S3 key to invalidate (e.g., "payment-qr-codes/account-id/venmo.png")
+    """
+    distribution_id = os.getenv("CLOUDFRONT_DISTRIBUTION_ID")
+    if not distribution_id:
+        # Skip invalidation if distribution ID not configured (e.g., in tests)
+        return
+
+    logger = get_logger(__name__)
+    cloudfront = boto3.client("cloudfront")
+
+    try:
+        # CloudFront invalidation requires leading slash
+        invalidation_path = f"/{s3_key}"
+
+        cloudfront.create_invalidation(
+            DistributionId=distribution_id,
+            InvalidationBatch={
+                "Paths": {"Quantity": 1, "Items": [invalidation_path]},
+                "CallerReference": f"{s3_key}-{int(boto3.client('sts').get_caller_identity()['Account'])}"[:128],
+            },
+        )
+        logger.info("CloudFront cache invalidated", s3_key=s3_key, distribution_id=distribution_id)
+    except Exception as e:
+        # Log but don't fail - cache will eventually expire
+        logger.warning("Failed to invalidate CloudFront cache", s3_key=s3_key, error=str(e))
 
 
 def request_qr_upload(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
@@ -86,8 +120,7 @@ def request_qr_upload(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             raise AppError(ErrorCode.NOT_FOUND, f"Payment method '{payment_method_name}' not found")
 
         # Generate S3 key
-        slug = slugify(payment_method_name)
-        s3_key = f"payment-qr-codes/{caller_id}/{slug}.png"
+        s3_key = get_qr_code_s3_key(caller_id, payment_method_name, "png")
 
         # Generate pre-signed POST URL (must use direct S3, not CloudFront)
         # CloudFront vanity domain is only used for downloads (GET), not uploads (POST)
@@ -201,6 +234,9 @@ def confirm_qr_upload(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         # Generate pre-signed GET URL
         presigned_url = generate_presigned_get_url(caller_id, payment_method_name, s3_key, expiry_seconds=900)
 
+        # Invalidate CloudFront cache for this QR code (so new upload is immediately visible)
+        _invalidate_cloudfront_cache(s3_key)
+
         logger.info(
             "Confirmed QR code upload",
             account_id=caller_id,
@@ -303,6 +339,10 @@ def delete_qr_code(event: Dict[str, Any], context: Any) -> bool:
         # Delete QR from S3 if it exists (idempotent operation)
         try:
             delete_qr_from_s3(caller_id, payment_method_name)
+            # Invalidate CloudFront cache after deletion
+            for ext in ["png", "jpg", "webp"]:
+                s3_key = get_qr_code_s3_key(caller_id, payment_method_name, ext)
+                _invalidate_cloudfront_cache(s3_key)
         except Exception as e:
             # S3 delete is idempotent - if object doesn't exist, that's fine
             logger.info("S3 delete completed (object may not have existed)", error=str(e))

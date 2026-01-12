@@ -42,6 +42,24 @@ MAX_QR_FILE_SIZE = 5 * 1024 * 1024
 # Allowed QR code MIME types
 ALLOWED_QR_MIME_TYPES = {"image/png", "image/jpeg", "image/webp"}
 
+# QR code S3 path prefix
+QR_CODE_S3_PREFIX = "payment-qr-codes"
+
+
+def get_qr_code_s3_key(account_id: str, payment_method_name: str, extension: str = "png") -> str:
+    """Generate S3 key for a payment method QR code.
+    
+    Args:
+        account_id: Account ID
+        payment_method_name: Payment method name
+        extension: File extension (png, jpg, webp)
+    
+    Returns:
+        S3 key in format: payment-qr-codes/{account_id}/{slug}.{extension}
+    """
+    slug = slugify(payment_method_name)
+    return f"{QR_CODE_S3_PREFIX}/{account_id}/{slug}.{extension}"
+
 
 def _get_s3_client() -> "S3Client":
     """Return the S3 client (module-level override for tests, otherwise a fresh boto3 client)."""
@@ -440,14 +458,12 @@ def upload_qr_to_s3(
     # Validate file
     validate_qr_file(file_bytes, content_type)
 
-    # Generate S3 key
-    slug = slugify(payment_method_name)
-
     # Determine file extension from content type
     extension_map = {"image/png": "png", "image/jpeg": "jpg", "image/webp": "webp"}
     extension = extension_map.get(content_type, "png")
 
-    s3_key = f"payment-qr-codes/{account_id}/{slug}.{extension}"
+    # Generate S3 key
+    s3_key = get_qr_code_s3_key(account_id, payment_method_name, extension)
 
     bucket_name = os.getenv("EXPORTS_BUCKET_NAME", "kernelworx-exports-ue1-dev")
 
@@ -533,11 +549,10 @@ def generate_presigned_get_url(
 
         # If no s3_key provided, try to find existing file
         if not s3_key:
-            slug = slugify(payment_method_name)
             extensions = ["png", "jpg", "webp"]
 
             for ext in extensions:
-                test_key = f"payment-qr-codes/{account_id}/{slug}.{ext}"
+                test_key = get_qr_code_s3_key(account_id, payment_method_name, ext)
                 try:
                     s3.head_object(Bucket=bucket_name, Key=test_key)
                     s3_key = test_key
@@ -552,8 +567,9 @@ def generate_presigned_get_url(
         cloudfront_domain = os.getenv("CLOUDFRONT_DOMAIN")  # e.g., dev.kernelworx.app
         
         if cloudfront_domain:
-            # Use CloudFront URL with /uploads/ path (no pre-signing needed - S3 is origin)
-            url = f"https://{cloudfront_domain}/uploads/{s3_key}"
+            # Use CloudFront URL (no pre-signing needed - CloudFront serves from S3 origin)
+            # QR codes are at /payment-qr-codes/* path in CloudFront
+            url = f"https://{cloudfront_domain}/{s3_key}"
         else:
             # Fallback to direct S3 pre-signed URL
             url = s3.generate_presigned_url(
