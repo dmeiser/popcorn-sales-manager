@@ -41,7 +41,7 @@ export function request(ctx) {
             catalogName: input.catalogName,
             catalogType: "USER_CREATED",
             ownerAccountId: `ACCOUNT#${ctx.identity.sub}`,
-            isPublic: isPublicStr,
+            isPublic: input.isPublic,
             isPublicStr: isPublicStr,
             products: productsWithIds,
             createdAt: now,

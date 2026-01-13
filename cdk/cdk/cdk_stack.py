@@ -532,7 +532,6 @@ class CdkStack(Stack):  # type: ignore[misc]
         # Common Lambda environment variables
         lambda_env = {
             "EXPORTS_BUCKET": self.exports_bucket.bucket_name,
-            "CLOUDFRONT_DOMAIN": self.site_domain,  # e.g., dev.kernelworx.app
             "POWERTOOLS_SERVICE_NAME": "kernelworx",
             "LOG_LEVEL": "INFO",
             "LAMBDA_VERSION": "2026-01-12",  # Force Lambda update
@@ -1213,16 +1212,7 @@ class CdkStack(Stack):  # type: ignore[misc]
                     cache_policy=cloudfront.CachePolicy.CACHING_DISABLED,  # Don't cache uploads
                     compress=False,  # Don't compress binary files
                 ),
-                "/payment-qr-codes/*": cloudfront.BehaviorOptions(
-                    origin=origins.S3BucketOrigin.with_origin_access_identity(
-                        self.exports_bucket,
-                        origin_access_identity=self.origin_access_identity,
-                    ),
-                    viewer_protocol_policy=cloudfront.ViewerProtocolPolicy.HTTPS_ONLY,
-                    allowed_methods=cloudfront.AllowedMethods.ALLOW_GET_HEAD,  # Read-only
-                    cache_policy=cloudfront.CachePolicy.CACHING_OPTIMIZED,  # Cache with default TTL
-                    compress=True,  # Compress images for faster delivery
-                ),
+                # Note: /payment-qr-codes/* is served via signed S3 URLs, not CloudFront
             },
             default_root_object="index.html",
             error_responses=[
@@ -1243,11 +1233,6 @@ class CdkStack(Stack):  # type: ignore[misc]
             enabled=True,
         )
         self.distribution.apply_removal_policy(RemovalPolicy.RETAIN)
-
-        # Add CloudFront distribution ID to payment methods Lambda functions
-        # (needed for cache invalidation when QR codes are updated/deleted)
-        for fn in [self.confirm_qr_upload_fn, self.delete_qr_code_fn]:
-            fn.add_environment("CLOUDFRONT_DISTRIBUTION_ID", self.distribution.distribution_id)
 
         # Route53 record for CloudFront distribution
         self.site_domain_record = route53.ARecord(

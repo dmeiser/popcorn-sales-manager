@@ -7,6 +7,7 @@ and S3 QR code management.
 
 import os
 import re
+import uuid
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 from urllib.parse import quote
 
@@ -18,11 +19,11 @@ if TYPE_CHECKING:  # pragma: no cover
 
 # Handle both Lambda (absolute) and unit test (relative) imports
 try:  # pragma: no cover
-    from utils.dynamodb import tables
+    from utils.dynamodb import get_required_env, tables
     from utils.errors import AppError, ErrorCode
     from utils.logging import get_logger
 except ModuleNotFoundError:  # pragma: no cover
-    from .dynamodb import tables
+    from .dynamodb import get_required_env, tables
     from .errors import AppError, ErrorCode
     from .logging import get_logger
 
@@ -48,17 +49,71 @@ QR_CODE_S3_PREFIX = "payment-qr-codes"
 
 def get_qr_code_s3_key(account_id: str, payment_method_name: str, extension: str = "png") -> str:
     """Generate S3 key for a payment method QR code.
-    
+
+    DEPRECATED: Use generate_qr_code_s3_key() for new uploads.
+    This function remains for compatibility with tests that rely on predictable keys.
+
     Args:
         account_id: Account ID
         payment_method_name: Payment method name
         extension: File extension (png, jpg, webp)
-    
+
     Returns:
         S3 key in format: payment-qr-codes/{account_id}/{slug}.{extension}
     """
     slug = slugify(payment_method_name)
     return f"{QR_CODE_S3_PREFIX}/{account_id}/{slug}.{extension}"
+
+
+def generate_qr_code_s3_key(account_id: str, extension: str = "png") -> str:
+    """Generate a new UUID-based S3 key for QR code upload.
+
+    Uses UUID to avoid collisions when payment methods have similar names.
+    The generated key should be stored in the payment method record.
+
+    Args:
+        account_id: Account ID
+        extension: File extension (png, jpg, webp)
+
+    Returns:
+        S3 key in format: payment-qr-codes/{account_id}/{uuid}.{extension}
+    """
+    file_id = uuid.uuid4().hex
+    return f"{QR_CODE_S3_PREFIX}/{account_id}/{file_id}.{extension}"
+
+
+def validate_qr_s3_key(s3_key: str, account_id: str) -> bool:
+    """Validate that an S3 key belongs to the given account.
+
+    Security check to prevent users from claiming QR codes they don't own.
+
+    Args:
+        s3_key: S3 key to validate
+        account_id: Account ID that should own the key
+
+    Returns:
+        True if key is valid and belongs to account, False otherwise
+    """
+    # Key must start with the QR code prefix
+    if not s3_key.startswith(f"{QR_CODE_S3_PREFIX}/"):
+        return False
+
+    # Key must contain the account ID as the second path segment
+    parts = s3_key.split("/")
+    if len(parts) < 3:
+        return False
+
+    # parts[0] = "payment-qr-codes", parts[1] = account_id, parts[2] = filename
+    if parts[1] != account_id:
+        return False
+
+    # Filename must have allowed extension
+    filename = parts[2]
+    allowed_extensions = (".png", ".jpg", ".jpeg", ".webp")
+    if not any(filename.endswith(ext) for ext in allowed_extensions):
+        return False
+
+    return True
 
 
 def _get_s3_client() -> "S3Client":
@@ -465,7 +520,7 @@ def upload_qr_to_s3(
     # Generate S3 key
     s3_key = get_qr_code_s3_key(account_id, payment_method_name, extension)
 
-    bucket_name = os.getenv("EXPORTS_BUCKET_NAME", "kernelworx-exports-ue1-dev")
+    bucket_name = get_required_env("EXPORTS_BUCKET")
 
     try:
         s3 = _get_s3_client()
@@ -480,9 +535,39 @@ def upload_qr_to_s3(
         raise AppError(ErrorCode.INTERNAL_ERROR, "Failed to upload QR code")
 
 
+def delete_qr_by_key(s3_key: str) -> None:
+    """
+    Delete a specific QR code from S3 by its key.
+
+    Args:
+        s3_key: The S3 key to delete
+
+    Raises:
+        AppError: If deletion fails
+    """
+    logger = get_logger(__name__)
+    bucket_name = get_required_env("EXPORTS_BUCKET")
+
+    try:
+        s3 = _get_s3_client()
+        s3.delete_object(Bucket=bucket_name, Key=s3_key)
+        logger.info("Deleted QR code from S3", s3_key=s3_key)
+    except ClientError as e:
+        # Ignore 404 errors (file doesn't exist) - idempotent delete
+        if e.response.get("Error", {}).get("Code") != "NoSuchKey":
+            logger.error("Failed to delete QR code from S3", s3_key=s3_key, error=str(e))
+            raise AppError(ErrorCode.INTERNAL_ERROR, "Failed to delete QR code")
+    except Exception as e:
+        logger.error("Failed to delete QR code from S3", s3_key=s3_key, error=str(e))
+        raise AppError(ErrorCode.INTERNAL_ERROR, "Failed to delete QR code")
+
+
 def delete_qr_from_s3(account_id: str, payment_method_name: str) -> None:
     """
     Delete QR code from S3.
+
+    DEPRECATED: Use delete_qr_by_key() when you have the stored s3_key.
+    This function remains for backwards compatibility with slug-based keys.
 
     Deletes all possible file extensions (png, jpg, webp) to ensure cleanup.
 
@@ -496,7 +581,7 @@ def delete_qr_from_s3(account_id: str, payment_method_name: str) -> None:
     logger = get_logger(__name__)
 
     slug = slugify(payment_method_name)
-    bucket_name = os.getenv("EXPORTS_BUCKET_NAME", "kernelworx-exports-ue1-dev")
+    bucket_name = get_required_env("EXPORTS_BUCKET")
 
     # Try all possible extensions
     extensions = ["png", "jpg", "webp"]
@@ -542,7 +627,7 @@ def generate_presigned_get_url(
     """
     logger = get_logger(__name__)
 
-    bucket_name = os.getenv("EXPORTS_BUCKET_NAME", "kernelworx-exports-ue1-dev")
+    bucket_name = get_required_env("EXPORTS_BUCKET")
 
     try:
         s3 = _get_s3_client()
@@ -563,25 +648,17 @@ def generate_presigned_get_url(
             if not s3_key:
                 return None  # No QR code found
 
-        # Use CloudFront vanity domain for downloads if available
-        cloudfront_domain = os.getenv("CLOUDFRONT_DOMAIN")  # e.g., dev.kernelworx.app
-        
-        if cloudfront_domain:
-            # Use CloudFront URL (no pre-signing needed - CloudFront serves from S3 origin)
-            # QR codes are at /payment-qr-codes/* path in CloudFront
-            url = f"https://{cloudfront_domain}/{s3_key}"
-        else:
-            # Fallback to direct S3 pre-signed URL
-            url = s3.generate_presigned_url(
-                "get_object", Params={"Bucket": bucket_name, "Key": s3_key}, ExpiresIn=expiry_seconds
-            )
+        # Always use signed S3 URLs for QR codes (no public CloudFront exposure)
+        # This ensures ownership verification and prevents unauthorized access
+        url = s3.generate_presigned_url(
+            "get_object", Params={"Bucket": bucket_name, "Key": s3_key}, ExpiresIn=expiry_seconds
+        )
 
         logger.info(
             "Generated GET URL",
             account_id=account_id,
             payment_method=payment_method_name,
             s3_key=s3_key,
-            uses_cloudfront=bool(cloudfront_domain),
         )
 
         return url

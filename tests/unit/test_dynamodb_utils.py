@@ -103,19 +103,11 @@ class TestTableAccessor:
 class TestTableProperties:
     """Tests for individual table properties."""
 
-    def test_accounts_table_default_name(self, aws_credentials: None) -> None:
-        """Test accounts table uses default name."""
+    def test_accounts_table_missing_env_raises(self, aws_credentials: None) -> None:
+        """Test accounts table raises ValueError when env var is missing."""
         with mock_aws():
-            # Create the table for moto
-            dynamodb = boto3.resource("dynamodb", region_name="us-east-1")
-            dynamodb.create_table(
-                TableName="kernelworx-accounts-ue1-dev",
-                KeySchema=[{"AttributeName": "accountId", "KeyType": "HASH"}],
-                AttributeDefinitions=[{"AttributeName": "accountId", "AttributeType": "S"}],
-                BillingMode="PAY_PER_REQUEST",
-            )
-            table = tables.accounts
-            assert table.name == "kernelworx-accounts-ue1-dev"
+            with pytest.raises(ValueError, match="Required environment variable 'ACCOUNTS_TABLE_NAME' is not set"):
+                _ = tables.accounts
 
     def test_accounts_table_custom_name(self, aws_credentials: None) -> None:
         """Test accounts table uses custom name from env."""
@@ -132,12 +124,18 @@ class TestTableProperties:
                 table = tables.accounts
                 assert table.name == "custom-accounts"
 
-    def test_profiles_table(self, aws_credentials: None) -> None:
-        """Test profiles table property."""
+    def test_profiles_table_missing_env_raises(self, aws_credentials: None) -> None:
+        """Test profiles table raises ValueError when env var is missing."""
+        with mock_aws():
+            with pytest.raises(ValueError, match="Required environment variable 'PROFILES_TABLE_NAME' is not set"):
+                _ = tables.profiles
+
+    def test_profiles_table_custom_name(self, aws_credentials: None) -> None:
+        """Test profiles table uses custom name from env."""
         with mock_aws():
             dynamodb = boto3.resource("dynamodb", region_name="us-east-1")
             dynamodb.create_table(
-                TableName="kernelworx-profiles-v2-ue1-dev",
+                TableName="custom-profiles",
                 KeySchema=[
                     {"AttributeName": "ownerAccountId", "KeyType": "HASH"},
                     {"AttributeName": "profileId", "KeyType": "RANGE"},
@@ -148,15 +146,23 @@ class TestTableProperties:
                 ],
                 BillingMode="PAY_PER_REQUEST",
             )
-            table = tables.profiles
-            assert table.name == "kernelworx-profiles-v2-ue1-dev"
+            with patch.dict(os.environ, {"PROFILES_TABLE_NAME": "custom-profiles"}):
+                reset_singleton()
+                table = tables.profiles
+                assert table.name == "custom-profiles"
 
-    def test_campaigns_table(self, aws_credentials: None) -> None:
-        """Test campaigns table property."""
+    def test_campaigns_table_missing_env_raises(self, aws_credentials: None) -> None:
+        """Test campaigns table raises ValueError when env var is missing."""
+        with mock_aws():
+            with pytest.raises(ValueError, match="Required environment variable 'CAMPAIGNS_TABLE_NAME' is not set"):
+                _ = tables.campaigns
+
+    def test_campaigns_table_custom_name(self, aws_credentials: None) -> None:
+        """Test campaigns table uses custom name from env."""
         with mock_aws():
             dynamodb = boto3.resource("dynamodb", region_name="us-east-1")
             dynamodb.create_table(
-                TableName="kernelworx-campaigns-v2-ue1-dev",
+                TableName="custom-campaigns",
                 KeySchema=[
                     {"AttributeName": "profileId", "KeyType": "HASH"},
                     {"AttributeName": "campaignId", "KeyType": "RANGE"},
@@ -167,15 +173,23 @@ class TestTableProperties:
                 ],
                 BillingMode="PAY_PER_REQUEST",
             )
-            table = tables.campaigns
-            assert table.name == "kernelworx-campaigns-v2-ue1-dev"
+            with patch.dict(os.environ, {"CAMPAIGNS_TABLE_NAME": "custom-campaigns"}):
+                reset_singleton()
+                table = tables.campaigns
+                assert table.name == "custom-campaigns"
 
-    def test_orders_table(self, aws_credentials: None) -> None:
-        """Test orders table property."""
+    def test_orders_table_missing_env_raises(self, aws_credentials: None) -> None:
+        """Test orders table raises ValueError when env var is missing."""
+        with mock_aws():
+            with pytest.raises(ValueError, match="Required environment variable 'ORDERS_TABLE_NAME' is not set"):
+                _ = tables.orders
+
+    def test_orders_table_custom_name(self, aws_credentials: None) -> None:
+        """Test orders table uses custom name from env."""
         with mock_aws():
             dynamodb = boto3.resource("dynamodb", region_name="us-east-1")
             dynamodb.create_table(
-                TableName="kernelworx-orders-v2-ue1-dev",
+                TableName="custom-orders",
                 KeySchema=[
                     {"AttributeName": "campaignId", "KeyType": "HASH"},
                     {"AttributeName": "orderId", "KeyType": "RANGE"},
@@ -186,15 +200,23 @@ class TestTableProperties:
                 ],
                 BillingMode="PAY_PER_REQUEST",
             )
-            table = tables.orders
-            assert table.name == "kernelworx-orders-v2-ue1-dev"
+            with patch.dict(os.environ, {"ORDERS_TABLE_NAME": "custom-orders"}):
+                reset_singleton()
+                table = tables.orders
+                assert table.name == "custom-orders"
 
-    def test_shares_table(self, aws_credentials: None) -> None:
-        """Test shares table property."""
+    def test_shares_table_missing_env_raises(self, aws_credentials: None) -> None:
+        """Test shares table raises ValueError when env var is missing."""
+        with mock_aws():
+            with pytest.raises(ValueError, match="Required environment variable 'SHARES_TABLE_NAME' is not set"):
+                _ = tables.shares
+
+    def test_shares_table_custom_name(self, aws_credentials: None) -> None:
+        """Test shares table uses custom name from env."""
         with mock_aws():
             dynamodb = boto3.resource("dynamodb", region_name="us-east-1")
             dynamodb.create_table(
-                TableName="kernelworx-shares-ue1-dev",
+                TableName="custom-shares",
                 KeySchema=[
                     {"AttributeName": "profileId", "KeyType": "HASH"},
                     {"AttributeName": "targetAccountId", "KeyType": "RANGE"},
@@ -205,41 +227,67 @@ class TestTableProperties:
                 ],
                 BillingMode="PAY_PER_REQUEST",
             )
-            table = tables.shares
-            assert table.name == "kernelworx-shares-ue1-dev"
+            with patch.dict(os.environ, {"SHARES_TABLE_NAME": "custom-shares"}):
+                reset_singleton()
+                table = tables.shares
+                assert table.name == "custom-shares"
 
-    def test_catalogs_table(self, aws_credentials: None) -> None:
-        """Test catalogs table property."""
+    def test_catalogs_table_missing_env_raises(self, aws_credentials: None) -> None:
+        """Test catalogs table raises ValueError when env var is missing."""
+        with mock_aws():
+            with pytest.raises(ValueError, match="Required environment variable 'CATALOGS_TABLE_NAME' is not set"):
+                _ = tables.catalogs
+
+    def test_catalogs_table_custom_name(self, aws_credentials: None) -> None:
+        """Test catalogs table uses custom name from env."""
         with mock_aws():
             dynamodb = boto3.resource("dynamodb", region_name="us-east-1")
             dynamodb.create_table(
-                TableName="kernelworx-catalogs-ue1-dev",
+                TableName="custom-catalogs",
                 KeySchema=[{"AttributeName": "catalogId", "KeyType": "HASH"}],
                 AttributeDefinitions=[{"AttributeName": "catalogId", "AttributeType": "S"}],
                 BillingMode="PAY_PER_REQUEST",
             )
-            table = tables.catalogs
-            assert table.name == "kernelworx-catalogs-ue1-dev"
+            with patch.dict(os.environ, {"CATALOGS_TABLE_NAME": "custom-catalogs"}):
+                reset_singleton()
+                table = tables.catalogs
+                assert table.name == "custom-catalogs"
 
-    def test_invites_table(self, aws_credentials: None) -> None:
-        """Test invites table property."""
+    def test_invites_table_missing_env_raises(self, aws_credentials: None) -> None:
+        """Test invites table raises ValueError when env var is missing."""
+        with mock_aws():
+            with pytest.raises(ValueError, match="Required environment variable 'INVITES_TABLE_NAME' is not set"):
+                _ = tables.invites
+
+    def test_invites_table_custom_name(self, aws_credentials: None) -> None:
+        """Test invites table uses custom name from env."""
         with mock_aws():
             dynamodb = boto3.resource("dynamodb", region_name="us-east-1")
             dynamodb.create_table(
-                TableName="kernelworx-invites-ue1-dev",
+                TableName="custom-invites",
                 KeySchema=[{"AttributeName": "inviteCode", "KeyType": "HASH"}],
                 AttributeDefinitions=[{"AttributeName": "inviteCode", "AttributeType": "S"}],
                 BillingMode="PAY_PER_REQUEST",
             )
-            table = tables.invites
-            assert table.name == "kernelworx-invites-ue1-dev"
+            with patch.dict(os.environ, {"INVITES_TABLE_NAME": "custom-invites"}):
+                reset_singleton()
+                table = tables.invites
+                assert table.name == "custom-invites"
 
-    def test_shared_campaigns_table(self, aws_credentials: None) -> None:
-        """Test shared_campaigns table property."""
+    def test_shared_campaigns_table_missing_env_raises(self, aws_credentials: None) -> None:
+        """Test shared_campaigns table raises ValueError when env var is missing."""
+        with mock_aws():
+            with pytest.raises(
+                ValueError, match="Required environment variable 'SHARED_CAMPAIGNS_TABLE_NAME' is not set"
+            ):
+                _ = tables.shared_campaigns
+
+    def test_shared_campaigns_table_custom_name(self, aws_credentials: None) -> None:
+        """Test shared_campaigns table uses custom name from env."""
         with mock_aws():
             dynamodb = boto3.resource("dynamodb", region_name="us-east-1")
             dynamodb.create_table(
-                TableName="kernelworx-shared-campaigns-ue1-dev",
+                TableName="custom-shared-campaigns",
                 KeySchema=[
                     {"AttributeName": "sharedCampaignCode", "KeyType": "HASH"},
                     {"AttributeName": "SK", "KeyType": "RANGE"},
@@ -250,8 +298,10 @@ class TestTableProperties:
                 ],
                 BillingMode="PAY_PER_REQUEST",
             )
-            table = tables.shared_campaigns
-            assert table.name == "kernelworx-shared-campaigns-ue1-dev"
+            with patch.dict(os.environ, {"SHARED_CAMPAIGNS_TABLE_NAME": "custom-shared-campaigns"}):
+                reset_singleton()
+                table = tables.shared_campaigns
+                assert table.name == "custom-shared-campaigns"
 
 
 class TestTableOverrides:
@@ -272,7 +322,7 @@ class TestTableOverrides:
         with mock_aws():
             dynamodb = boto3.resource("dynamodb", region_name="us-east-1")
             dynamodb.create_table(
-                TableName="kernelworx-accounts-ue1-dev",
+                TableName="custom-accounts",
                 KeySchema=[{"AttributeName": "accountId", "KeyType": "HASH"}],
                 AttributeDefinitions=[{"AttributeName": "accountId", "AttributeType": "S"}],
                 BillingMode="PAY_PER_REQUEST",
@@ -284,9 +334,11 @@ class TestTableOverrides:
             override_table("accounts", mock_table)
             assert tables.accounts.name == "override"
 
-            override_table("accounts", None)
-            # Now it should use the real table
-            assert tables.accounts.name == "kernelworx-accounts-ue1-dev"
+            with patch.dict(os.environ, {"ACCOUNTS_TABLE_NAME": "custom-accounts"}):
+                reset_singleton()
+                override_table("accounts", None)
+                # Now it should use the real table from env
+                assert tables.accounts.name == "custom-accounts"
 
     def test_clear_all_overrides(self) -> None:
         """Test that clear_all_overrides clears all overrides."""

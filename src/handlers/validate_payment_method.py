@@ -10,11 +10,11 @@ from typing import Any, Dict
 
 # Handle both Lambda (absolute) and unit test (relative) imports
 try:  # pragma: no cover
-    from utils.errors import AppError
+    from utils.errors import AppError, ErrorCode
     from utils.logging import get_logger
     from utils.payment_methods import validate_payment_method_exists
 except ModuleNotFoundError:  # pragma: no cover
-    from src.utils.errors import AppError
+    from src.utils.errors import AppError, ErrorCode
     from src.utils.logging import get_logger
     from src.utils.payment_methods import validate_payment_method_exists
 
@@ -46,12 +46,12 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         # Get owner account ID from previous pipeline step (should be set by verify_profile_write_access)
         owner_account_id = prev_result.get("ownerAccountId")
         if not owner_account_id:
-            raise AppError("INVALID_INPUT", "Owner account ID not found in pipeline context")
+            raise AppError(ErrorCode.INVALID_INPUT, "Owner account ID not found in pipeline context")
 
         # Get payment method from order input
         payment_method = input_data.get("paymentMethod")
         if not payment_method:
-            raise AppError("INVALID_INPUT", "Payment method is required")
+            raise AppError(ErrorCode.INVALID_INPUT, "Payment method is required")
 
         # Remove ACCOUNT# prefix if present
         if owner_account_id.startswith("ACCOUNT#"):
@@ -81,4 +81,4 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         raise
     except Exception as e:
         logger.error("Unexpected error validating payment method", error=str(e))
-        raise AppError("INTERNAL_ERROR", "Failed to validate payment method")
+        raise AppError(ErrorCode.INTERNAL_ERROR, "Failed to validate payment method")

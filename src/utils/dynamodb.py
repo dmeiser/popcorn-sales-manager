@@ -19,6 +19,28 @@ if TYPE_CHECKING:
 _table_overrides: dict[str, Optional["Table"]] = {}
 
 
+def get_required_env(name: str, default: Optional[str] = None) -> str:
+    """Get a required environment variable.
+
+    In Lambda/production, the env var must be set. For tests, a default can be
+    provided to allow the code to run in mocked environments.
+
+    Args:
+        name: Environment variable name
+        default: Optional default for test environments (should not be dev resource)
+
+    Returns:
+        The environment variable value
+
+    Raises:
+        ValueError: If the env var is not set and no default is provided
+    """
+    value = os.getenv(name, default)
+    if value is None:
+        raise ValueError(f"Required environment variable '{name}' is not set")
+    return value
+
+
 def _get_dynamodb() -> "DynamoDBServiceResource":
     """Get DynamoDB resource with optional endpoint override for LocalStack."""
     return boto3.resource("dynamodb", endpoint_url=os.getenv("DYNAMODB_ENDPOINT"))
@@ -48,7 +70,7 @@ class TableAccessor:
         """Get accounts table instance."""
         if override := _table_overrides.get("accounts"):
             return override
-        table_name = os.getenv("ACCOUNTS_TABLE_NAME", "kernelworx-accounts-ue1-dev")
+        table_name = get_required_env("ACCOUNTS_TABLE_NAME")
         return _get_dynamodb().Table(table_name)
 
     @property
@@ -56,7 +78,7 @@ class TableAccessor:
         """Get profiles table instance (V2 multi-table design)."""
         if override := _table_overrides.get("profiles"):
             return override
-        table_name = os.getenv("PROFILES_TABLE_NAME", "kernelworx-profiles-v2-ue1-dev")
+        table_name = get_required_env("PROFILES_TABLE_NAME")
         return _get_dynamodb().Table(table_name)
 
     @property
@@ -64,7 +86,7 @@ class TableAccessor:
         """Get campaigns table instance (V2 multi-table design)."""
         if override := _table_overrides.get("campaigns"):
             return override
-        table_name = os.getenv("CAMPAIGNS_TABLE_NAME", "kernelworx-campaigns-v2-ue1-dev")
+        table_name = get_required_env("CAMPAIGNS_TABLE_NAME")
         return _get_dynamodb().Table(table_name)
 
     @property
@@ -72,7 +94,7 @@ class TableAccessor:
         """Get orders table instance (V2 multi-table design)."""
         if override := _table_overrides.get("orders"):
             return override
-        table_name = os.getenv("ORDERS_TABLE_NAME", "kernelworx-orders-v2-ue1-dev")
+        table_name = get_required_env("ORDERS_TABLE_NAME")
         return _get_dynamodb().Table(table_name)
 
     @property
@@ -80,7 +102,7 @@ class TableAccessor:
         """Get shares table instance."""
         if override := _table_overrides.get("shares"):
             return override
-        table_name = os.getenv("SHARES_TABLE_NAME", "kernelworx-shares-ue1-dev")
+        table_name = get_required_env("SHARES_TABLE_NAME")
         return _get_dynamodb().Table(table_name)
 
     @property
@@ -88,7 +110,7 @@ class TableAccessor:
         """Get catalogs table instance."""
         if override := _table_overrides.get("catalogs"):
             return override
-        table_name = os.getenv("CATALOGS_TABLE_NAME", "kernelworx-catalogs-ue1-dev")
+        table_name = get_required_env("CATALOGS_TABLE_NAME")
         return _get_dynamodb().Table(table_name)
 
     @property
@@ -96,7 +118,7 @@ class TableAccessor:
         """Get invites table instance."""
         if override := _table_overrides.get("invites"):
             return override
-        table_name = os.getenv("INVITES_TABLE_NAME", "kernelworx-invites-ue1-dev")
+        table_name = get_required_env("INVITES_TABLE_NAME")
         return _get_dynamodb().Table(table_name)
 
     @property
@@ -104,7 +126,7 @@ class TableAccessor:
         """Get shared campaigns table instance."""
         if override := _table_overrides.get("shared_campaigns"):
             return override
-        table_name = os.getenv("SHARED_CAMPAIGNS_TABLE_NAME", "kernelworx-shared-campaigns-ue1-dev")
+        table_name = get_required_env("SHARED_CAMPAIGNS_TABLE_NAME")
         return _get_dynamodb().Table(table_name)
 
 

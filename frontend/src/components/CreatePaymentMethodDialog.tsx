@@ -19,13 +19,13 @@ import {
   Alert,
   CircularProgress,
 } from '@mui/material';
+import { validatePaymentMethodName, MAX_NAME_LENGTH } from '../lib/paymentMethodValidation';
 
 interface CreatePaymentMethodDialogProps {
   open: boolean;
   onClose: () => void;
   onCreate: (name: string) => Promise<void>;
   existingNames: string[];
-  reservedNames: string[];
   isLoading?: boolean;
 }
 
@@ -35,7 +35,6 @@ export const CreatePaymentMethodDialog: React.FC<CreatePaymentMethodDialogProps>
   onClose,
   onCreate,
   existingNames,
-  reservedNames,
   isLoading = false,
 }) => {
   const [name, setName] = useState('');
@@ -50,27 +49,9 @@ export const CreatePaymentMethodDialog: React.FC<CreatePaymentMethodDialogProps>
   }, [open]);
 
   const validateName = (value: string): string | null => {
-    const trimmed = value.trim();
-
-    if (!trimmed) {
-      return 'Name is required';
-    }
-
-    if (trimmed.length > 50) {
-      return 'Name must be 50 characters or less';
-    }
-
-    // Check reserved names (case-insensitive)
-    if (reservedNames.some((reserved) => reserved.toLowerCase() === trimmed.toLowerCase())) {
-      return `"${trimmed}" is a reserved payment method name`;
-    }
-
-    // Check for duplicates (case-insensitive)
-    if (existingNames.some((existing) => existing.toLowerCase() === trimmed.toLowerCase())) {
-      return `A payment method named "${trimmed}" already exists`;
-    }
-
-    return null;
+    // Use shared validation from paymentMethodValidation.ts
+    const result = validatePaymentMethodName(value, existingNames);
+    return result.error;
   };
 
   const handleSubmit = async () => {
@@ -126,7 +107,7 @@ export const CreatePaymentMethodDialog: React.FC<CreatePaymentMethodDialogProps>
           placeholder="e.g., Venmo, Zelle, PayPal"
           helperText="Enter a unique name for this payment method"
           inputProps={{
-            maxLength: 50,
+            maxLength: MAX_NAME_LENGTH,
             'aria-label': 'Payment method name',
           }}
         />

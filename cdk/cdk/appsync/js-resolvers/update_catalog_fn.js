@@ -44,7 +44,7 @@ export function request(ctx) {
             expression: "SET catalogName = :catalogName, isPublic = :isPublic, isPublicStr = :isPublicStr, products = :products, updatedAt = :updatedAt",
             expressionValues: util.dynamodb.toMapValues({
                 ":catalogName": input.catalogName,
-                ":isPublic": isPublicStr,
+                ":isPublic": input.isPublic,
                 ":isPublicStr": isPublicStr,
                 ":products": productsWithIds,
                 ":updatedAt": now

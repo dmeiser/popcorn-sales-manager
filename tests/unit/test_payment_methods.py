@@ -27,7 +27,7 @@ def aws_credentials() -> None:
     os.environ["AWS_SESSION_TOKEN"] = "testing"
     os.environ["AWS_DEFAULT_REGION"] = "us-east-1"
     os.environ["ACCOUNTS_TABLE_NAME"] = "kernelworx-accounts-ue1-dev"
-    os.environ["EXPORTS_BUCKET_NAME"] = "test-exports-bucket"
+    os.environ["EXPORTS_BUCKET"] = "test-exports-bucket"
 
 
 @pytest.fixture
@@ -44,7 +44,7 @@ def s3_bucket(aws_credentials: None) -> Generator[Any, None, None]:
     """Create mock S3 bucket."""
     with mock_aws():
         s3 = boto3.client("s3", region_name="us-east-1")
-        bucket_name = os.environ.get("EXPORTS_BUCKET_NAME", "test-exports-bucket")
+        bucket_name = os.environ.get("EXPORTS_BUCKET", "test-exports-bucket")
         s3.create_bucket(Bucket=bucket_name)
         yield s3
 
@@ -110,6 +110,102 @@ class TestSlugify:
         """Test slugifying empty string."""
         assert payment_methods.slugify("") == ""
         assert payment_methods.slugify("   ") == ""
+
+
+class TestValidateQRS3Key:
+    """Test validate_qr_s3_key function."""
+
+    def test_valid_key_matches_account(self) -> None:
+        """Test valid s3_key that matches account_id."""
+        account_id = "test-account-123"
+        s3_key = f"payment-qr-codes/{account_id}/venmo.png"
+        assert payment_methods.validate_qr_s3_key(s3_key, account_id) is True
+
+    def test_valid_key_with_extension_jpg(self) -> None:
+        """Test valid s3_key with jpg extension."""
+        account_id = "test-account-123"
+        s3_key = f"payment-qr-codes/{account_id}/venmo.jpg"
+        assert payment_methods.validate_qr_s3_key(s3_key, account_id) is True
+
+    def test_valid_key_with_extension_webp(self) -> None:
+        """Test valid s3_key with webp extension."""
+        account_id = "test-account-123"
+        s3_key = f"payment-qr-codes/{account_id}/venmo.webp"
+        assert payment_methods.validate_qr_s3_key(s3_key, account_id) is True
+
+    def test_invalid_wrong_account(self) -> None:
+        """Test s3_key that belongs to different account returns False."""
+        account_id = "my-account"
+        other_account_id = "other-account"
+        s3_key = f"payment-qr-codes/{other_account_id}/venmo.png"
+        assert payment_methods.validate_qr_s3_key(s3_key, account_id) is False
+
+    def test_invalid_wrong_prefix(self) -> None:
+        """Test s3_key with wrong prefix returns False."""
+        account_id = "test-account-123"
+        s3_key = f"wrong-prefix/{account_id}/venmo.png"
+        assert payment_methods.validate_qr_s3_key(s3_key, account_id) is False
+
+    def test_invalid_malformed_key(self) -> None:
+        """Test malformed s3_key returns False."""
+        account_id = "test-account-123"
+        assert payment_methods.validate_qr_s3_key("malformed/key", account_id) is False
+        assert payment_methods.validate_qr_s3_key("", account_id) is False
+        assert payment_methods.validate_qr_s3_key("no-slashes.png", account_id) is False
+        # Key with right prefix but too few parts (missing filename)
+        assert payment_methods.validate_qr_s3_key(f"payment-qr-codes/{account_id}", account_id) is False
+
+    def test_invalid_extension(self) -> None:
+        """Test s3_key with invalid file extension returns False."""
+        account_id = "test-account-123"
+        assert payment_methods.validate_qr_s3_key(f"payment-qr-codes/{account_id}/venmo.gif", account_id) is False
+        assert payment_methods.validate_qr_s3_key(f"payment-qr-codes/{account_id}/venmo.txt", account_id) is False
+
+    def test_invalid_path_traversal_attempt(self) -> None:
+        """Test path traversal attempts return False."""
+        account_id = "test-account-123"
+        s3_key = f"payment-qr-codes/{account_id}/../other-account/venmo.png"
+        assert payment_methods.validate_qr_s3_key(s3_key, account_id) is False
+
+
+class TestGenerateQRCodeS3Key:
+    """Test generate_qr_code_s3_key function (UUID-based)."""
+
+    def test_generates_uuid_based_key(self) -> None:
+        """Test that keys use UUID instead of payment method slug."""
+        account_id = "test-account-123"
+        key = payment_methods.generate_qr_code_s3_key(account_id)
+
+        # Verify format: payment-qr-codes/{account_id}/{uuid}.png
+        assert key.startswith(f"payment-qr-codes/{account_id}/")
+        assert key.endswith(".png")
+
+        # Extract UUID portion (32 hex chars)
+        filename = key.split("/")[-1]
+        uuid_part = filename.replace(".png", "")
+        assert len(uuid_part) == 32
+        # Should be valid hex
+        int(uuid_part, 16)  # Will raise if not valid hex
+
+    def test_generates_unique_keys(self) -> None:
+        """Test that each call generates a unique key."""
+        account_id = "test-account-123"
+        keys = [payment_methods.generate_qr_code_s3_key(account_id) for _ in range(10)]
+        # All keys should be unique
+        assert len(set(keys)) == 10
+
+    def test_supports_different_extensions(self) -> None:
+        """Test key generation with different file extensions."""
+        account_id = "test-account-123"
+
+        png_key = payment_methods.generate_qr_code_s3_key(account_id, "png")
+        assert png_key.endswith(".png")
+
+        jpg_key = payment_methods.generate_qr_code_s3_key(account_id, "jpg")
+        assert jpg_key.endswith(".jpg")
+
+        webp_key = payment_methods.generate_qr_code_s3_key(account_id, "webp")
+        assert webp_key.endswith(".webp")
 
 
 class TestIsReservedName:
@@ -501,7 +597,7 @@ class TestDeletePaymentMethod:
         )
 
         # Upload QR to S3
-        bucket_name = os.environ.get("EXPORTS_BUCKET_NAME")
+        bucket_name = os.environ.get("EXPORTS_BUCKET")
         s3_bucket.put_object(
             Bucket=bucket_name, Key=f"payment-qr-codes/{sample_account_id}/venmo.png", Body=b"fake-qr-image"
         )
@@ -580,7 +676,7 @@ class TestUploadQRToS3:
         assert s3_key == f"payment-qr-codes/{sample_account_id}/venmo.png"
 
         # Verify S3 object exists
-        bucket_name = os.environ.get("EXPORTS_BUCKET_NAME")
+        bucket_name = os.environ.get("EXPORTS_BUCKET")
         response = s3_bucket.head_object(Bucket=bucket_name, Key=s3_key)
         assert response["ContentType"] == "image/png"
 
@@ -620,7 +716,7 @@ class TestDeleteQRFromS3:
     def test_delete_existing_qr(self, s3_bucket: Any, sample_account_id: str) -> None:
         """Test deleting existing QR code."""
         # Upload QR
-        bucket_name = os.environ.get("EXPORTS_BUCKET_NAME")
+        bucket_name = os.environ.get("EXPORTS_BUCKET")
         s3_key = f"payment-qr-codes/{sample_account_id}/venmo.png"
         s3_bucket.put_object(Bucket=bucket_name, Key=s3_key, Body=b"fake-data")
 
@@ -640,7 +736,7 @@ class TestDeleteQRFromS3:
     def test_delete_all_extensions(self, s3_bucket: Any, sample_account_id: str) -> None:
         """Test deleting tries all possible extensions."""
         # Upload multiple extensions
-        bucket_name = os.environ.get("EXPORTS_BUCKET_NAME")
+        bucket_name = os.environ.get("EXPORTS_BUCKET")
         s3_bucket.put_object(
             Bucket=bucket_name, Key=f"payment-qr-codes/{sample_account_id}/venmo.png", Body=b"fake-png"
         )
@@ -662,13 +758,80 @@ class TestDeleteQRFromS3:
                 assert e.response["Error"]["Code"] == "404"
 
 
+class TestDeleteQRByKey:
+    """Test delete_qr_by_key function."""
+
+    def test_delete_existing_qr_by_key(self, s3_bucket: Any, sample_account_id: str) -> None:
+        """Test deleting existing QR code by key."""
+        bucket_name = os.environ.get("EXPORTS_BUCKET")
+        s3_key = f"payment-qr-codes/{sample_account_id}/abc123.png"
+        s3_bucket.put_object(Bucket=bucket_name, Key=s3_key, Body=b"fake-data")
+
+        # Delete by key
+        payment_methods.delete_qr_by_key(s3_key)
+
+        # Verify deleted
+        with pytest.raises(ClientError) as exc_info:
+            s3_bucket.head_object(Bucket=bucket_name, Key=s3_key)
+        assert exc_info.value.response["Error"]["Code"] == "404"
+
+    def test_delete_nonexistent_qr_by_key(self, s3_bucket: Any, sample_account_id: str) -> None:
+        """Test deleting non-existent QR code by key (idempotent, should not raise)."""
+        s3_key = f"payment-qr-codes/{sample_account_id}/does-not-exist.png"
+        # Should not raise
+        payment_methods.delete_qr_by_key(s3_key)
+
+    def test_delete_qr_by_key_nosuchkey_error(self, sample_account_id: str) -> None:
+        """Test S3 NoSuchKey error during delete (404 should be silently ignored)."""
+        from unittest.mock import MagicMock, patch
+
+        s3_key = f"payment-qr-codes/{sample_account_id}/test.png"
+
+        mock_s3 = MagicMock()
+        error_response = {"Error": {"Code": "NoSuchKey", "Message": "Key does not exist"}}
+        mock_s3.delete_object.side_effect = ClientError(error_response, "DeleteObject")
+
+        with patch.object(payment_methods, "_get_s3_client", return_value=mock_s3):
+            # Should not raise - NoSuchKey is silently ignored for idempotent delete
+            payment_methods.delete_qr_by_key(s3_key)
+
+    def test_delete_qr_by_key_s3_error(self, sample_account_id: str) -> None:
+        """Test S3 error during delete (non-404 error)."""
+        from unittest.mock import MagicMock, patch
+
+        s3_key = f"payment-qr-codes/{sample_account_id}/test.png"
+
+        mock_s3 = MagicMock()
+        error_response = {"Error": {"Code": "AccessDenied", "Message": "Access Denied"}}
+        mock_s3.delete_object.side_effect = ClientError(error_response, "DeleteObject")
+
+        with patch.object(payment_methods, "_get_s3_client", return_value=mock_s3):
+            with pytest.raises(AppError) as exc_info:
+                payment_methods.delete_qr_by_key(s3_key)
+            assert exc_info.value.error_code == ErrorCode.INTERNAL_ERROR
+
+    def test_delete_qr_by_key_generic_exception(self, sample_account_id: str) -> None:
+        """Test generic Exception during delete (non-ClientError)."""
+        from unittest.mock import MagicMock, patch
+
+        s3_key = f"payment-qr-codes/{sample_account_id}/test.png"
+
+        mock_s3 = MagicMock()
+        mock_s3.delete_object.side_effect = Exception("Unexpected error")
+
+        with patch.object(payment_methods, "_get_s3_client", return_value=mock_s3):
+            with pytest.raises(AppError) as exc_info:
+                payment_methods.delete_qr_by_key(s3_key)
+            assert exc_info.value.error_code == ErrorCode.INTERNAL_ERROR
+
+
 class TestGeneratePresignedGetURL:
     """Test generate_presigned_get_url function."""
 
     def test_generate_url_with_existing_qr(self, s3_bucket: Any, sample_account_id: str) -> None:
         """Test generating URL for existing QR code."""
         # Upload QR
-        bucket_name = os.environ.get("EXPORTS_BUCKET_NAME")
+        bucket_name = os.environ.get("EXPORTS_BUCKET")
         s3_key = f"payment-qr-codes/{sample_account_id}/venmo.png"
         s3_bucket.put_object(Bucket=bucket_name, Key=s3_key, Body=b"fake-data")
 
@@ -682,7 +845,7 @@ class TestGeneratePresignedGetURL:
     def test_generate_url_with_s3_key_provided(self, s3_bucket: Any, sample_account_id: str) -> None:
         """Test generating URL with explicit s3_key."""
         # Upload QR
-        bucket_name = os.environ.get("EXPORTS_BUCKET_NAME")
+        bucket_name = os.environ.get("EXPORTS_BUCKET")
         s3_key = f"payment-qr-codes/{sample_account_id}/venmo.jpg"
         s3_bucket.put_object(Bucket=bucket_name, Key=s3_key, Body=b"fake-data")
 
@@ -701,7 +864,7 @@ class TestGeneratePresignedGetURL:
     def test_generate_url_custom_expiry(self, s3_bucket: Any, sample_account_id: str) -> None:
         """Test generating URL with custom expiry."""
         # Upload QR
-        bucket_name = os.environ.get("EXPORTS_BUCKET_NAME")
+        bucket_name = os.environ.get("EXPORTS_BUCKET")
         s3_key = f"payment-qr-codes/{sample_account_id}/venmo.png"
         s3_bucket.put_object(Bucket=bucket_name, Key=s3_key, Body=b"fake-data")
 

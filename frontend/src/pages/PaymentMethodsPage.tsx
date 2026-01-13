@@ -46,12 +46,8 @@ interface RequestQRUploadData {
   requestPaymentMethodQRCodeUpload: S3UploadInfo;
 }
 
-// Reserved payment method names (case-insensitive)
-const RESERVED_NAMES = ['cash', 'check'];
-
-const isReservedMethod = (name: string): boolean => {
-  return RESERVED_NAMES.includes(name.toLowerCase());
-};
+// Import shared validation constants and functions
+import { isReservedName } from '../lib/paymentMethodValidation';
 
 // Loading state component
 const LoadingState: React.FC = () => (
@@ -163,6 +159,7 @@ export const PaymentMethodsPage: React.FC = () => {
 
   // QR code upload/delete states
   const [uploadingQR, setUploadingQR] = useState(false);
+  const [qrUploadError, setQrUploadError] = useState<string | null>(null);
   const [requestQRUpload] = useMutation<RequestQRUploadData>(REQUEST_PAYMENT_METHOD_QR_UPLOAD);
   const [confirmQRUpload] = useMutation(CONFIRM_PAYMENT_METHOD_QR_UPLOAD);
   const [deleteQRCode] = useMutation(DELETE_PAYMENT_METHOD_QR_CODE, {
@@ -208,6 +205,7 @@ export const PaymentMethodsPage: React.FC = () => {
     setSelectedMethod(method);
     setQrUploadDialogOpen(true);
     setError(null);
+    setQrUploadError(null);
   };
 
   // Helper to parse S3 fields and upload file
@@ -228,6 +226,7 @@ export const PaymentMethodsPage: React.FC = () => {
   const handleQRUpload = async (file: File): Promise<void> => {
     if (!selectedMethod) return;
     setError(null);
+    setQrUploadError(null);
     setUploadingQR(true);
 
     try {
@@ -259,7 +258,7 @@ export const PaymentMethodsPage: React.FC = () => {
       refetch();
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to upload QR code';
-      setError(message);
+      setQrUploadError(message);
       throw err; // Re-throw to let dialog handle error state
     } finally {
       setUploadingQR(false);
@@ -289,6 +288,7 @@ export const PaymentMethodsPage: React.FC = () => {
   const closeQrUploadDialog = () => {
     setQrUploadDialogOpen(false);
     setSelectedMethod(null);
+    setQrUploadError(null);
   };
 
   // Sort payment methods alphabetically - returns empty array if no data
@@ -361,7 +361,7 @@ export const PaymentMethodsPage: React.FC = () => {
           <PaymentMethodCard
             key={method.name}
             method={method}
-            isReserved={isReservedMethod(method.name)}
+            isReserved={isReservedName(method.name)}
             onEdit={() => handleEdit(method)}
             onDelete={() => handleDeleteClick(method)}
             onUploadQR={() => handleQRUploadClick(method)}
@@ -380,7 +380,6 @@ export const PaymentMethodsPage: React.FC = () => {
         onClose={closeCreateDialog}
         onCreate={handleCreate}
         existingNames={existingNames}
-        reservedNames={RESERVED_NAMES}
         isLoading={creating}
       />
 
@@ -390,7 +389,6 @@ export const PaymentMethodsPage: React.FC = () => {
         onUpdate={handleUpdate}
         currentName={selectedName}
         existingNames={existingNames}
-        reservedNames={RESERVED_NAMES}
         isLoading={updating}
       />
 
@@ -408,6 +406,7 @@ export const PaymentMethodsPage: React.FC = () => {
         onUpload={handleQRUpload}
         methodName={selectedName}
         isLoading={uploadingQR}
+        uploadError={qrUploadError}
       />
     </Box>
   );

@@ -35,6 +35,8 @@ interface QRUploadDialogProps {
   onUpload: (file: File) => Promise<void>;
   methodName: string;
   isLoading?: boolean;
+  /** External upload error to display inline in the dialog */
+  uploadError?: string | null;
 }
 
 /* eslint-disable complexity -- Dialog with file validation and upload logic */
@@ -44,6 +46,7 @@ export const QRUploadDialog: React.FC<QRUploadDialogProps> = ({
   onUpload,
   methodName,
   isLoading = false,
+  uploadError = null,
 }) => {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -132,9 +135,16 @@ export const QRUploadDialog: React.FC<QRUploadDialogProps> = ({
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
       <DialogTitle>Upload QR Code for {methodName}</DialogTitle>
       <DialogContent>
+        {/* Show local validation errors */}
         {error && (
           <Alert severity="error" sx={{ mb: 2 }}>
             {error}
+          </Alert>
+        )}
+        {/* Show external upload/confirm errors */}
+        {uploadError && !error && (
+          <Alert severity="error" sx={{ mb: 2 }}>
+            {uploadError}
           </Alert>
         )}
 

@@ -20,12 +20,12 @@ if TYPE_CHECKING:  # pragma: no cover
 # Handle both Lambda (absolute) and unit test (relative) imports
 try:  # pragma: no cover
     from utils.auth import check_profile_access
-    from utils.dynamodb import tables
+    from utils.dynamodb import get_required_env, tables
     from utils.errors import AppError, ErrorCode
     from utils.logging import get_logger
 except ModuleNotFoundError:  # pragma: no cover
     from ..utils.auth import check_profile_access
-    from ..utils.dynamodb import tables
+    from ..utils.dynamodb import get_required_env, tables
     from ..utils.errors import AppError, ErrorCode
     from ..utils.logging import get_logger
 
@@ -103,7 +103,7 @@ def request_campaign_report(event: Dict[str, Any], context: Any) -> Dict[str, An
 
         # Upload to S3
         report_id = f"REPORT#{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}"
-        exports_bucket = os.getenv("EXPORTS_BUCKET", "kernelworx-exports-dev")
+        exports_bucket = get_required_env("EXPORTS_BUCKET")
         s3_key = f"reports/{profile_id}/{campaign_id}/{report_id}.{file_extension}"
 
         s3 = _get_s3_client()

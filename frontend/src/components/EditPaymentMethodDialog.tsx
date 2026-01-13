@@ -18,6 +18,7 @@ import {
   Alert,
   CircularProgress,
 } from '@mui/material';
+import { validatePaymentMethodName, MAX_NAME_LENGTH } from '../lib/paymentMethodValidation';
 
 interface EditPaymentMethodDialogProps {
   open: boolean;
@@ -25,7 +26,6 @@ interface EditPaymentMethodDialogProps {
   onUpdate: (oldName: string, newName: string) => Promise<void>;
   currentName: string;
   existingNames: string[];
-  reservedNames: string[];
   isLoading?: boolean;
 }
 
@@ -36,7 +36,6 @@ export const EditPaymentMethodDialog: React.FC<EditPaymentMethodDialogProps> = (
   onUpdate,
   currentName,
   existingNames,
-  reservedNames,
   isLoading = false,
 }) => {
   const [name, setName] = useState('');
@@ -51,36 +50,9 @@ export const EditPaymentMethodDialog: React.FC<EditPaymentMethodDialogProps> = (
   }, [open, currentName]);
 
   const validateName = (value: string): string | null => {
-    const trimmed = value.trim();
-
-    if (!trimmed) {
-      return 'Name is required';
-    }
-
-    if (trimmed.length > 50) {
-      return 'Name must be 50 characters or less';
-    }
-
-    // Allow keeping the same name (case-insensitive)
-    if (trimmed.toLowerCase() === currentName.toLowerCase()) {
-      return null;
-    }
-
-    // Check reserved names (case-insensitive)
-    if (reservedNames.some((reserved) => reserved.toLowerCase() === trimmed.toLowerCase())) {
-      return `"${trimmed}" is a reserved payment method name`;
-    }
-
-    // Check for duplicates (case-insensitive), excluding current name
-    if (
-      existingNames
-        .filter((existing) => existing.toLowerCase() !== currentName.toLowerCase())
-        .some((existing) => existing.toLowerCase() === trimmed.toLowerCase())
-    ) {
-      return `A payment method named "${trimmed}" already exists`;
-    }
-
-    return null;
+    // Use shared validation from paymentMethodValidation.ts
+    const result = validatePaymentMethodName(value, existingNames, currentName);
+    return result.error;
   };
 
   const handleSubmit = async () => {
@@ -137,7 +109,7 @@ export const EditPaymentMethodDialog: React.FC<EditPaymentMethodDialogProps> = (
           disabled={isLoading}
           helperText={hasChanged ? 'This will update the name for all orders using this payment method' : ''}
           inputProps={{
-            maxLength: 50,
+            maxLength: MAX_NAME_LENGTH,
             'aria-label': 'Payment method name',
           }}
         />
