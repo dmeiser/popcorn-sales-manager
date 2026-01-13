@@ -170,6 +170,22 @@ const GET_ORDER = gql`
   }
 `;
 
+// Payment method mutations for custom payment method validation tests
+const CREATE_PAYMENT_METHOD = gql`
+  mutation CreatePaymentMethod($name: String!) {
+    createPaymentMethod(name: $name) {
+      name
+      qrCodeUrl
+    }
+  }
+`;
+
+const DELETE_PAYMENT_METHOD = gql`
+  mutation DeletePaymentMethod($name: String!) {
+    deletePaymentMethod(name: $name)
+  }
+`;
+
 describe('Order Operations Integration Tests', () => {
   const SUITE_ID = 'order-operations';
   
@@ -1266,7 +1282,11 @@ describe('Order Operations Integration Tests', () => {
       expect(data.createOrder.paymentMethod).toBe('CHECK');
     }, 10000);
 
-    test('creates order with CREDIT_CARD payment method', async () => {
+    // Note: CREDIT_CARD and OTHER are no longer valid payment methods.
+    // With the custom payment types feature (Phase 1-4), only Cash, Check, 
+    // and user-created custom methods are valid. These legacy tests are
+    // replaced by the "creates order with valid custom payment method" test.
+    test.skip('creates order with CREDIT_CARD payment method - DEPRECATED: CREDIT_CARD no longer valid', async () => {
       const input = {
         profileId: testProfileId,
         campaignId: testCampaignId,
@@ -1284,7 +1304,7 @@ describe('Order Operations Integration Tests', () => {
       expect(data.createOrder.paymentMethod).toBe('CREDIT_CARD');
     }, 10000);
 
-    test('creates order with OTHER payment method', async () => {
+    test.skip('creates order with OTHER payment method - DEPRECATED: OTHER no longer valid', async () => {
       const input = {
         profileId: testProfileId,
         campaignId: testCampaignId,
@@ -1582,7 +1602,7 @@ describe('Order Operations Integration Tests', () => {
             campaignId: campaignId,
             customerName: 'Precision Customer',
             orderDate: new Date().toISOString(),
-            paymentMethod: 'CREDIT_CARD',
+            paymentMethod: 'Cash',
             lineItems: [{ productId: productId, quantity: 7 }],
           },
         },
@@ -1762,5 +1782,226 @@ describe('Order Operations Integration Tests', () => {
       // Cleanup
       await ownerClient.mutate({ mutation: DELETE_ORDER, variables: { orderId } });
     }, 10000);
+  });
+
+  describe('Payment Method Validation', () => {
+    // Phase 4 tests for custom payment method validation in createOrder
+    
+    test('creates order with valid custom payment method', async () => {
+      // Setup: Create a custom payment method
+      const customMethodName = 'Venmo-Test-Order';
+      await ownerClient.mutate({
+        mutation: CREATE_PAYMENT_METHOD,
+        variables: { name: customMethodName },
+      });
+
+      try {
+        // Act: Create order with custom payment method
+        const { data } = await ownerClient.mutate({
+          mutation: CREATE_ORDER,
+          variables: {
+            input: {
+              profileId: testProfileId,
+              campaignId: testCampaignId,
+              customerName: 'Custom Payment Test',
+              orderDate: new Date().toISOString(),
+              paymentMethod: customMethodName,
+              lineItems: [{ productId: testProductId, quantity: 1 }],
+            },
+          },
+        });
+
+        // Assert: Order created with custom payment method
+        expect(data.createOrder.orderId).toBeDefined();
+        expect(data.createOrder.paymentMethod).toBe(customMethodName);
+
+        // Cleanup: Delete the order
+        await ownerClient.mutate({
+          mutation: DELETE_ORDER,
+          variables: { orderId: data.createOrder.orderId },
+        });
+      } finally {
+        // Cleanup: Delete the custom payment method
+        await ownerClient.mutate({
+          mutation: DELETE_PAYMENT_METHOD,
+          variables: { name: customMethodName },
+        });
+      }
+    }, 15000);
+
+    test('creates order with Cash (global method)', async () => {
+      // Act: Create order with Cash (global method, always valid)
+      const { data } = await ownerClient.mutate({
+        mutation: CREATE_ORDER,
+        variables: {
+          input: {
+            profileId: testProfileId,
+            campaignId: testCampaignId,
+            customerName: 'Cash Payment Test',
+            orderDate: new Date().toISOString(),
+            paymentMethod: 'Cash',
+            lineItems: [{ productId: testProductId, quantity: 1 }],
+          },
+        },
+      });
+
+      // Assert: Order created with Cash
+      expect(data.createOrder.orderId).toBeDefined();
+      expect(data.createOrder.paymentMethod).toBe('Cash');
+
+      // Cleanup
+      await ownerClient.mutate({
+        mutation: DELETE_ORDER,
+        variables: { orderId: data.createOrder.orderId },
+      });
+    }, 10000);
+
+    test('creates order with Check (global method)', async () => {
+      // Act: Create order with Check (global method, always valid)
+      const { data } = await ownerClient.mutate({
+        mutation: CREATE_ORDER,
+        variables: {
+          input: {
+            profileId: testProfileId,
+            campaignId: testCampaignId,
+            customerName: 'Check Payment Test',
+            orderDate: new Date().toISOString(),
+            paymentMethod: 'Check',
+            lineItems: [{ productId: testProductId, quantity: 1 }],
+          },
+        },
+      });
+
+      // Assert: Order created with Check
+      expect(data.createOrder.orderId).toBeDefined();
+      expect(data.createOrder.paymentMethod).toBe('Check');
+
+      // Cleanup
+      await ownerClient.mutate({
+        mutation: DELETE_ORDER,
+        variables: { orderId: data.createOrder.orderId },
+      });
+    }, 10000);
+
+    test('rejects order with invalid payment method', async () => {
+      // Act: Attempt to create order with non-existent payment method
+      const invalidMethod = 'NonExistentPaymentMethod-12345';
+      
+      await expect(
+        ownerClient.mutate({
+          mutation: CREATE_ORDER,
+          variables: {
+            input: {
+              profileId: testProfileId,
+              campaignId: testCampaignId,
+              customerName: 'Invalid Payment Test',
+              orderDate: new Date().toISOString(),
+              paymentMethod: invalidMethod,
+              lineItems: [{ productId: testProductId, quantity: 1 }],
+            },
+          },
+        })
+      ).rejects.toThrow();
+    }, 10000);
+
+    test('order query returns payment method name only, no QR URL', async () => {
+      // Setup: Create a custom payment method (QR would normally be added separately)
+      const customMethodName = 'PayPal-Test-Query';
+      await ownerClient.mutate({
+        mutation: CREATE_PAYMENT_METHOD,
+        variables: { name: customMethodName },
+      });
+
+      try {
+        // Create an order with the custom payment method
+        const { data: createData } = await ownerClient.mutate({
+          mutation: CREATE_ORDER,
+          variables: {
+            input: {
+              profileId: testProfileId,
+              campaignId: testCampaignId,
+              customerName: 'Query QR Test',
+              orderDate: new Date().toISOString(),
+              paymentMethod: customMethodName,
+              lineItems: [{ productId: testProductId, quantity: 1 }],
+            },
+          },
+        });
+        const orderId = createData.createOrder.orderId;
+
+        // Act: Query the order
+        const { data: queryData } = await ownerClient.query({
+          query: GET_ORDER,
+          variables: { orderId },
+          fetchPolicy: 'network-only',
+        });
+
+        // Assert: Order has paymentMethod as string, no qrCodeUrl field
+        expect(queryData.getOrder.paymentMethod).toBe(customMethodName);
+        // The Order type doesn't have qrCodeUrl field - it's just a string
+        expect(queryData.getOrder.paymentMethod).toEqual(expect.any(String));
+        expect((queryData.getOrder as Record<string, unknown>).qrCodeUrl).toBeUndefined();
+
+        // Cleanup
+        await ownerClient.mutate({
+          mutation: DELETE_ORDER,
+          variables: { orderId },
+        });
+      } finally {
+        // Cleanup payment method
+        await ownerClient.mutate({
+          mutation: DELETE_PAYMENT_METHOD,
+          variables: { name: customMethodName },
+        });
+      }
+    }, 15000);
+
+    test('historical orders unchanged after payment method deletion', async () => {
+      // Setup: Create a custom payment method
+      const customMethodName = 'Zelle-Historical-Test';
+      await ownerClient.mutate({
+        mutation: CREATE_PAYMENT_METHOD,
+        variables: { name: customMethodName },
+      });
+
+      // Create an order with the custom payment method
+      const { data: createData } = await ownerClient.mutate({
+        mutation: CREATE_ORDER,
+        variables: {
+          input: {
+            profileId: testProfileId,
+            campaignId: testCampaignId,
+            customerName: 'Historical Order Test',
+            orderDate: new Date().toISOString(),
+            paymentMethod: customMethodName,
+            lineItems: [{ productId: testProductId, quantity: 1 }],
+          },
+        },
+      });
+      const orderId = createData.createOrder.orderId;
+
+      // Act: Delete the payment method
+      await ownerClient.mutate({
+        mutation: DELETE_PAYMENT_METHOD,
+        variables: { name: customMethodName },
+      });
+
+      // Query the order after payment method deletion
+      const { data: queryData } = await ownerClient.query({
+        query: GET_ORDER,
+        variables: { orderId },
+        fetchPolicy: 'network-only',
+      });
+
+      // Assert: Historical order still shows the payment method name
+      expect(queryData.getOrder.paymentMethod).toBe(customMethodName);
+      expect(queryData.getOrder.customerName).toBe('Historical Order Test');
+
+      // Cleanup: Delete the order
+      await ownerClient.mutate({
+        mutation: DELETE_ORDER,
+        variables: { orderId },
+      });
+    }, 15000);
   });
 });

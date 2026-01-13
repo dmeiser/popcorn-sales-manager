@@ -482,6 +482,14 @@ class CdkStack(Stack):  # type: ignore[misc]
         # Grant Lambda role access to exports bucket
         self.exports_bucket.grant_read_write(self.lambda_execution_role)
 
+        # Grant Lambda role permission to create CloudFront invalidations
+        self.lambda_execution_role.add_to_policy(
+            iam.PolicyStatement(
+                actions=["cloudfront:CreateInvalidation"],
+                resources=["*"],  # CloudFront invalidation requires wildcard resource
+            )
+        )
+
         # AppSync service role (for direct DynamoDB resolvers)
         self.appsync_service_role = iam.Role(
             self,
@@ -526,6 +534,7 @@ class CdkStack(Stack):  # type: ignore[misc]
             "EXPORTS_BUCKET": self.exports_bucket.bucket_name,
             "POWERTOOLS_SERVICE_NAME": "kernelworx",
             "LOG_LEVEL": "INFO",
+            "LAMBDA_VERSION": "2026-01-12",  # Force Lambda update
             # New multi-table design table names
             "ACCOUNTS_TABLE_NAME": self.accounts_table.table_name,
             "CATALOGS_TABLE_NAME": self.catalogs_table.table_name,
@@ -730,6 +739,85 @@ class CdkStack(Stack):  # type: ignore[misc]
             function_name=self._rn("kernelworx-pre-signup"),
             runtime=lambda_.Runtime.PYTHON_3_13,
             handler="handlers.pre_signup.lambda_handler",
+            code=lambda_code,
+            layers=[self.shared_layer],
+            timeout=Duration.seconds(10),
+            memory_size=256,
+            role=self.lambda_execution_role,
+            environment=lambda_env,
+        )
+
+        # ====================================================================
+        # Payment Methods Lambda Functions - QR Code Operations
+        # ====================================================================
+
+        # Request QR Upload Lambda - Generates pre-signed POST URL for S3
+        self.request_qr_upload_fn = lambda_.Function(
+            self,
+            "RequestQRUploadFn",
+            function_name=self._rn("kernelworx-request-qr-upload"),
+            runtime=lambda_.Runtime.PYTHON_3_13,
+            handler="handlers.payment_methods_handlers.request_qr_upload",
+            code=lambda_code,
+            layers=[self.shared_layer],
+            timeout=Duration.seconds(10),
+            memory_size=256,
+            role=self.lambda_execution_role,
+            environment=lambda_env,
+        )
+
+        # Confirm QR Upload Lambda - Validates S3 object and generates pre-signed GET URL
+        self.confirm_qr_upload_fn = lambda_.Function(
+            self,
+            "ConfirmQRUploadFn",
+            function_name=self._rn("kernelworx-confirm-qr-upload"),
+            runtime=lambda_.Runtime.PYTHON_3_13,
+            handler="handlers.payment_methods_handlers.confirm_qr_upload",
+            code=lambda_code,
+            layers=[self.shared_layer],
+            timeout=Duration.seconds(10),
+            memory_size=256,
+            role=self.lambda_execution_role,
+            environment=lambda_env,
+        )
+
+        # Generate Presigned URLs Lambda - Pipeline step for URL generation
+        self.generate_presigned_urls_fn = lambda_.Function(
+            self,
+            "GeneratePresignedURLsFn",
+            function_name=self._rn("kernelworx-generate-presigned-urls"),
+            runtime=lambda_.Runtime.PYTHON_3_13,
+            handler="handlers.payment_methods_handlers.generate_presigned_urls",
+            code=lambda_code,
+            layers=[self.shared_layer],
+            timeout=Duration.seconds(10),
+            memory_size=256,
+            role=self.lambda_execution_role,
+            environment=lambda_env,
+        )
+
+        # Delete QR Code Lambda - Deletes QR code from S3 and clears DynamoDB reference
+        self.delete_qr_code_fn = lambda_.Function(
+            self,
+            "DeleteQRCodeFn",
+            function_name=self._rn("kernelworx-delete-qr-code"),
+            runtime=lambda_.Runtime.PYTHON_3_13,
+            handler="handlers.payment_methods_handlers.delete_qr_code",
+            code=lambda_code,
+            layers=[self.shared_layer],
+            timeout=Duration.seconds(10),
+            memory_size=256,
+            role=self.lambda_execution_role,
+            environment=lambda_env,
+        )
+
+        # Validate Payment Method Lambda - Validates payment method exists during order creation
+        self.validate_payment_method_fn = lambda_.Function(
+            self,
+            "ValidatePaymentMethodFn",
+            function_name=self._rn("kernelworx-validate-payment-method"),
+            runtime=lambda_.Runtime.PYTHON_3_13,
+            handler="handlers.validate_payment_method.lambda_handler",
             code=lambda_code,
             layers=[self.shared_layer],
             timeout=Duration.seconds(10),
@@ -1070,6 +1158,11 @@ class CdkStack(Stack):  # type: ignore[misc]
                 "campaign_operations": self.campaign_operations_fn,
                 "update_my_account": self.update_my_account_fn,
                 "transfer_ownership": self.transfer_ownership_fn,
+                "request_qr_upload_fn": self.request_qr_upload_fn,
+                "confirm_qr_upload_fn": self.confirm_qr_upload_fn,
+                "generate_presigned_urls_fn": self.generate_presigned_urls_fn,
+                "delete_qr_code_fn": self.delete_qr_code_fn,
+                "validate_payment_method_fn": self.validate_payment_method_fn,
             },
         )
         self.api = appsync_resources.api
@@ -1089,6 +1182,9 @@ class CdkStack(Stack):  # type: ignore[misc]
 
         # Grant CloudFront read access to static assets bucket
         self.static_assets_bucket.grant_read(self.origin_access_identity)
+        
+        # Grant CloudFront read/write access to exports bucket for uploads
+        self.exports_bucket.grant_read_write(self.origin_access_identity)
 
         # CloudFront distribution with custom domain
         self.distribution = cloudfront.Distribution(
@@ -1105,6 +1201,19 @@ class CdkStack(Stack):  # type: ignore[misc]
                 cache_policy=cloudfront.CachePolicy.CACHING_OPTIMIZED,
                 compress=True,
             ),
+            additional_behaviors={
+                "/uploads/*": cloudfront.BehaviorOptions(
+                    origin=origins.S3BucketOrigin.with_origin_access_identity(
+                        self.exports_bucket,
+                        origin_access_identity=self.origin_access_identity,
+                    ),
+                    viewer_protocol_policy=cloudfront.ViewerProtocolPolicy.HTTPS_ONLY,
+                    allowed_methods=cloudfront.AllowedMethods.ALLOW_ALL,  # Allow POST/PUT for uploads
+                    cache_policy=cloudfront.CachePolicy.CACHING_DISABLED,  # Don't cache uploads
+                    compress=False,  # Don't compress binary files
+                ),
+                # Note: /payment-qr-codes/* is served via signed S3 URLs, not CloudFront
+            },
             default_root_object="index.html",
             error_responses=[
                 cloudfront.ErrorResponse(

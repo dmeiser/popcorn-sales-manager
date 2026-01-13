@@ -69,14 +69,25 @@ const mergeProfiles = (
   ];
 };
 
-// Helper: Combine private catalogs with public catalogs I own, excluding deleted
-const buildMyCatalogs = (myPrivateCatalogs: Catalog[], publicCatalogs: Catalog[]): Catalog[] => {
-  const activePrivate = myPrivateCatalogs.filter((c) => c.isDeleted !== true);
-  const ownedPublicNotInPrivate = publicCatalogs.filter(
+// Helper: Build "My Catalogs" list - includes owned catalogs + used public catalogs
+const buildMyCatalogs = (
+  myOwnedCatalogs: Catalog[],
+  publicCatalogs: Catalog[],
+  catalogsInUse: Set<string>,
+): Catalog[] => {
+  const activeOwned = myOwnedCatalogs.filter((c) => c.isDeleted !== true);
+  
+  // Add public catalogs that are in use but not owned
+  const ownedIds = new Set(activeOwned.map((c) => c.catalogId));
+  const usedPublicNotOwned = publicCatalogs.filter(
     (catalog) =>
-      myPrivateCatalogs.every((myCat) => myCat.catalogId !== catalog.catalogId) && catalog.isDeleted !== true,
+      catalog.isPublic &&
+      !ownedIds.has(catalog.catalogId) &&
+      catalogsInUse.has(catalog.catalogId) &&
+      catalog.isDeleted !== true,
   );
-  return [...activePrivate, ...ownedPublicNotInPrivate];
+  
+  return [...activeOwned, ...usedPublicNotOwned];
 };
 
 // Sub-component: Empty catalog state
@@ -290,7 +301,7 @@ function extractErrorMessage(publicError: Error | undefined, myError: Error | un
 // Custom hook: Fetch public and user catalogs
 interface CatalogQueries {
   publicCatalogs: Catalog[];
-  myPrivateCatalogs: Catalog[];
+  myOwnedCatalogs: Catalog[];
   isLoading: boolean;
   errorMessage: string | undefined;
   refetchAll: () => void;
@@ -318,7 +329,7 @@ function useCatalogQueries(): CatalogQueries {
 
   return {
     publicCatalogs: extractCatalogs(publicData),
-    myPrivateCatalogs: extractMyCatalogs(myData),
+    myOwnedCatalogs: extractMyCatalogs(myData),
     isLoading: computeLoadingState(publicLoading, myLoading),
     errorMessage: extractErrorMessage(publicError, myError),
     refetchAll,
@@ -350,12 +361,12 @@ interface CatalogsPageData {
 
 // Custom hook: All data fetching for CatalogsPage
 function useCatalogsPageData(): CatalogsPageData {
-  const { publicCatalogs, myPrivateCatalogs, isLoading, errorMessage, refetchAll } = useCatalogQueries();
+  const { publicCatalogs, myOwnedCatalogs, isLoading, errorMessage, refetchAll } = useCatalogQueries();
 
   const allUserProfiles = useAllUserProfiles();
   const catalogsInUse = useCatalogsInUse(allUserProfiles);
   const mutations = useCatalogMutations(refetchAll);
-  const myCatalogs = buildMyCatalogs(myPrivateCatalogs, publicCatalogs);
+  const myCatalogs = buildMyCatalogs(myOwnedCatalogs, publicCatalogs, catalogsInUse);
 
   return {
     publicCatalogs,

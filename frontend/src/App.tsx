@@ -26,6 +26,7 @@ import { CampaignReportsPage } from './pages/CampaignReportsPage';
 import { CreateCampaignPage } from './pages/CreateCampaignPage';
 import { SharedCampaignsPage } from './pages/SharedCampaignsPage';
 import { CreateSharedCampaignPage } from './pages/CreateSharedCampaignPage';
+import { PaymentMethodsPage } from './pages/PaymentMethodsPage';
 import { apolloClient } from './lib/apollo';
 import { theme } from './lib/theme';
 import { AppLayout } from './components/AppLayout';
@@ -184,6 +185,17 @@ function App() {
                   <ProtectedRoute>
                     <AppLayout>
                       <CreateSharedCampaignPage />
+                    </AppLayout>
+                  </ProtectedRoute>
+                }
+              />
+
+              <Route
+                path="/payment-methods"
+                element={
+                  <ProtectedRoute>
+                    <AppLayout>
+                      <PaymentMethodsPage />
                     </AppLayout>
                   </ProtectedRoute>
                 }

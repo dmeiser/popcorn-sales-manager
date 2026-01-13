@@ -33,6 +33,9 @@ def aws_credentials() -> None:
     os.environ["ORDERS_TABLE_NAME"] = "kernelworx-orders-v2-ue1-dev"
     os.environ["SHARES_TABLE_NAME"] = "kernelworx-shares-ue1-dev"
     os.environ["INVITES_TABLE_NAME"] = "kernelworx-invites-ue1-dev"
+    os.environ["SHARED_CAMPAIGNS_TABLE_NAME"] = "kernelworx-shared-campaigns-ue1-dev"
+    # S3 bucket names
+    os.environ["EXPORTS_BUCKET"] = "kernelworx-exports-ue1-dev"
 
 
 @pytest.fixture

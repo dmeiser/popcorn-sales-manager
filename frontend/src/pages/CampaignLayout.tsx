@@ -28,11 +28,13 @@ import {
   ShoppingCart as OrdersIcon,
   Assessment as ReportsIcon,
   Settings as SettingsIcon,
+  Summarize as SummaryIcon,
 } from '@mui/icons-material';
 import { OrdersPage } from './OrdersPage';
 import { OrderEditorPage } from './OrderEditorPage';
 import { ReportsPage } from './ReportsPage';
 import { CampaignSettingsPage } from './CampaignSettingsPage';
+import { CampaignSummaryPage } from './CampaignSummaryPage';
 import { GET_CAMPAIGN, GET_PROFILE } from '../lib/graphql';
 import { ensureProfileId, ensureCampaignId, toUrlId } from '../lib/ids';
 import type { Campaign, SellerProfile } from '../types';
@@ -45,7 +47,7 @@ function decodeParam(encoded: string | undefined): string {
 
 function getTabValue(pathname: string): string {
   const currentPath = pathname.split('/').pop() || '';
-  const validTabs = ['orders', 'reports', 'settings'];
+  const validTabs = ['orders', 'summary', 'reports', 'settings'];
   return validTabs.includes(currentPath) ? currentPath : 'orders';
 }
 
@@ -164,6 +166,7 @@ const CampaignTabs: React.FC<CampaignTabsProps> = ({ tabValue, hasWritePermissio
   <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
     <Tabs value={tabValue} onChange={onTabChange}>
       <Tab label="Orders" value="orders" icon={<OrdersIcon />} iconPosition="start" />
+      <Tab label="Summary" value="summary" icon={<SummaryIcon />} iconPosition="start" />
       <Tab label="Reports" value="reports" icon={<ReportsIcon />} iconPosition="start" />
       {hasWritePermission && <Tab label="Settings" value="settings" icon={<SettingsIcon />} iconPosition="start" />}
     </Tabs>
@@ -175,6 +178,7 @@ const CampaignRoutes: React.FC = () => (
     <Route path="orders/new" element={<OrderEditorPage />} />
     <Route path="orders/:orderId/edit" element={<OrderEditorPage />} />
     <Route path="orders" element={<OrdersPage />} />
+    <Route path="summary" element={<CampaignSummaryPage />} />
     <Route path="reports" element={<ReportsPage />} />
     <Route path="settings" element={<CampaignSettingsPage />} />
     <Route path="/" element={<Navigate to="orders" replace />} />
