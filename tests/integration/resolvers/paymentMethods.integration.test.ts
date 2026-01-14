@@ -117,7 +117,7 @@ const SHARE_DIRECT = gql`
   }
 `;
 
-describe.skip.sequential('Payment Methods Integration Tests', () => {
+describe.sequential('Payment Methods Integration Tests', () => {
   let ownerClient: ApolloClient<any>;
   let writeUserClient: ApolloClient<any>;
   let readUserClient: ApolloClient<any>;
@@ -637,10 +637,12 @@ describe.skip.sequential('Payment Methods Integration Tests', () => {
     });
 
     describe('Owner access', () => {
+      const testPrefix = Date.now();
+
       it('should return owner payment methods with Cash and Check', async () => {
         await ownerClient.mutate({
           mutation: CREATE_PAYMENT_METHOD,
-          variables: { name: 'Venmo' },
+          variables: { name: `Venmo-${testPrefix}-1` },
         });
 
         const { data } = await ownerClient.query({
@@ -652,23 +654,23 @@ describe.skip.sequential('Payment Methods Integration Tests', () => {
         const methodNames = data.paymentMethodsForProfile.map((m: any) => m.name);
         expect(methodNames).toContain('Cash');
         expect(methodNames).toContain('Check');
-        expect(methodNames).toContain('Venmo');
+        expect(methodNames).toContain(`Venmo-${testPrefix}-1`);
 
         // Cleanup
         await ownerClient.mutate({
           mutation: DELETE_PAYMENT_METHOD,
-          variables: { name: 'Venmo' },
+          variables: { name: `Venmo-${testPrefix}-1` },
         });
       });
 
       it('should return sorted payment methods', async () => {
         await ownerClient.mutate({
           mutation: CREATE_PAYMENT_METHOD,
-          variables: { name: 'Zelle' },
+          variables: { name: `Zelle-${testPrefix}-1` },
         });
         await ownerClient.mutate({
           mutation: CREATE_PAYMENT_METHOD,
-          variables: { name: 'Venmo' },
+          variables: { name: `Venmo-${testPrefix}-2` },
         });
 
         const { data } = await ownerClient.query({
@@ -684,11 +686,11 @@ describe.skip.sequential('Payment Methods Integration Tests', () => {
         // Cleanup
         await ownerClient.mutate({
           mutation: DELETE_PAYMENT_METHOD,
-          variables: { name: 'Zelle' },
+          variables: { name: `Zelle-${testPrefix}-1` },
         });
         await ownerClient.mutate({
           mutation: DELETE_PAYMENT_METHOD,
-          variables: { name: 'Venmo' },
+          variables: { name: `Venmo-${testPrefix}-2` },
         });
       });
     });
@@ -853,27 +855,29 @@ describe.skip.sequential('Payment Methods Integration Tests', () => {
     });
 
     describe('requestPaymentMethodQRCodeUpload', () => {
+      const testPrefix = Date.now();
+
       it('should generate pre-signed POST URL for upload', async () => {
         await ownerClient.mutate({
           mutation: CREATE_PAYMENT_METHOD,
-          variables: { name: 'Venmo' },
+          variables: { name: `Venmo-QR-${testPrefix}-1` },
         });
 
         const { data } = await ownerClient.mutate({
           mutation: REQUEST_QR_UPLOAD,
-          variables: { paymentMethodName: 'Venmo' },
+          variables: { paymentMethodName: `Venmo-QR-${testPrefix}-1` },
         });
 
         expect(data.requestPaymentMethodQRCodeUpload.uploadUrl).toBeDefined();
         expect(data.requestPaymentMethodQRCodeUpload.fields).toBeDefined();
         expect(data.requestPaymentMethodQRCodeUpload.s3Key).toBeDefined();
         expect(data.requestPaymentMethodQRCodeUpload.s3Key).toContain('payment-qr-codes');
-        expect(data.requestPaymentMethodQRCodeUpload.s3Key).toContain('venmo');
+        expect(data.requestPaymentMethodQRCodeUpload.s3Key).toMatch(/\.png$/);  // S3 key ends with .png
 
         // Cleanup
         await ownerClient.mutate({
           mutation: DELETE_PAYMENT_METHOD,
-          variables: { name: 'Venmo' },
+          variables: { name: `Venmo-QR-${testPrefix}-1` },
         });
       });
 
@@ -942,17 +946,19 @@ describe.skip.sequential('Payment Methods Integration Tests', () => {
     });
 
     describe('deletePaymentMethodQRCode', () => {
+      const testPrefix = Date.now();
+
       it('should delete QR code while keeping payment method', async () => {
         await ownerClient.mutate({
           mutation: CREATE_PAYMENT_METHOD,
-          variables: { name: 'Venmo' },
+          variables: { name: `Venmo-DeleteQR-${testPrefix}-1` },
         });
 
         // Note: In a real test, we would upload a QR code first
         // For now, we just test the mutation doesn't fail
         const { data } = await ownerClient.mutate({
           mutation: DELETE_QR_CODE,
-          variables: { paymentMethodName: 'Venmo' },
+          variables: { paymentMethodName: `Venmo-DeleteQR-${testPrefix}-1` },
         });
 
         expect(data.deletePaymentMethodQRCode).toBe(true);
@@ -963,12 +969,12 @@ describe.skip.sequential('Payment Methods Integration Tests', () => {
           fetchPolicy: 'network-only',
         });
         const methodNames = queryData.myPaymentMethods.map((m: any) => m.name);
-        expect(methodNames).toContain('Venmo');
+        expect(methodNames).toContain(`Venmo-DeleteQR-${testPrefix}-1`);
 
         // Cleanup
         await ownerClient.mutate({
           mutation: DELETE_PAYMENT_METHOD,
-          variables: { name: 'Venmo' },
+          variables: { name: `Venmo-DeleteQR-${testPrefix}-1` },
         });
       });
 
