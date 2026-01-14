@@ -6,11 +6,7 @@ export function request(ctx) {
     // Delete invite after successful redemption
     return {
         operation: 'DeleteItem',
-        key: util.dynamodb.toMapValues({ inviteCode: invite.inviteCode }),
-        condition: { expression: 'attribute_exists(inviteCode) AND used = :false' },
-        expressionAttributeValues: util.dynamodb.toMapValues({
-            ':false': false
-        })
+        key: util.dynamodb.toMapValues({ inviteCode: invite.inviteCode })
     };
 }
 

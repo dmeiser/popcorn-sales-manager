@@ -936,12 +936,15 @@ describe('Profile Sharing Integration Tests', () => {
       });
       expect(redeemData.redeemProfileInvite).toBeDefined();
 
+      // Small delay to allow DynamoDB to be consistent
+      await new Promise(resolve => setTimeout(resolve, 500));
+
       // Assert: Verify createdByAccountId has ACCOUNT# prefix in DynamoDB
       const sharesResult = await dynamoClient.send(new QueryCommand({
         TableName: TABLE_NAMES.shares,
         KeyConditionExpression: 'profileId = :pid',
         ExpressionAttributeValues: {
-          ':pid': { S: `PROFILE#${testProfileId}` },
+          ':pid': { S: testProfileId },
         },
       }));
 
@@ -1275,12 +1278,15 @@ describe('Profile Sharing Integration Tests', () => {
       });
       expect(shareData.shareProfileDirect).toBeDefined();
 
+      // Small delay to allow DynamoDB to be consistent
+      await new Promise(resolve => setTimeout(resolve, 500));
+
       // Assert: Verify createdByAccountId has ACCOUNT# prefix in DynamoDB
       const sharesResult = await dynamoClient.send(new QueryCommand({
         TableName: TABLE_NAMES.shares,
         KeyConditionExpression: 'profileId = :pid',
         ExpressionAttributeValues: {
-          ':pid': { S: `PROFILE#${testProfileId}` },
+          ':pid': { S: testProfileId },
         },
       }));
 
