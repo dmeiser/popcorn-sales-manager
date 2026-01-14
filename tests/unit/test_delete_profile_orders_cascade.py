@@ -1,6 +1,5 @@
 """Unit tests for delete_profile_orders_cascade Lambda handler."""
 
-from typing import Any, Dict
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -152,6 +151,41 @@ class TestDeleteProfileOrdersCascade:
             assert result["ordersDeleted"] == 50
             assert mock_batch_writer.delete_item.call_count == 50
 
+    def test_pagination_handles_multiple_query_pages(self) -> None:
+        """Test that pagination correctly handles multiple pages of query results."""
+        # First page has 25 items, second page has 25 items
+        first_page_items = [{"campaignId": "campaign-1", "orderId": f"order-{i}"} for i in range(1, 26)]
+        second_page_items = [{"campaignId": "campaign-1", "orderId": f"order-{i}"} for i in range(26, 51)]
+
+        mock_orders_table = MagicMock()
+        # First call returns first page with LastEvaluatedKey
+        # Second call returns second page with no LastEvaluatedKey (end of data)
+        mock_orders_table.query.side_effect = [
+            {"Items": first_page_items, "LastEvaluatedKey": {"campaignId": "campaign-1", "orderId": "order-25"}},
+            {"Items": second_page_items},  # No LastEvaluatedKey = final page
+        ]
+        mock_batch_writer = MagicMock()
+        mock_orders_table.batch_writer.return_value.__enter__ = MagicMock(return_value=mock_batch_writer)
+        mock_orders_table.batch_writer.return_value.__exit__ = MagicMock(return_value=False)
+
+        event = {
+            "arguments": {"profileId": "profile-123"},
+            "stash": {"campaignsToDelete": [{"campaignId": "campaign-1"}]},
+        }
+
+        with patch("src.handlers.delete_profile_orders_cascade.tables") as mock_tables:
+            mock_tables.orders = mock_orders_table
+
+            result = lambda_handler(event, None)
+
+            # Should have deleted all 50 items across both pages
+            assert result["ordersDeleted"] == 50
+            # Query should have been called twice (once per page)
+            assert mock_orders_table.query.call_count == 2
+            # Verify second query call includes ExclusiveStartKey
+            second_call_kwargs = mock_orders_table.query.call_args_list[1][1]
+            assert "ExclusiveStartKey" in second_call_kwargs
+
     def test_empty_campaigns_no_batch_writer_call(self) -> None:
         """Test that empty campaigns list doesn't invoke batch_writer at all."""
         mock_orders_table = MagicMock()
@@ -253,12 +287,15 @@ class TestDeleteProfileOrdersCascade:
         items = [{"campaignId": "campaign-1", "orderId": f"order-{i}"} for i in range(1, 51)]
         mock_orders_table.query.return_value = {"Items": items}
 
-        # First batch fails, second succeeds
+        # First batch succeeds, second batch fails on its first item
         mock_batch_writer = MagicMock()
-        mock_batch_writer.delete_item.side_effect = [
-            None,  # First 25 succeed
-            Exception("Batch write failed"),
-        ] + [None] * 24  # Then error happens
+        mock_batch_writer.delete_item.side_effect = (
+            [None] * 25
+            + [
+                Exception("Batch write failed"),
+            ]
+            + [None] * 24
+        )
 
         mock_orders_table.batch_writer.return_value.__enter__ = MagicMock(return_value=mock_batch_writer)
         mock_orders_table.batch_writer.return_value.__exit__ = MagicMock(return_value=False)

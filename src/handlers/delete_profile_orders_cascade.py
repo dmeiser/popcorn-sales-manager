@@ -2,8 +2,6 @@
 
 from typing import TYPE_CHECKING, Any, Dict, List
 
-import boto3
-
 if TYPE_CHECKING:  # pragma: no cover
     from mypy_boto3_dynamodb.service_resource import Table
 
@@ -61,22 +59,33 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             logger.warning("Campaign missing campaignId, skipping")
             continue
 
-        # Query all orders for this campaign
+        # Query all orders for this campaign (handle pagination)
         try:
-            response = orders_table.query(
-                KeyConditionExpression="campaignId = :campaignId",
-                ExpressionAttributeValues={":campaignId": campaign_id},
-                ProjectionExpression="campaignId, orderId",  # Only need keys for deletion
-            )
+            last_evaluated_key: Dict[str, Any] | None = None
+            while True:
+                query_kwargs: Dict[str, Any] = {
+                    "KeyConditionExpression": "campaignId = :campaignId",
+                    "ExpressionAttributeValues": {":campaignId": campaign_id},
+                    "ProjectionExpression": "campaignId, orderId",  # Only need keys for deletion
+                }
 
-            # Collect order keys for batch deletion
-            for item in response.get("Items", []):
-                all_order_keys.append(
-                    {
-                        "campaignId": str(item["campaignId"]),
-                        "orderId": str(item["orderId"]),
-                    }
-                )
+                if last_evaluated_key is not None:
+                    query_kwargs["ExclusiveStartKey"] = last_evaluated_key
+
+                response = orders_table.query(**query_kwargs)
+
+                # Collect order keys for batch deletion
+                for item in response.get("Items", []):
+                    all_order_keys.append(
+                        {
+                            "campaignId": str(item["campaignId"]),
+                            "orderId": str(item["orderId"]),
+                        }
+                    )
+
+                last_evaluated_key = response.get("LastEvaluatedKey")
+                if last_evaluated_key is None:
+                    break
         except Exception as e:
             logger.error(f"Error querying orders for campaign {campaign_id}: {str(e)}")
             # Continue with next campaign rather than failing entirely
