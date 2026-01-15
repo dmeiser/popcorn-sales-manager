@@ -187,7 +187,7 @@ describe('Shared Campaign CRUD Operations', () => {
     try {
       const { DynamoDBClient, QueryCommand, DeleteItemCommand } = await import('@aws-sdk/client-dynamodb');
       const dynamoClient = new DynamoDBClient({ region: 'us-east-1' });
-      const sharedCampaignsTable = 'kernelworx-shared-campaigns-ue1-dev';
+      const sharedCampaignsTable = TABLE_NAMES.sharedCampaigns;
       
       // Query GSI1 by createdBy (ACCOUNT# prefixed Cognito sub)
       const queryResult = await dynamoClient.send(new QueryCommand({

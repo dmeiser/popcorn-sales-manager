@@ -312,4 +312,4 @@ class TestDeleteProfileOrdersCascade:
             result = lambda_handler(event, None)
 
             # First batch succeeded (25 items), second batch failed but handler continues
-            assert result["ordersDeleted"] >= 0  # May be 0 or 25 depending on error handling
+            assert result["ordersDeleted"] == 25

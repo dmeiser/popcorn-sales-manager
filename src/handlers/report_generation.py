@@ -14,8 +14,6 @@ import boto3
 
 if TYPE_CHECKING:  # pragma: no cover
     from mypy_boto3_s3.client import S3Client
-    from openpyxl import Workbook
-    from openpyxl.styles import Font, PatternFill
 
 # Handle both Lambda (absolute) and unit test (relative) imports
 try:  # pragma: no cover

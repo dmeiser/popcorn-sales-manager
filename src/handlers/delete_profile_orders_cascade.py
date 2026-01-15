@@ -94,6 +94,9 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     logger.info(f"Found {len(all_order_keys)} orders to delete")
 
     # Batch delete orders (DynamoDB supports up to 25 items per batch_write_item call)
+    # Note: batch_writer retries failed items automatically. The count reflects batches
+    # that completed without exceptions. Individual items within a batch may fail and be
+    # retried by batch_writer. If the entire batch fails after retries, we log and continue.
     orders_deleted = 0
     batch_size = 25
 

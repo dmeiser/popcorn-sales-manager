@@ -6,14 +6,15 @@ export function request(ctx) {
     // Delete invite after successful redemption
     return {
         operation: 'DeleteItem',
-        key: util.dynamodb.toMapValues({ inviteCode: invite.inviteCode })
+        key: util.dynamodb.toMapValues({ inviteCode: invite.inviteCode }),
+        condition: { expression: 'attribute_exists(inviteCode)' },
     };
 }
 
 export function response(ctx) {
     if (ctx.error) {
         if (ctx.error.type === 'DynamoDB:ConditionalCheckFailedException') {
-        util.error('Invite has already been used', 'ConflictException');
+            util.error('Invite has already been used', 'ConflictException');
         }
         util.error(ctx.error.message, ctx.error.type);
     }
